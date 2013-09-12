@@ -34,8 +34,11 @@ static int mycallback(unsigned char *  _header,
     printf("  payload (%s)\n", _payload_valid ? "valid" : "INVALID");
 
     // type-cast, de-reference, and increment frame counter
-    unsigned int * counter = (unsigned int *) _userdata;
-    (*counter)++;
+    //unsigned int * counter = (unsigned int *) _userdata;
+    //(*counter)++;
+    float * fbarray = (float *) _userdata;
+    fbarray[0] = _stats.rssi;
+    fbarray[1] = _stats.evm;
 
     return 0;
 }
@@ -52,7 +55,7 @@ void * CreateTCPServerSocket(int * sock_listen)
     int socket_to_client;
     struct sockaddr_in clientServAddr; /*Client address */
     int client_addr_size;			 /* client address size*/
-	char buffer[256];	// Buffer for data from client
+	float buffer[256];	// Buffer for data from client
 	int read_status = -1;   // indicates success/failure of read operation.
 	
 	/* Create socket for incoming connections */
@@ -103,8 +106,10 @@ void * CreateTCPServerSocket(int * sock_listen)
 	// Print the data received
         printf("read_status= %d\n", read_status);
 	printf("Server (transmitter) received:\n" );
-	for (i=0; i<8; i++)
-                 printf("%c\n", buffer[i]);
+	//for (i=0; i<2; i++)
+                 //printf("%f\n", buffer[i]);
+	printf("rssi= %f\n", buffer[0]);
+	printf("evm=  %f\n", buffer[1]);
 
 	// Transmitter (server) closes its sockets 
 	
@@ -136,7 +141,7 @@ int main() {
     unsigned char header[8];        // data header
     unsigned char payload[64];      // data payload
     float complex y[1340];          // frame samples
-    char feedback[8];      // recevier's feedback data for tx thru TCP
+    float feedback[8];      // recevier's feedback data for tx thru TCP
 
 	// For threading
         pthread_t TCPServerThread; // Pointer to thread ID
@@ -188,7 +193,7 @@ int main() {
 
 
     framesync64 fs = framesync64_create(mycallback,
-                                        (void*)&frame_counter);
+                                        (void*)feedback);
     framesync64_print(fs);
 
     for (i=0; i<1340; i++)
@@ -238,11 +243,11 @@ int main() {
     // Code for Receiver to determine and encode data that will go over 
     // the TCP socket to the Transmitter will go here.
     // Arbirtary data for now. 
-    for (i=0; i<8; i++)
-        feedback[i] = (char)((int)'a'+i);
+    //for (i=0; i<8; i++)
+     //   feedback[i] = (char)((int)'a'+i);
 
 	for (i=0; i<8; i++)
-		printf("feedback data before transmission: %c\n", feedback[i]);
+		printf("feedback data before transmission: %f\n", feedback[i]);
 
     // Receiver sends data to server
     sleep(3);
