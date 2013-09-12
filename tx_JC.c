@@ -13,8 +13,9 @@
 #include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
+#include <errno.h>
 //#define RCVBUFSIZE 32   /* Size of receive buffer */
-#define PORT 1321
+#define PORT 1351
 
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
 #define BUFF_SIZE 8 	/* Buffer Size*/
@@ -41,24 +42,21 @@ static int mycallback(unsigned char *  _header,
 
 
 // Create a TCP socket for the server and bind it to a port
-void * CreateTCPServerSocket(/*int * sock_listen*/)
+void * CreateTCPServerSocket(int * sock_listen)
 {
+	
     printf("server thread called\n");
+	printf("*sock_listen= %d\n", sock_listen);
     int i;
-    int sock_listen;
-    unsigned short port = 1302;
-
     struct sockaddr_in ServAddr;   /* Local address */
     int socket_to_client;
-
     struct sockaddr_in clientServAddr; /*Client address */
     int client_addr_size;			 /* client address size*/
-	 
-    // defining buffer size for receive and send
-	int buff_rcv[BUFF_SIZE+MAXPENDING]; // buffer size of recevier Side
+	char buffer[256];	// Buffer for data from client
+	int read_status = -1;   // indicates success/failure of read operation.
 	
 	/* Create socket for incoming connections */
-    if ((sock_listen = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    if ((*sock_listen = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
 		printf("Failed to Create Server Socket\n");
 		exit(1);
@@ -71,82 +69,60 @@ void * CreateTCPServerSocket(/*int * sock_listen*/)
     ServAddr.sin_port = htons(PORT);              /* Local port */
 
     /* Bind to the local address */
-    if (bind(sock_listen, (struct sockaddr *) &ServAddr, sizeof(ServAddr)) < 0)
+    if (bind(*sock_listen, (struct sockaddr *) &ServAddr, sizeof(ServAddr)) < 0)
 	{
 		printf("bind() error\n");
 		exit(1);
 	}
 	
-
-    if (listen(sock_listen, MAXPENDING) < 0)
+	// listen for connections on socket
+    if (listen(*sock_listen, MAXPENDING) < 0)
 	{
 		printf("Failed to Set Sleeping (listening) Mode\n");
 		exit(1);
 	}
+	printf("Server is now in listening mode\n");
 
 	client_addr_size = sizeof(clientServAddr);
 
-    while (1) 
-    {
-	socket_to_client = accept(sock_listen, (struct sockaddr *)&clientServAddr, &client_addr_size);
+	printf("server is waiting to accept connection from client\n");
+	socket_to_client = accept(*sock_listen, (struct sockaddr *)&clientServAddr, &client_addr_size);
         printf("socket_to_client= %d\n", socket_to_client);
 
-/*	if(socket_to_client< 0)
+	if(socket_to_client< 0)
 	{
 		printf("Sever Failed to Connect to Client\n");
 		exit(1);
 	}
-*/
+	printf("server has accepted connection from client\n");
 
 	// Transmitter receives data from client (receiver)
-	int recv_status = recv(socket_to_client, buff_rcv, BUFF_SIZE,0);
-        printf("recv_status= %d", recv_status);
+	// Zero the read buffer. Then read the data into it.
+	bzero(buffer, 256);
+	read_status = read(socket_to_client, buffer, 255);
+	// Print the data received
+        printf("read_status= %d\n", read_status);
 	printf("Server (transmitter) received:\n" );
 	for (i=0; i<8; i++)
-		printf("%d\n", buff_rcv[i]);
-	//sprintf( buff_snd, "%d : %s", strlen(buff_rcv), buff_rcv);
-	//send(socket_to_client, buff_snd, strlen(buff_snd)+1,0);
-	// Transmitter (server) closes its socket to client
-	close(socket_to_client);
-        
-        sleep(1);
-    }
+                 printf("%c\n", buffer[i]);
 
+	// Transmitter (server) closes its sockets 
+	
+	// Wait so that the client can close the connection first.
+	/*sleep(3);
 
+	if  ( close(socket_to_client) < 0)
+	{
+		printf("Failure to close socket_to_client. errno: %d", errno);
+	}
+
+	if  ( close(*sock_listen) < 0)
+	{
+		printf("Failure to close *sock_listen. errno: %d", errno);
+	}*/
     return ;
 }
 
-
-void * CreateAndConnectTCPClientSocket(/* unsigned short port,*/ void * cl_socket )
-{
-	printf("client thread called\n");
-        int * client_socket = &cl_socket;
-	unsigned short port = 1302;
-	struct sockaddr_in ServAddr;
-	char buff[BUFF_SIZE+MAXPENDING];
-	int conn;
-
-	* client_socket = socket(PF_INET, SOCK_STREAM, 0);
-	if(* client_socket < 0)
-	{
-		printf("Failed to Create Client Socket\n");
-		exit(1);
-	}
-
-	memset(&ServAddr, 0, sizeof(ServAddr));
-	ServAddr.sin_family = AF_INET;
-	ServAddr.sin_port = htons(PORT);
-	ServAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-	if(conn = connect(* client_socket, (struct sockaddr*)&ServAddr, sizeof(ServAddr)))
-	{
-		printf("Failed to Connect to server from client\n");
-		printf("conn = %d\n", conn);
-		exit(1);
-	}
-
-	return;
-}
 
 int main() {
     // options
@@ -160,19 +136,17 @@ int main() {
     unsigned char header[8];        // data header
     unsigned char payload[64];      // data payload
     float complex y[1340];          // frame samples
-    int feedback[8];      // recevier's feedback data for tx thru TCP
+    char feedback[8];      // recevier's feedback data for tx thru TCP
 
 	// For threading
-	pthread_t TCPClientThread;
         pthread_t TCPServerThread; // Pointer to thread ID
-	int iret1; 			// return value of creating TCPclient thread
         int iret2; 			// return value of creating TCPServer thread
 	
 	int socket_to_client;			// Socket server uses to connect to client
 
 	// defining client's connection to server
 	//int server_port = 1302;		// Port for the server to use
-        int socket_to_server;		// Socket client will use to connect to server
+        int socket_to_server = 300;		// Socket client will use to connect to server
 	int sock_listen; 			// Server's listening socket
 
 
@@ -233,33 +207,54 @@ int main() {
 
     // Transmitter listens for receiver's incoming connection
     // Then accepts the connection
-	iret2 = pthread_create( &TCPServerThread, NULL, CreateTCPServerSocket, NULL);
+	iret2 = pthread_create( &TCPServerThread, NULL, CreateTCPServerSocket, (void*) &sock_listen);
 
     // Receiver opens a TCP socket to act as a client. Opened as a new thread
-	iret1 = pthread_create( &TCPClientThread, NULL, CreateAndConnectTCPClientSocket, &socket_to_server );
-    //socket_to_server = CreateAndConnectTCPClientSocket( server_port);
+	sleep(3);
+	//unsigned short port = 1302;
+	struct sockaddr_in ServAddr;
+	int connect_status;
 
+	socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
+	if( socket_to_server < 0)
+	{
+		printf("Failed to Create Client Socket\n");
+		exit(1);
+	}
+	printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
+
+	memset(&ServAddr, 0, sizeof(ServAddr));
+	ServAddr.sin_family = AF_INET;
+	ServAddr.sin_port = htons(PORT);
+	ServAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+	if(connect_status = connect(socket_to_server, (struct sockaddr*)&ServAddr, sizeof(ServAddr)))
+	{
+		printf("Failed to Connect to server from client\n");
+		printf("connect_status = %d\n", connect_status);
+		exit(1);
+	}
 
     // Code for Receiver to determine and encode data that will go over 
     // the TCP socket to the Transmitter will go here.
     // Arbirtary data for now. 
     for (i=0; i<8; i++)
-        feedback[i] = i;
+        feedback[i] = (char)((int)'a'+i);
 
 	for (i=0; i<8; i++)
-		printf("feedback data before transmission: %d\n", feedback[i]);
+		printf("feedback data before transmission: %c\n", feedback[i]);
 
     // Receiver sends data to server
     sleep(3);
-    int sendStatus = send(socket_to_server, feedback, 8, 0);
-        printf("sendStatus: %d\n", sendStatus);
-
-    sleep(3);
+	printf("socket_to_server: %d\n", socket_to_server);
+    int writeStatus = write(socket_to_server, feedback, 8);
+        printf("writeStatus: %d\n", writeStatus);
 
 	// Receiver closes socket to server
 	close(socket_to_server);
-
+	sleep(1);
 	// Transmitter closes master (server) socket
+	printf("&sock_listen_main= %d\n", &sock_listen);
 	close(sock_listen);
 
 
