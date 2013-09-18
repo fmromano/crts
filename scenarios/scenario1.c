@@ -7,7 +7,7 @@
 // CRTS Header Files
 #include "scenarios/scenario1.h"
 
-void scenario1(float complex * transmit_ buffer, unsigned int symbol_len)
+void scenario1(float complex * transmit_buffer, unsigned int symbol_len)
 {
     //options
     float dphi  = 0.001f;                   // carrier frequency offset
