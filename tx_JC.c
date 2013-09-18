@@ -9,6 +9,7 @@
 
 // CRTS Header Files
 #include "ce/ce1.h"
+#include "tx_JC.h"
 
 //TCP Header Files
 #include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
@@ -25,7 +26,7 @@
 #define BUFF_SIZE 8 	/* Buffer Size*/
 
 // user-defined static callback function
-static int mycallback(unsigned char *  _header,
+int mycallback(unsigned char *  _header,
                       int              _header_valid,
                       unsigned char *  _payload,
                       unsigned int     _payload_len,
@@ -184,11 +185,8 @@ void * CreateTCPServerSocket(/*int * sock_listen,*/ void * _read_buffer )
     //return ;
 }
 
-int ce1(float * fb_buffer);
-
 int main() {
     // data arrays for TCP
-    float feedback[8];      // recevier's feedback data to be sent thru TCP
     float fb_buffer[256];   // buffer for feedback data after received through TCP
 
 	// For threading
