@@ -16,6 +16,10 @@
 #include <unistd.h>     /* for close() */
 #include <errno.h>
 
+// CRTS Header Files
+#include "ce/ce1.h"
+#include "scenarios/scenario1.h"
+
 
 int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
 {

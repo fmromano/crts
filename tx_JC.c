@@ -7,6 +7,9 @@
 // For Threading (POSIX Threads)
 #include <pthread.h>
 
+// CRTS Header Files
+#include "ce/ce1.h"
+
 //TCP Header Files
 #include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
 #include <sys/types.h>
@@ -16,6 +19,7 @@
 #include <errno.h>
 //#define RCVBUFSIZE 32   /* Size of receive buffer */
 #define PORT 1351
+
 
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
 #define BUFF_SIZE 8 	/* Buffer Size*/

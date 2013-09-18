@@ -4,6 +4,9 @@
 #include <complex.h>
 #include <liquid/liquid.h>
 
+// CRTS Header Files
+#include "scenarios/scenario1.h"
+
 void scenario1(float complex * transmit_ buffer, unsigned int symbol_len)
 {
     //options
