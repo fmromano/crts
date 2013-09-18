@@ -73,7 +73,7 @@ int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
 
         
         // Generate data
-        printf("generating data that will go in frame...\n");
+        printf("\n\n\ngenerating data that will go in frame...\n");
         for (i=0; i<8; i++)
             header[i] = i & 0xff;
         for (i=0; i<payload_len; i++)
@@ -98,7 +98,7 @@ int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
             ofdmflexframesync_execute(fs, samples_buffer, symbol_len);
 
         }
-        printf("Finished writing samples");
+        printf("Finished writing samples\n");
 
         // Delay to give server time to enter feedback data into fb_buffer
         sleep(1);
@@ -111,7 +111,8 @@ int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
             printf("fbdata[%d]= %f\n", i, fb_data[i]);
 
         // Determine new FG parameters
-
+        if (fbdata[1] == 0.0)
+            modulation_scheme ms = LIQUID_MODEM_BPSK;
 
         // Set new FG parameters and create new FG
         ofdmflexframegenprops_init_default(&fgprops);

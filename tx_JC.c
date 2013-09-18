@@ -18,9 +18,7 @@
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
 #include <errno.h>
-//#define RCVBUFSIZE 32   /* Size of receive buffer */
 #define PORT 1351
-
 
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
 #define BUFF_SIZE 8 	/* Buffer Size*/
@@ -69,8 +67,8 @@ int mycallback(unsigned char *  _header,
     // Data that will be sent to server
     // TODO: Send useful data through feedback array
     float feedback[8];
-    feedback[0] = 0;
-    feedback[1] = 1;
+    feedback[0] = (float) _header_valid;
+    feedback[1] = (float) _payload_valid;
     feedback[2] = 2;
     feedback[3] = 3;
 
@@ -79,7 +77,7 @@ int mycallback(unsigned char *  _header,
 
     // Receiver sends data to server
 	printf("socket_to_server: %d\n", socket_to_server);
-    int writeStatus = write(socket_to_server, feedback, 8);
+    int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
         printf("writeStatus: %d\n", writeStatus);
 
 	// Receiver closes socket to server
@@ -166,6 +164,7 @@ void * CreateTCPServerSocket(/*int * sock_listen,*/ void * _read_buffer )
         printf("Server (transmitter) received:\n" );
         printf("readbuffer[0]= %f\n", read_buffer[0]);
         printf("readbuffer[1]= %f\n", read_buffer[1]);
+        printf("readbuffer[2]= %f\n", read_buffer[2]);
     }
 
 	// Transmitter (server) closes its sockets 
