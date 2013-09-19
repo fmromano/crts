@@ -92,6 +92,7 @@ int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
             last_symbol = ofdmflexframegen_writesymbol(fg, samples_buffer);
             
             // TODO: Call to scenario (i.e. add noise)
+            scenario1(samples_buffer, symbol_len);
             
             // synchronizer receives symbols
             //printf("receiving symbol.\n");
@@ -111,8 +112,11 @@ int ce1(/*float complex * samples_buffer,*/ float * fb_buffer)
             printf("fbdata[%d]= %f\n", i, fb_data[i]);
 
         // Determine new FG parameters
-        if (fbdata[1] == 0.0)
+        if (fb_data[1] == 0.0f)
+        {
+            printf("Payload invalid. Using BPSK for next frame.\n");
             modulation_scheme ms = LIQUID_MODEM_BPSK;
+        }
 
         // Set new FG parameters and create new FG
         ofdmflexframegenprops_init_default(&fgprops);

@@ -186,7 +186,10 @@ void * CreateTCPServerSocket(/*int * sock_listen,*/ void * _read_buffer )
 
 int main() {
     // data arrays for TCP
-    float fb_buffer[256];   // buffer for feedback data after received through TCP
+    float fb_buffer[256] ;   // buffer for feedback data after received through TCP
+    // Zero the array
+    bzero(fb_buffer, 256*sizeof(float));
+    
 
 	// For threading
     pthread_t TCPServerThread; // Pointer to thread ID
