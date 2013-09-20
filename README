@@ -1,3 +1,3 @@
 
-Complie with 
+Compile with 
 $ gcc -Wall -o crts tx_JC.c ce/ce1.c scenarios/scenario1.c -lm -lc -lliquid -lpthread -I hdr/
