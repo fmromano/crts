@@ -1,0 +1,12 @@
+
+//config.txt
+// Basic Information:
+filename = "Sample Configuration File";
+
+// Parameters
+params = 
+{
+param1 = "Noise";
+
+param2 = 30;
+};
