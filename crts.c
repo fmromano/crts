@@ -48,7 +48,6 @@ struct Scenario {
     
     int addFading; // Does the Secenario have fading?
 
-
 };
 
 // Default parameters for a Cognitive Engine
@@ -244,7 +243,7 @@ void * startTCPServer(/*int * sock_listen,*/ void * _read_buffer )
     struct sockaddr_in servAddr;   
     // Parameters of client connection
     struct sockaddr_in clientAddr;              // Client address 
-    int client_addr_size = sizeof(clientAddr);  // Client address size
+    socklen_t client_addr_size;  // Client address size
     int socket_to_client = -1;
         
     // Create socket for incoming connections 
@@ -296,19 +295,25 @@ void * startTCPServer(/*int * sock_listen,*/ void * _read_buffer )
             read_status = read(socket_to_client, read_buffer, 255);
         // Print the data received
         //printf("read_status= %d\n", read_status);
-        printf("\nServer (transmitter) received:\n" );
-        printf("readbuffer[0]= %f\n", read_buffer[0]);
-        printf("readbuffer[1]= %f\n", read_buffer[1]);
-        printf("readbuffer[2]= %f\n", read_buffer[2]);
+        //printf("\nServer (transmitter) received:\n" );
+        //printf("readbuffer[0]= %f\n", read_buffer[0]);
+        //printf("readbuffer[1]= %f\n", read_buffer[1]);
+        //printf("readbuffer[2]= %f\n", read_buffer[2]);
     } // End listening While loop
 } // End startTCPServer()
 
 int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
 {
+    int i = 0;
+    printf("In ceAnalyzeData():\nfeedback=\n");
+    for (i = 0; i<4;i++) {
+        printf("feedback[%d]= %f\n", i, feedback[i]);
+    }
     // Copy the data from the server
     //feedback[100];
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
+        printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
         ce->latestGoalValue = feedback[1];
     }
     // TODO: implement if statements for other possible goals.
@@ -318,22 +323,24 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
 
 int ceOptimized(struct CognitiveEngine ce)
 {
-    
+   printf("Checking if goal value has been reached.\n");
    if (ce.latestGoalValue >= ce.threshold)
    {
+       printf("Goal is reached\n");
        return 1;
    }
+   printf("Goal not reached yet.\n");
    return 0;
 } // end ceOptimized()
 
 int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
 {
+    printf("Modifying Tx parameters");
     // TODO: Implement a similar if statement for each possible option
     // that can be adapted.
     if (strcmp(ce->option_to_adapt, "mod_scheme") == 0) {
         strcpy(ce->modScheme, "BPSK");
     }
-
     return 1;
 }   // End ceModifyTxParams()
 
@@ -395,13 +402,14 @@ int main()
     // Begin TCP Server Thread
     serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
     // Allow server time to finish initialization
-    sleep(3);
+    sleep(.1);
 
     // Begin running tests
 
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
+        printf("Starting Cognitive Engine %d\n", i_CE +1);
         // Initialize current CE
         ce = CreateCognitiveEngine();
         // TODO: Implemenet reading from configuration files
@@ -409,6 +417,7 @@ int main()
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
+            printf("Starting Scenario %d\n", i_Sc +1);
             // Initialize current Scenario
             sc = CreateScenario();
             // TODO: Implement reading from config files
@@ -425,6 +434,7 @@ int main()
             DoneTransmitting = 0;
             while(!DoneTransmitting)
             {
+                printf("DoneTransmitting= %d\n", DoneTransmitting);
                 // Generate data to go into frame (packet)
                 txGeneratePacket(ce, &fg, header, payload);
                 // Simulate N tranmissions before simulating receiving them.
@@ -453,11 +463,14 @@ int main()
                 // Modify transmission parameters (in fg and in USRP) accordingly
                 if (!ceOptimized(ce)) 
                 {
+                    printf("ceOptimized() returned false\n");
                     ceModifyTxParams(&ce, feedback);
                 }
                 else
                 {
+                    printf("ceOptimized() returned true\n");
                     DoneTransmitting = 1;
+                    printf("else: DoneTransmitting= %d\n", DoneTransmitting);
                 }
 
             } // End Test While loop
