@@ -447,8 +447,10 @@ int main()
                 {
                     // TODO: Create this function
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
+
                     // TODO: Create this function
-                    //noiseAddNoise();
+                    enactScenario();
+
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
                     // txStoreTransmittedPacket();
