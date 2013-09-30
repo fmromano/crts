@@ -1,3 +1,12 @@
 
+Latest version:
+Compile with
+$ gcc -Wall crts.c -o crts -lm -lc -lliquid -lpthread
+
+
+
+
+Old:
 Compile with 
 $ gcc -Wall -o crts tx_JC.c ce/ce1.c scenarios/scenario1.c -lm -lc -lliquid -lpthread -I hdr/
+
