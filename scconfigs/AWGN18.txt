@@ -1,0 +1,9 @@
+//AWGN18.txt
+//Basic Information:
+filename = "AWGN18";
+
+//Parameters for White Gaussian Noise
+params = 
+{
+noiseSNR = 2
+};
