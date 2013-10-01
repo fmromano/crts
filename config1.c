@@ -18,7 +18,7 @@ int config()
     const char *str1, *str2;
     int tmp;
 
-    char *config_file_name = "config.txt";
+    char *config_file_name = "config1.txt";
 
     /*Initialization */
     config_init(&cfg);
