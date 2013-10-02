@@ -1,0 +1,9 @@
+//AWGN11.txt
+//Basic Information:
+filename = "AWGN11";
+
+//Parameters for White Gaussian Noise
+params = 
+{
+noiseSNR = 5.5
+};

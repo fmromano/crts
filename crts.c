@@ -78,8 +78,8 @@ struct CognitiveEngine CreateCognitiveEngine() {
 struct Scenario CreateScenario() {
     struct Scenario sc = {
         .addNoise = 1,
-        .noiseSNR = 7, // in dB
-        .noiseDPhi = 0.01,
+        .noiseSNR = 7.0f, // in dB
+        .noiseDPhi = 0.001f,
 
         .addInterference = 0,
 
@@ -88,6 +88,49 @@ struct Scenario CreateScenario() {
     // TODO: Call function to read config file and change specified parameters. e.g.
     // ReadScConfig(&ce);
     return sc;
+}
+
+// Creating AWGN
+void enactAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+{
+    //options
+    float dphi  = sc.noiseDPhi;                  // carrier frequency offset
+    float SNRdB = sc.noiseSNR;                   // signal-to-noise ratio [dB]
+    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+
+    // noise parameters
+    float nstd = powf(10.0f, -SNRdB/20.0f); // noise standard deviation
+    float phi = 0.0f;                       // channel phase
+    
+    unsigned int i;
+
+    // noise mixing
+    for (i=0; i<symbol_len; i++) {
+        transmit_buffer[i] *= cexpf(_Complex_I*phi); // apply carrier offset
+        phi += dphi;                        // update carrier phase
+        cawgn(&transmit_buffer[i], nstd);            // add noise
+    }
+}
+// Creating Interference
+//
+// Creating Fading
+//
+// Enact Noise
+void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+{
+    // Check AWGN
+    if (sc.addNoise == 1){
+       enactAWGN(transmit_buffer, ce, sc);
+    }
+    if (sc.addInterference == 1){
+       // Interference function
+    }
+    if (sc.addFading == 1){
+       // Fading function
+    }
+    if (sc.addNoise == 0 & sc.addInterference == 0 & sc.addFading == 0){
+       printf("Nothing Added by Scenario\n");
+    }
 }
 
 // Create Frame generator with initial CE and Scenario parameters
@@ -161,14 +204,17 @@ int rxCallback(unsigned char *  _header,
     printf("connect_status = %d\n", connect_status);
     exit(1);
     }
-
+   
+    framesyncstats_print(&_stats); 
+      
     // Data that will be sent to server
     // TODO: Send other useful data through feedback array
     float feedback[8];
     feedback[0] = (float) _header_valid;
     feedback[1] = (float) _payload_valid;
-    feedback[2] = 2;
-    feedback[3] = 3;
+    feedback[2] = (float)_stats.evm;
+    feedback[3] = (float)_stats.rssi;   
+   
     for (i=0; i<8; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
 
@@ -449,7 +495,7 @@ int main()
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
 
                     // TODO: Create this function
-                    enactScenario();
+                    enactScenario(frameSamples, ce, sc);
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
