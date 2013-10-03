@@ -7,7 +7,8 @@
 #include <string.h>
 // For Threading (POSIX Threads)
 #include <pthread.h>
-
+// For config file
+#include <libconfig.h>
 
 // CRTS Header Files
 //#include "ce/ce1.h"
@@ -50,6 +51,111 @@ struct Scenario {
 
 };
 
+
+///////////////////Cognitive Engine//////////////
+int config_cog_engine(struct CognitiveEngine * ce)
+{
+    config_t cfg;               /*Returns all parameters in this structure */
+    config_setting_t *setting;
+    //const char str[30];
+    //const char str[30];
+    const char * str;
+    //str1, *str2, *str3, *str4;
+    //int tmp,tmp2,tmp3,tmp4,tmp5;
+    int tmpI;
+    double tmpD;
+    //double tmp6,tmp7,tmp8;
+
+    char *config_file_name = "config_cog_engine.txt";
+
+    //Initialization
+    config_init(&cfg);
+
+    // Read the file. If there is an error, report it and exit. 
+    if (!config_read_file(&cfg, config_file_name))
+    {
+        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        config_destroy(&cfg);
+        return -1;
+    }
+
+    /* Get the configuration file name. */
+    if (config_lookup_string(&cfg, "filename", &str))
+        printf("\nFile Type: %s", str);
+    else
+        printf("\nNo 'filename' setting in configuration file.");
+
+    /*Read the parameter group*/
+    setting = config_lookup(&cfg, "params");
+    if (setting != NULL)
+    {
+        /*Read the string*/
+        if (config_setting_lookup_string(setting, "option_to_adapt", &str))
+        {
+            strcpy(ce->option_to_adapt,str);
+            printf ("%s",str);
+        }
+        /*else
+            printf("\nNo 'param2' setting in configuration file.");
+            */
+       
+        if (config_setting_lookup_string(setting, "goal", &str))
+        {
+            strcpy(ce->goal,str);
+            printf ("%s",str);
+        }
+        if (config_setting_lookup_string(setting, "modScheme", &str))
+        {
+            strcpy(ce->modScheme,str);
+            printf ("Modulation Scheme:%s",str);
+        }
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "iterations", &tmpI))
+        {
+           ce->iterations=tmpI;
+           printf("\nIterations: %d", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "payloadLen", &tmpI))
+        {
+           ce->payloadLen=tmpI; 
+           printf("\nPayloadLen: %d", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "numSubcarriers", &tmpI))
+        {
+           ce->numSubcarriers=tmpI; 
+           printf("\nNumber of Subcarriers: %d", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "CPLen", &tmpI))
+        {
+           ce->CPLen=tmpI; 
+           printf("\nCPLen: %d", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "taperLen", &tmpI))
+        {
+           ce->payloadLen=tmpI; 
+           printf("\nPayloadLen: %d", tmpI);
+        }
+        /*Read the floats*/
+        if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
+        {
+           ce->default_tx_power=tmpD; 
+           printf("\nDefault Tx Power: %f", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "latestGoalValue", &tmpD))
+        {
+           ce->latestGoalValue=tmpD; 
+           printf("\nLatest Goal Value: %f", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "threshold", &tmpD))
+        {
+           ce->threshold=tmpD; 
+           printf("\nThreshold: %f", tmpD);
+        }
+     }
+    config_destroy(&cfg);
+     return 1;
+} // End config_cog_engine()
+
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
     struct CognitiveEngine ce = {
@@ -69,9 +175,100 @@ struct CognitiveEngine CreateCognitiveEngine() {
         strcpy(ce.modScheme, "QPSK");
         strcpy(ce.option_to_adapt, "mod_scheme");
         strcpy(ce.goal, "payload_valid");
+    return ce;
     // TODO: Call function to read config file and change specified parameters. e.g.
     // ReadCEConfig(&ce);
-    return ce;
+}
+
+int config_scenario(struct Scenario * sc)
+{
+    config_t cfg;               /*Returns all parameters in this structure */
+    config_setting_t *setting;
+    //const char *str1, *str2;
+    //char str[30];
+    const char * str;
+    //int tmp,tmp2,tmp3,tmp4,tmp5;
+    int tmpI;
+
+    char *config_file_name = "config_scenario.txt";
+
+    // Initialization 
+    config_init(&cfg);
+
+    // Read the file. If there is an error, report it and exit. 
+    if (!config_read_file(&cfg, config_file_name))
+    {
+        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        config_destroy(&cfg);
+        return -1;
+    }
+
+    // Get the configuration file name. 
+    if (config_lookup_string(&cfg, "filename", &str))
+        printf("\nFile Type: %s", str);
+    else
+        printf("\nNo 'filename' setting in configuration file.");
+
+    // Read the parameter group.
+    setting = config_lookup(&cfg, "params");
+    if (setting != NULL)
+    {
+        /*Read the string*/
+        if (config_setting_lookup_string(setting, "param1", &str))
+        {
+            printf("\nParam1: %s", str);
+            //printf ("%d",threshold);
+        }
+        else
+            printf("\nNo 'param2' setting in configuration file.");
+       
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "addNoise", &tmpI))
+        {
+            printf("\nAddnoise: %d", tmpI);
+            sc->addNoise=tmpI;
+        }
+        else
+            printf("\nNo AddNoise setting in configuration file.");
+        
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "noiseSNR", &tmpI))
+        {
+            printf("\nNoise SNR: %d", tmpI);
+            sc->noiseSNR=tmpI;
+        }
+        else
+            printf("\nNo Noise SNR setting in configuration file.");
+       
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "noiseDPhi", &tmpI))
+        {
+            sc->noiseDPhi=tmpI;
+            printf("\nNoiseDPhi: %d", tmpI);
+        }
+        else
+            printf("\nNo NoiseDPhi setting in configuration file.");
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "addInterference", &tmpI))
+        {
+            sc->addInterference=tmpI;
+            printf("\naddInterference: %d", tmpI);
+        }
+        else
+            printf("\nNo addInterference setting in configuration file.");
+        /*Read the integer*/
+        if (config_setting_lookup_int(setting, "addFading", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+    printf("\n");
+    }
+
+    config_destroy(&cfg);
+    return 1;
 }
 
 // Default parameter for Scenario
@@ -85,8 +282,6 @@ struct Scenario CreateScenario() {
 
         .addFading = 0
     };
-    // TODO: Call function to read config file and change specified parameters. e.g.
-    // ReadScConfig(&ce);
     return sc;
 }
 
@@ -128,7 +323,7 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
     if (sc.addFading == 1){
        // Fading function
     }
-    if (sc.addNoise == 0 & sc.addInterference == 0 & sc.addFading == 0){
+    if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
        printf("Nothing Added by Scenario\n");
     }
 }
@@ -455,11 +650,11 @@ int main()
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
-        printf("Starting Cognitive Engine %d\n", i_CE +1);
+        printf("\nStarting Cognitive Engine %d\n", i_CE +1);
         // Initialize current CE
         ce = CreateCognitiveEngine();
         // TODO: Implemenet reading from configuration files
-
+        config_cog_engine(&ce);
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
@@ -467,7 +662,9 @@ int main()
             // Initialize current Scenario
             sc = CreateScenario();
             // TODO: Implement reading from config files
-
+            config_scenario(&sc);
+            printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
+            //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
             fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
                 //TODO: Initialize Connection to USRP                                     
@@ -495,7 +692,7 @@ int main()
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
 
                     // TODO: Create this function
-                    enactScenario(frameSamples, ce, sc);
+                    //enactScenario();
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
