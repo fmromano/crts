@@ -280,7 +280,10 @@ struct Scenario CreateScenario() {
 
         .addInterference = 0,
 
-        .addFading = 0
+        .addFading = 0,
+        .fadeK = 2.0f,
+        .fadeFd = 0.2f,
+        .fadeDPhi = 0.001f
     };
     return sc;
 }
@@ -308,8 +311,90 @@ void enactAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struc
 }
 // Creating Interference
 //
-// Creating Fading
-//
+// Creating Rice-K Fading
+void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+{
+    // options
+    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+    unsigned int h_len;             // doppler filter length
+    if (symbol_len > 94){
+        h_len = 0.0425*symbol_len;
+    }
+    else {
+        h_len = 4;
+    }
+    float fd           = sc.fadeFd;      // maximum doppler frequency
+    float K            = sc.fadeK;     // Rice fading factor
+    float omega        = 1.0f;      // mean power
+    float theta        = 0.0f;      // angle of arrival
+    float dphi = sc.fadeDPhi;            // carrier frequency offset
+    float phi = 0.0f;               // channel phase
+
+    // validate input
+    if (K < 1.5f) {
+        fprintf(stderr,"error: fading factor K must be greater\n");
+        exit(1);
+    } else if (omega < 0.0f) {
+        fprintf(stderr,"error: signal power Omega must be greater than zero\n");
+        exit(1);
+    } else if (fd <= 0.0f || fd >= 0.5f) {
+        fprintf(stderr,"error: Doppler frequency must be in (0,0.5)\n");
+        exit(1);
+    } else if (symbol_len== 0) {
+        fprintf(stderr,"error: number of samples must be greater than zero\n");
+        exit(1);
+    }
+ 
+    unsigned int i;
+
+    // allocate array for output samples
+    float complex * y = (float complex*) malloc(symbol_len*sizeof(float complex));
+    // generate Doppler filter coefficients
+    float h[h_len];
+    liquid_firdes_doppler(h_len, fd, K, theta, h);
+
+    // normalize filter coefficients such that output Gauss random
+    // variables have unity variance
+    float std = 0.0f;
+    for (i=0; i<h_len; i++)
+        std += h[i]*h[i];
+    std = sqrtf(std);
+    for (i=0; i<h_len; i++)
+        h[i] /= std;
+
+    // create Doppler filter from coefficients
+    firfilt_crcf fdoppler = firfilt_crcf_create(h,h_len);
+
+    // generate complex circular Gauss random variables
+    float complex v;    // circular Gauss random variable (uncorrelated)
+    float complex x;    // circular Gauss random variable (correlated w/ Doppler filter)
+    float s   = sqrtf((omega*K)/(K+1.0));
+    float sig = sqrtf(0.5f*omega/(K+1.0));
+    for (i=0; i<symbol_len; i++) {
+        // generate complex Gauss random variable
+        crandnf(&v);
+
+        // push through Doppler filter
+        firfilt_crcf_push(fdoppler, v);
+        firfilt_crcf_execute(fdoppler, &x);
+
+        // convert result to random variable with Rice-K distribution
+        y[i] = _Complex_I*( cimagf(x)*sig + s ) +
+                          ( crealf(x)*sig     );
+    }
+  for (i=0; i<symbol_len; i++) {
+        transmit_buffer[i] *= cexpf(_Complex_I*phi);  // apply carrier offset
+        phi += dphi;                                  // update carrier phase
+        transmit_buffer[i] *= y[i];                   // apply Rice-K distribution
+    }
+
+    // destroy filter object
+    firfilt_crcf_destroy(fdoppler);
+
+    // clean up allocated arrays
+    free(y);
+}
+
 // Enact Noise
 void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
@@ -321,7 +406,7 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
        // Interference function
     }
     if (sc.addFading == 1){
-       // Fading function
+       enactRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
        printf("Nothing Added by Scenario\n");
