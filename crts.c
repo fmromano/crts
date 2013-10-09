@@ -11,11 +11,11 @@
 #include <libconfig.h>
 
 //TCP Header Files
-#include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
+#include <sys/socket.h> // for socket(), connect(), send(), and recv() 
 #include <sys/types.h>
-#include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
-#include <string.h>     /* for memset() */
-#include <unistd.h>     /* for close() */
+#include <arpa/inet.h>  // for sockaddr_in and inet_addr() 
+#include <string.h>     // for memset() 
+#include <unistd.h>     // for close() 
 #include <errno.h>
 #define PORT 1351
 #define MAXPENDING 5
