@@ -1,0 +1,10 @@
+//RiceFading27.txt
+//Basic Information:
+filename = "RiceFading27";
+
+//Parameters for Rice-K Fading
+params = 
+{
+fadeK = 7.0f;
+fadeFd = 0.2f
+};
