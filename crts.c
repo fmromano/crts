@@ -75,17 +75,17 @@ int config_cog_engine(struct CognitiveEngine * ce)
         return -1;
     }
 
-    /* Get the configuration file name. */
+    // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
         printf("\nFile Type: %s", str);
     else
         printf("\nNo 'filename' setting in configuration file.");
 
-    /*Read the parameter group*/
+    // Read the parameter group
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        /*Read the string*/
+        // Read the string
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
@@ -105,7 +105,7 @@ int config_cog_engine(struct CognitiveEngine * ce)
             strcpy(ce->modScheme,str);
             printf ("Modulation Scheme:%s",str);
         }
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            ce->iterations=tmpI;
@@ -131,7 +131,7 @@ int config_cog_engine(struct CognitiveEngine * ce)
            ce->payloadLen=tmpI; 
            printf("\nPayloadLen: %d", tmpI);
         }
-        /*Read the floats*/
+        // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
            ce->default_tx_power=tmpD; 
@@ -176,7 +176,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
 
 int config_scenario(struct Scenario * sc)
 {
-    config_t cfg;               /*Returns all parameters in this structure */
+    config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     //const char *str1, *str2;
     //char str[30];
@@ -207,7 +207,7 @@ int config_scenario(struct Scenario * sc)
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        /*Read the string*/
+        // Read the string
         if (config_setting_lookup_string(setting, "param1", &str))
         {
             printf("\nParam1: %s", str);
@@ -216,7 +216,7 @@ int config_scenario(struct Scenario * sc)
         else
             printf("\nNo 'param2' setting in configuration file.");
        
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "addNoise", &tmpI))
         {
             printf("\nAddnoise: %d", tmpI);
@@ -225,7 +225,7 @@ int config_scenario(struct Scenario * sc)
         else
             printf("\nNo AddNoise setting in configuration file.");
         
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "noiseSNR", &tmpI))
         {
             printf("\nNoise SNR: %d", tmpI);
@@ -234,7 +234,7 @@ int config_scenario(struct Scenario * sc)
         else
             printf("\nNo Noise SNR setting in configuration file.");
        
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "noiseDPhi", &tmpI))
         {
             sc->noiseDPhi=tmpI;
@@ -242,7 +242,8 @@ int config_scenario(struct Scenario * sc)
         }
         else
             printf("\nNo NoiseDPhi setting in configuration file.");
-        /*Read the integer*/
+
+        // Read the integer
         if (config_setting_lookup_int(setting, "addInterference", &tmpI))
         {
             sc->addInterference=tmpI;
@@ -250,7 +251,8 @@ int config_scenario(struct Scenario * sc)
         }
         else
             printf("\nNo addInterference setting in configuration file.");
-        /*Read the integer*/
+
+        // Read the integer
         if (config_setting_lookup_int(setting, "addFading", &tmpI))
         {
             sc->addFading=tmpI;
