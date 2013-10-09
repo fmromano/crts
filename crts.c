@@ -23,6 +23,9 @@
 
 struct CognitiveEngine {
     char modScheme[20];
+    char crcScheme[20];
+    char innerFEC[20];
+    char outerFEC[20];
     float default_tx_power;
     char option_to_adapt[20];
     char goal[20];
@@ -167,6 +170,9 @@ struct CognitiveEngine CreateCognitiveEngine() {
         strcpy(ce.modScheme, "QPSK");
         strcpy(ce.option_to_adapt, "mod_scheme");
         strcpy(ce.goal, "payload_valid");
+        strcpy(ce.crcScheme, "32");
+        strcpy(ce.innerFEC, "none");
+        strcpy(ce.outerFEC, "Hamming128");
     return ce;
 }
 
@@ -409,6 +415,7 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
 ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
 
     // Set Modulation Scheme
+    // TODO: add other liquid-supported mod schemes
     modulation_scheme ms;
     if (strcmp(ce.modScheme, "QPSK") == 0) {
         ms = LIQUID_MODEM_QPSK;
@@ -416,25 +423,88 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     else if ( strcmp(ce.modScheme, "BPSK") ==0) {
         ms = LIQUID_MODEM_BPSK;
     }
+    else if ( strcmp(ce.modScheme, "OOK") ==0) {
+        ms = LIQUID_MODEM_OOK;
+    }
     else {
         printf("ERROR: Unkown Modulation Scheme");
         //TODO: Skip current test if given an unkown parameter.
     }
 
-    // TODO: Have all other parameters be set by ce and se objects as well.
-    
+    // Set Cyclic Redundency Check Scheme
+    crc_scheme check;
+    if (strcmp(ce.crcScheme, "none") == 0) {
+        check = LIQUID_CRC_NONE;
+    }
+    else if (strcmp(ce.crcScheme, "checksum") == 0) {
+        check = LIQUID_CRC_CHECKSUM;
+    }
+    else if (strcmp(ce.crcScheme, "8") == 0) {
+        check = LIQUID_CRC_8;
+    }
+    else if (strcmp(ce.crcScheme, "16") == 0) {
+        check = LIQUID_CRC_16;
+    }
+    else if (strcmp(ce.crcScheme, "24") == 0) {
+        check = LIQUID_CRC_24;
+    }
+    else if (strcmp(ce.crcScheme, "32") == 0) {
+        check = LIQUID_CRC_32;
+    }
+    else {
+        printf("ERROR: unknown CRC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
+    // Set inner forward error correction scheme
+    // TODO: add other liquid-supported FEC schemes
+    fec_scheme fec0;
+    if (strcmp(ce.innerFEC, "none") == 0) {
+        fec0 = LIQUID_FEC_NONE;
+    }
+    else if (strcmp(ce.innerFEC, "Hamming74") == 0) {
+        fec0 = LIQUID_FEC_HAMMING74;
+    }
+    else if (strcmp(ce.innerFEC, "Hamming128") == 0) {
+        fec0 = LIQUID_FEC_HAMMING128;
+    }
+    else if (strcmp(ce.innerFEC, "REP3") == 0) {
+        fec0 = LIQUID_FEC_REP3;
+    }
+    else {
+        printf("ERROR: unknown inner FEC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
+    // Set outer forward error correction scheme
+    // TODO: add other liquid-supported FEC schemes
+    fec_scheme fec1;
+    if (strcmp(ce.outerFEC, "none") == 0) {
+        fec1 = LIQUID_FEC_NONE;
+    }
+    else if (strcmp(ce.outerFEC, "Hamming74") == 0) {
+        fec1 = LIQUID_FEC_HAMMING74;
+    }
+    else if (strcmp(ce.outerFEC, "Hamming128") == 0) {
+        fec1 = LIQUID_FEC_HAMMING128;
+    }
+    else if (strcmp(ce.outerFEC, "REP3") == 0) {
+        fec1 = LIQUID_FEC_REP3;
+    }
+    else {
+        printf("ERROR: unknown outer FEC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
     // Frame generation parameters
-    crc_scheme check = LIQUID_CRC_32;
-    fec_scheme fec0  = LIQUID_FEC_NONE;
-    fec_scheme fec1  = LIQUID_FEC_HAMMING128;
     ofdmflexframegenprops_s fgprops;
 
     // Initialize Frame generator and Frame Synchronizer Objects
     ofdmflexframegenprops_init_default(&fgprops);
+    fgprops.mod_scheme      = ms;
     fgprops.check           = check;
     fgprops.fec0            = fec0;
     fgprops.fec1            = fec1;
-    fgprops.mod_scheme      = ms;
     ofdmflexframegen fg = ofdmflexframegen_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, &fgprops);
 
     return fg;
