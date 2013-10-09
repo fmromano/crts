@@ -155,18 +155,14 @@ int configCE(struct CognitiveEngine * ce)
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
     struct CognitiveEngine ce = {
-        //.default_mod_scheme = "QPSK";
         .default_tx_power = 10.0,
-        //.option_to_adapt = "mod_scheme";
-        //.goal = "ber";                    // parameter to be minimized/maximized
-        //strcpy(.goal, "ber");
         .threshold = 1.0,                 // Desired value for goal
         .latestGoalValue = 0.0,           // Value of goal to be compared to threshold
         .iterations = 100,                // Number of transmissions made before attemting to receive them.
-        .payloadLen = 120,                      // Length of payload in frame generation
-        .numSubcarriers = 64,               // Number of subcarriers for OFDM
-        .CPLen = 16,                        // Cyclic Prefix length
-        .taperLen = 4                      // Taper length
+        .payloadLen = 120,                // Length of payload in frame generation
+        .numSubcarriers = 64,             // Number of subcarriers for OFDM
+        .CPLen = 16,                      // Cyclic Prefix length
+        .taperLen = 4                     // Taper length
     };
         strcpy(ce.modScheme, "QPSK");
         strcpy(ce.option_to_adapt, "mod_scheme");
@@ -179,7 +175,6 @@ int configSc(struct Scenario * sc)
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     //const char *str1, *str2;
-    //char str[30];
     const char * str;
     //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
@@ -399,6 +394,7 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
        addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
+       printf("Warning: There is currently no interference function");
        // Interference function
     }
     if (sc.addFading == 1){
