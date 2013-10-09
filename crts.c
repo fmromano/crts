@@ -108,7 +108,23 @@ int configCE(struct CognitiveEngine * ce)
             strcpy(ce->modScheme,str);
             printf ("Modulation Scheme:%s",str);
         }
-        // Read the integer
+        if (config_setting_lookup_string(setting, "crcScheme", &str))
+        {
+            strcpy(ce->crcScheme,str);
+            printf ("CRC Scheme:%s",str);
+        }
+        if (config_setting_lookup_string(setting, "innerFEC", &str))
+        {
+            strcpy(ce->innerFEC,str);
+            printf ("Inner FEC Scheme:%s",str);
+        }
+        if (config_setting_lookup_string(setting, "outerFEC", &str))
+        {
+            strcpy(ce->outerFEC,str);
+            printf ("Outer FEC Scheme:%s",str);
+        }
+
+        // Read the integers
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            ce->iterations=tmpI;
