@@ -277,7 +277,7 @@ struct Scenario CreateScenario() {
         .fadeDPhi = 0.001f
     };
     return sc;
-}
+} // End CreateScenario()
 
 // Creating AWGN
 void addAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
@@ -299,11 +299,11 @@ void addAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct 
         phi += dphi;                        // update carrier phase
         cawgn(&transmit_buffer[i], nstd);            // add noise
     }
-}
+} // End addAWGN()
 // Creating Interference
 //
 // Creating Rice-K Fading
-void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void addRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // options
     unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
@@ -384,7 +384,7 @@ void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce,
 
     // clean up allocated arrays
     free(y);
-}
+} // End addRiceFading()
 
 // Enact Noise
 void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
@@ -398,12 +398,12 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
        // Interference function
     }
     if (sc.addFading == 1){
-       enactRiceFading(transmit_buffer, ce, sc);
+       addRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
        printf("Nothing Added by Scenario\n");
     }
-}
+} // End enactScenario()
 
 // Create Frame generator with initial CE and Scenario parameters
 ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
@@ -438,7 +438,7 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     ofdmflexframegen fg = ofdmflexframegen_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, &fgprops);
 
     return fg;
-}
+} // End CreateFG()
 
 int rxCallback(unsigned char *  _header,
                 int              _header_valid,
