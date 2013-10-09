@@ -49,7 +49,7 @@ struct Scenario {
 
 
 ///////////////////Cognitive Engine//////////////
-int config_cog_engine(struct CognitiveEngine * ce)
+int configCE(struct CognitiveEngine * ce)
 {
     config_t cfg;               /*Returns all parameters in this structure */
     config_setting_t *setting;
@@ -150,7 +150,7 @@ int config_cog_engine(struct CognitiveEngine * ce)
      }
     config_destroy(&cfg);
     return 1;
-} // End config_cog_engine()
+} // End configCE()
 
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
@@ -174,7 +174,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     return ce;
 }
 
-int config_scenario(struct Scenario * sc)
+int configSc(struct Scenario * sc)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -734,7 +734,7 @@ int main()
         // Initialize current CE
         ce = CreateCognitiveEngine();
         // TODO: Implemenet reading from configuration files
-        config_cog_engine(&ce);
+        configCE(&ce);
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
@@ -742,7 +742,7 @@ int main()
             // Initialize current Scenario
             sc = CreateScenario();
             // TODO: Implement reading from config files
-            config_scenario(&sc);
+            configSc(&sc);
             printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
             //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
