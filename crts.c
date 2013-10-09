@@ -41,20 +41,22 @@ struct CognitiveEngine {
 
 struct Scenario {
     int addNoise; //Does the Scenario have noise?
-    int noiseSNR;
-    int noiseDPhi;
+    float noiseSNR;
+    float noiseDPhi;
     
     int addInterference; // Does the Scenario have interference?
     
     int addFading; // Does the Secenario have fading?
+    float fadeK;
+    float fadeFd;
+    float fadeDPhi
 
 };
-
 
 ///////////////////Cognitive Engine//////////////
 int configCE(struct CognitiveEngine * ce)
 {
-    config_t cfg;               /*Returns all parameters in this structure */
+    config_t cfg;               // Returns all parameters in this structure
     config_setting_t *setting;
     //const char str[30];
     //const char str[30];
@@ -200,6 +202,8 @@ int configSc(struct Scenario * sc)
     const char * str;
     //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
+    double tmpD;
+    
 
     char *config_file_name = "config_scenario.txt";
 
@@ -225,13 +229,15 @@ int configSc(struct Scenario * sc)
     if (setting != NULL)
     {
         // Read the string
+        /*
         if (config_setting_lookup_string(setting, "param1", &str))
         {
             printf("\nParam1: %s", str);
             //printf ("%d",threshold);
         }
         else
-            printf("\nNo 'param2' setting in configuration file.");
+            printf("\nNo 'param1' setting in configuration file.");
+        */
        
         // Read the integer
         if (config_setting_lookup_int(setting, "addNoise", &tmpI))
@@ -271,6 +277,30 @@ int configSc(struct Scenario * sc)
 
         // Read the integer
         if (config_setting_lookup_int(setting, "addFading", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeK", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeFd", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeDPhi", &tmpI))
         {
             sc->addFading=tmpI;
             printf("\naddFading: %d", tmpI);
