@@ -10,10 +10,6 @@
 // For config file
 #include <libconfig.h>
 
-// CRTS Header Files
-//#include "ce/ce1.h"
-//#include "tx_JC.h"
-
 //TCP Header Files
 #include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
 #include <sys/types.h>
