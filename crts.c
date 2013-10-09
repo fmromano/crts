@@ -149,7 +149,7 @@ int config_cog_engine(struct CognitiveEngine * ce)
         }
      }
     config_destroy(&cfg);
-     return 1;
+    return 1;
 } // End config_cog_engine()
 
 // Default parameters for a Cognitive Engine
@@ -172,8 +172,6 @@ struct CognitiveEngine CreateCognitiveEngine() {
         strcpy(ce.option_to_adapt, "mod_scheme");
         strcpy(ce.goal, "payload_valid");
     return ce;
-    // TODO: Call function to read config file and change specified parameters. e.g.
-    // ReadCEConfig(&ce);
 }
 
 int config_scenario(struct Scenario * sc)
@@ -285,7 +283,7 @@ struct Scenario CreateScenario() {
 }
 
 // Creating AWGN
-void enactAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void addAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     //options
     float dphi  = sc.noiseDPhi;                  // carrier frequency offset
@@ -328,7 +326,7 @@ void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce,
 
     // validate input
     if (K < 1.5f) {
-        fprintf(stderr,"error: fading factor K must be greater\n");
+        fprintf(stderr,"error: fading factor K must be greater than 1.5\n");
         exit(1);
     } else if (omega < 0.0f) {
         fprintf(stderr,"error: signal power Omega must be greater than zero\n");
@@ -396,7 +394,7 @@ void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, s
 {
     // Check AWGN
     if (sc.addNoise == 1){
-       enactAWGN(transmit_buffer, ce, sc);
+       addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
        // Interference function
@@ -488,8 +486,8 @@ int rxCallback(unsigned char *  _header,
     float feedback[8];
     feedback[0] = (float) _header_valid;
     feedback[1] = (float) _payload_valid;
-    feedback[2] = (float)_stats.evm;
-    feedback[3] = (float)_stats.rssi;   
+    feedback[2] = (float) _stats.evm;
+    feedback[3] = (float) _stats.rssi;   
    
     for (i=0; i<8; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
@@ -501,7 +499,6 @@ int rxCallback(unsigned char *  _header,
 
     // Receiver closes socket to server
     close(socket_to_server);
-    //sleep(1);
     return 0;
 
 } // end rxCallback()
@@ -554,12 +551,12 @@ int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, float co
 // Create a TCP socket for the server and bind it to a port
 // Then sit and listen/accept all connections and write the data
 // to an array that is accessible to the CE
-void * startTCPServer(/*int * sock_listen,*/ void * _read_buffer )
+void * startTCPServer(void * _read_buffer )
 {
     printf("Server thread called.\n");
     // Iterator
     int i;
-    // Buffer for data sent by client. This address is also given to CE
+    // Buffer for data sent by client. This memory address is also given to CE
     float * read_buffer = (float *) _read_buffer;
     //  Local (server) address
     struct sockaddr_in servAddr;   
