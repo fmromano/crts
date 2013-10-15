@@ -17,7 +17,7 @@
 #include <string.h>     // for memset() 
 #include <unistd.h>     // for close() 
 #include <errno.h>
-#define PORT 1351
+#define PORT 1353
 #define MAXPENDING 5
 
 
@@ -49,8 +49,7 @@ struct Scenario {
     int addFading; // Does the Secenario have fading?
     float fadeK;
     float fadeFd;
-    float fadeDPhi
-
+    float fadeDPhi;
 };
 
 ///////////////////Cognitive Engine//////////////
@@ -324,7 +323,7 @@ struct Scenario CreateScenario() {
         .addInterference = 0,
 
         .addFading = 0,
-        .fadeK = 2.0f,
+        .fadeK = 30.0f,
         .fadeFd = 0.2f,
         .fadeDPhi = 0.001f
     };
@@ -855,7 +854,7 @@ int main()
             sc = CreateScenario();
             // TODO: Implement reading from config files
             configSc(&sc);
-            printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
+            printf ("Value of NoiseSNR in main=%f\n",sc.noiseSNR);
             //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
             fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
