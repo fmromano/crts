@@ -7,8 +7,8 @@ filename = "Sample Configuration File";
 params = 
 {
 addNoise = 1;
-addFading =1;
-addInterference=1;
-noiseSNR= 15;
-noiseDPhi= 2;
+addFading = 0;
+addInterference = 0;
+noiseSNR= 20;
+noiseDPhi= 0.001f;
 };

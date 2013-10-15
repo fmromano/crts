@@ -10,23 +10,22 @@
 // For config file
 #include <libconfig.h>
 
-// CRTS Header Files
-//#include "ce/ce1.h"
-//#include "tx_JC.h"
-
 //TCP Header Files
-#include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
+#include <sys/socket.h> // for socket(), connect(), send(), and recv() 
 #include <sys/types.h>
-#include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
-#include <string.h>     /* for memset() */
-#include <unistd.h>     /* for close() */
+#include <arpa/inet.h>  // for sockaddr_in and inet_addr() 
+#include <string.h>     // for memset() 
+#include <unistd.h>     // for close() 
 #include <errno.h>
-#define PORT 1353
+#define PORT 1351
 #define MAXPENDING 5
 
 
 struct CognitiveEngine {
     char modScheme[20];
+    char crcScheme[20];
+    char innerFEC[20];
+    char outerFEC[20];
     float default_tx_power;
     char option_to_adapt[20];
     char goal[20];
@@ -50,14 +49,14 @@ struct Scenario {
     int addFading; // Does the Secenario have fading?
     float fadeK;
     float fadeFd;
-    float fadeDPhi;
+    float fadeDPhi
+
 };
 
-
 ///////////////////Cognitive Engine//////////////
-int config_cog_engine(struct CognitiveEngine * ce)
+int configCE(struct CognitiveEngine * ce)
 {
-    config_t cfg;               /*Returns all parameters in this structure */
+    config_t cfg;               // Returns all parameters in this structure
     config_setting_t *setting;
     //const char str[30];
     //const char str[30];
@@ -81,17 +80,17 @@ int config_cog_engine(struct CognitiveEngine * ce)
         return -1;
     }
 
-    /* Get the configuration file name. */
+    // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
         printf("\nFile Type: %s", str);
     else
         printf("\nNo 'filename' setting in configuration file.");
 
-    /*Read the parameter group*/
+    // Read the parameter group
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        /*Read the string*/
+        // Read the string
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
@@ -111,7 +110,23 @@ int config_cog_engine(struct CognitiveEngine * ce)
             strcpy(ce->modScheme,str);
             printf ("Modulation Scheme:%s",str);
         }
-        /*Read the integer*/
+        if (config_setting_lookup_string(setting, "crcScheme", &str))
+        {
+            strcpy(ce->crcScheme,str);
+            printf ("CRC Scheme:%s",str);
+        }
+        if (config_setting_lookup_string(setting, "innerFEC", &str))
+        {
+            strcpy(ce->innerFEC,str);
+            printf ("Inner FEC Scheme:%s",str);
+        }
+        if (config_setting_lookup_string(setting, "outerFEC", &str))
+        {
+            strcpy(ce->outerFEC,str);
+            printf ("Outer FEC Scheme:%s",str);
+        }
+
+        // Read the integers
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            ce->iterations=tmpI;
@@ -137,7 +152,7 @@ int config_cog_engine(struct CognitiveEngine * ce)
            ce->payloadLen=tmpI; 
            printf("\nPayloadLen: %d", tmpI);
         }
-        /*Read the floats*/
+        // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
            ce->default_tx_power=tmpD; 
@@ -155,34 +170,31 @@ int config_cog_engine(struct CognitiveEngine * ce)
         }
      }
     config_destroy(&cfg);
-     return 1;
-} // End config_cog_engine()
+    return 1;
+} // End configCE()
 
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
     struct CognitiveEngine ce = {
-        //.default_mod_scheme = "QPSK";
         .default_tx_power = 10.0,
-        //.option_to_adapt = "mod_scheme";
-        //.goal = "ber";                    // parameter to be minimized/maximized
-        //strcpy(.goal, "ber");
         .threshold = 1.0,                 // Desired value for goal
         .latestGoalValue = 0.0,           // Value of goal to be compared to threshold
         .iterations = 100,                // Number of transmissions made before attemting to receive them.
-        .payloadLen = 120,                      // Length of payload in frame generation
-        .numSubcarriers = 64,               // Number of subcarriers for OFDM
-        .CPLen = 16,                        // Cyclic Prefix length
-        .taperLen = 4                      // Taper length
+        .payloadLen = 120,                // Length of payload in frame generation
+        .numSubcarriers = 64,             // Number of subcarriers for OFDM
+        .CPLen = 16,                      // Cyclic Prefix length
+        .taperLen = 4                     // Taper length
     };
         strcpy(ce.modScheme, "QPSK");
         strcpy(ce.option_to_adapt, "mod_scheme");
         strcpy(ce.goal, "payload_valid");
+        strcpy(ce.crcScheme, "32");
+        strcpy(ce.innerFEC, "none");
+        strcpy(ce.outerFEC, "Hamming128");
     return ce;
-    // TODO: Call function to read config file and change specified parameters. e.g.
-    // ReadCEConfig(&ce);
 }
 
-int configScenario(struct Scenario * sc)
+int configSc(struct Scenario * sc)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -306,21 +318,21 @@ int configScenario(struct Scenario * sc)
 struct Scenario CreateScenario() {
     struct Scenario sc = {
         .addNoise = 1,
-        .noiseSNR = 20.0f, // in dB
+        .noiseSNR = 7.0f, // in dB
         .noiseDPhi = 0.001f,
 
         .addInterference = 0,
 
         .addFading = 0,
-        .fadeK = 30.0f,
+        .fadeK = 2.0f,
         .fadeFd = 0.2f,
         .fadeDPhi = 0.001f
     };
     return sc;
-}
+} // End CreateScenario()
 
 // Creating AWGN
-void enactAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void addAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     //options
     float dphi  = sc.noiseDPhi;                  // carrier frequency offset
@@ -339,11 +351,11 @@ void enactAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struc
         phi += dphi;                        // update carrier phase
         cawgn(&transmit_buffer[i], nstd);            // add noise
     }
-}
+} // End addAWGN()
 // Creating Interference
 //
 // Creating Rice-K Fading
-void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void addRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // options
     unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
@@ -363,7 +375,7 @@ void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce,
 
     // validate input
     if (K < 1.5f) {
-        fprintf(stderr,"error: fading factor K must be greater\n");
+        fprintf(stderr,"error: fading factor K must be greater than 1.5\n");
         exit(1);
     } else if (omega < 0.0f) {
         fprintf(stderr,"error: signal power Omega must be greater than zero\n");
@@ -424,30 +436,32 @@ void enactRiceFading(float complex * transmit_buffer, struct CognitiveEngine ce,
 
     // clean up allocated arrays
     free(y);
-}
+} // End addRiceFading()
 
 // Enact Noise
 void enactScenario(float complex * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Check AWGN
     if (sc.addNoise == 1){
-       enactAWGN(transmit_buffer, ce, sc);
+       addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
+       printf("Warning: There is currently no interference function");
        // Interference function
     }
     if (sc.addFading == 1){
-       enactRiceFading(transmit_buffer, ce, sc);
+       addRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
        printf("Nothing Added by Scenario\n");
     }
-}
+} // End enactScenario()
 
 // Create Frame generator with initial CE and Scenario parameters
 ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
 
     // Set Modulation Scheme
+    // TODO: add other liquid-supported mod schemes
     modulation_scheme ms;
     if (strcmp(ce.modScheme, "QPSK") == 0) {
         ms = LIQUID_MODEM_QPSK;
@@ -455,29 +469,92 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     else if ( strcmp(ce.modScheme, "BPSK") ==0) {
         ms = LIQUID_MODEM_BPSK;
     }
+    else if ( strcmp(ce.modScheme, "OOK") ==0) {
+        ms = LIQUID_MODEM_OOK;
+    }
     else {
         printf("ERROR: Unkown Modulation Scheme");
         //TODO: Skip current test if given an unkown parameter.
     }
 
-    // TODO: Have all other parameters be set by ce and se objects as well.
-    
+    // Set Cyclic Redundency Check Scheme
+    crc_scheme check;
+    if (strcmp(ce.crcScheme, "none") == 0) {
+        check = LIQUID_CRC_NONE;
+    }
+    else if (strcmp(ce.crcScheme, "checksum") == 0) {
+        check = LIQUID_CRC_CHECKSUM;
+    }
+    else if (strcmp(ce.crcScheme, "8") == 0) {
+        check = LIQUID_CRC_8;
+    }
+    else if (strcmp(ce.crcScheme, "16") == 0) {
+        check = LIQUID_CRC_16;
+    }
+    else if (strcmp(ce.crcScheme, "24") == 0) {
+        check = LIQUID_CRC_24;
+    }
+    else if (strcmp(ce.crcScheme, "32") == 0) {
+        check = LIQUID_CRC_32;
+    }
+    else {
+        printf("ERROR: unknown CRC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
+    // Set inner forward error correction scheme
+    // TODO: add other liquid-supported FEC schemes
+    fec_scheme fec0;
+    if (strcmp(ce.innerFEC, "none") == 0) {
+        fec0 = LIQUID_FEC_NONE;
+    }
+    else if (strcmp(ce.innerFEC, "Hamming74") == 0) {
+        fec0 = LIQUID_FEC_HAMMING74;
+    }
+    else if (strcmp(ce.innerFEC, "Hamming128") == 0) {
+        fec0 = LIQUID_FEC_HAMMING128;
+    }
+    else if (strcmp(ce.innerFEC, "REP3") == 0) {
+        fec0 = LIQUID_FEC_REP3;
+    }
+    else {
+        printf("ERROR: unknown inner FEC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
+    // Set outer forward error correction scheme
+    // TODO: add other liquid-supported FEC schemes
+    fec_scheme fec1;
+    if (strcmp(ce.outerFEC, "none") == 0) {
+        fec1 = LIQUID_FEC_NONE;
+    }
+    else if (strcmp(ce.outerFEC, "Hamming74") == 0) {
+        fec1 = LIQUID_FEC_HAMMING74;
+    }
+    else if (strcmp(ce.outerFEC, "Hamming128") == 0) {
+        fec1 = LIQUID_FEC_HAMMING128;
+    }
+    else if (strcmp(ce.outerFEC, "REP3") == 0) {
+        fec1 = LIQUID_FEC_REP3;
+    }
+    else {
+        printf("ERROR: unknown outer FEC");
+        //TODO: Skip current test if given an unkown parameter.
+    }
+
     // Frame generation parameters
-    crc_scheme check = LIQUID_CRC_32;
-    fec_scheme fec0  = LIQUID_FEC_NONE;
-    fec_scheme fec1  = LIQUID_FEC_HAMMING128;
     ofdmflexframegenprops_s fgprops;
 
     // Initialize Frame generator and Frame Synchronizer Objects
     ofdmflexframegenprops_init_default(&fgprops);
+    fgprops.mod_scheme      = ms;
     fgprops.check           = check;
     fgprops.fec0            = fec0;
     fgprops.fec1            = fec1;
-    fgprops.mod_scheme      = ms;
     ofdmflexframegen fg = ofdmflexframegen_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, &fgprops);
 
     return fg;
-}
+} // End CreateFG()
 
 int rxCallback(unsigned char *  _header,
                 int              _header_valid,
@@ -523,8 +600,8 @@ int rxCallback(unsigned char *  _header,
     float feedback[8];
     feedback[0] = (float) _header_valid;
     feedback[1] = (float) _payload_valid;
-    feedback[2] = (float)_stats.evm;
-    feedback[3] = (float)_stats.rssi;   
+    feedback[2] = (float) _stats.evm;
+    feedback[3] = (float) _stats.rssi;   
    
     for (i=0; i<8; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
@@ -536,7 +613,6 @@ int rxCallback(unsigned char *  _header,
 
     // Receiver closes socket to server
     close(socket_to_server);
-    //sleep(1);
     return 0;
 
 } // end rxCallback()
@@ -589,12 +665,12 @@ int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, float co
 // Create a TCP socket for the server and bind it to a port
 // Then sit and listen/accept all connections and write the data
 // to an array that is accessible to the CE
-void * startTCPServer(/*int * sock_listen,*/ void * _read_buffer )
+void * startTCPServer(void * _read_buffer )
 {
     printf("Server thread called.\n");
     // Iterator
     int i;
-    // Buffer for data sent by client. This address is also given to CE
+    // Buffer for data sent by client. This memory address is also given to CE
     float * read_buffer = (float *) _read_buffer;
     //  Local (server) address
     struct sockaddr_in servAddr;   
@@ -770,7 +846,7 @@ int main()
         // Initialize current CE
         ce = CreateCognitiveEngine();
         // TODO: Implemenet reading from configuration files
-        config_cog_engine(&ce);
+        configCE(&ce);
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
@@ -778,8 +854,8 @@ int main()
             // Initialize current Scenario
             sc = CreateScenario();
             // TODO: Implement reading from config files
-            config_scenario(&sc);
-            printf ("Value of NoiseSNR in main=%f\n",sc.noiseSNR);
+            configSc(&sc);
+            printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
             //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
             fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
