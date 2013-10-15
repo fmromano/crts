@@ -111,7 +111,7 @@ int config_master_file(char ** scenario_list)
          strcat (current_sc,tmpS);
          if (config_setting_lookup_string(setting, current_sc, &str))
           {
-              strcpy(&scenario_list[i],&str);
+              strcpy(&scenario_list[i],&str);          //THIS IS THE LINE WITH THE ISSUE
               printf ("STR=%s",*str);
           }
         /*else
