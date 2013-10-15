@@ -21,7 +21,7 @@
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
 #include <errno.h>
-#define PORT 1351
+#define PORT 1353
 #define MAXPENDING 5
 
 
@@ -42,13 +42,15 @@ struct CognitiveEngine {
 
 struct Scenario {
     int addNoise; //Does the Scenario have noise?
-    int noiseSNR;
-    int noiseDPhi;
+    float noiseSNR;
+    float noiseDPhi;
     
     int addInterference; // Does the Scenario have interference?
     
     int addFading; // Does the Secenario have fading?
-
+    float fadeK;
+    float fadeFd;
+    float fadeDPhi;
 };
 
 
@@ -180,15 +182,16 @@ struct CognitiveEngine CreateCognitiveEngine() {
     // ReadCEConfig(&ce);
 }
 
-int config_scenario(struct Scenario * sc)
+int configScenario(struct Scenario * sc)
 {
-    config_t cfg;               /*Returns all parameters in this structure */
+    config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     //const char *str1, *str2;
-    //char str[30];
     const char * str;
     //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
+    double tmpD;
+    
 
     char *config_file_name = "config_scenario.txt";
 
@@ -213,16 +216,18 @@ int config_scenario(struct Scenario * sc)
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        /*Read the string*/
+        // Read the string
+        /*
         if (config_setting_lookup_string(setting, "param1", &str))
         {
             printf("\nParam1: %s", str);
             //printf ("%d",threshold);
         }
         else
-            printf("\nNo 'param2' setting in configuration file.");
+            printf("\nNo 'param1' setting in configuration file.");
+        */
        
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "addNoise", &tmpI))
         {
             printf("\nAddnoise: %d", tmpI);
@@ -231,7 +236,7 @@ int config_scenario(struct Scenario * sc)
         else
             printf("\nNo AddNoise setting in configuration file.");
         
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "noiseSNR", &tmpI))
         {
             printf("\nNoise SNR: %d", tmpI);
@@ -240,7 +245,7 @@ int config_scenario(struct Scenario * sc)
         else
             printf("\nNo Noise SNR setting in configuration file.");
        
-        /*Read the integer*/
+        // Read the integer
         if (config_setting_lookup_int(setting, "noiseDPhi", &tmpI))
         {
             sc->noiseDPhi=tmpI;
@@ -248,7 +253,8 @@ int config_scenario(struct Scenario * sc)
         }
         else
             printf("\nNo NoiseDPhi setting in configuration file.");
-        /*Read the integer*/
+
+        // Read the integer
         if (config_setting_lookup_int(setting, "addInterference", &tmpI))
         {
             sc->addInterference=tmpI;
@@ -256,8 +262,33 @@ int config_scenario(struct Scenario * sc)
         }
         else
             printf("\nNo addInterference setting in configuration file.");
-        /*Read the integer*/
+
+        // Read the integer
         if (config_setting_lookup_int(setting, "addFading", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeK", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeFd", &tmpI))
+        {
+            sc->addFading=tmpI;
+            printf("\naddFading: %d", tmpI);
+        }
+        else
+            printf("\nNo addFading setting in configuration file.");
+
+        if (config_setting_lookup_int(setting, "fadeDPhi", &tmpI))
         {
             sc->addFading=tmpI;
             printf("\naddFading: %d", tmpI);
@@ -275,13 +306,13 @@ int config_scenario(struct Scenario * sc)
 struct Scenario CreateScenario() {
     struct Scenario sc = {
         .addNoise = 1,
-        .noiseSNR = 7.0f, // in dB
+        .noiseSNR = 20.0f, // in dB
         .noiseDPhi = 0.001f,
 
         .addInterference = 0,
 
         .addFading = 0,
-        .fadeK = 2.0f,
+        .fadeK = 30.0f,
         .fadeFd = 0.2f,
         .fadeDPhi = 0.001f
     };
@@ -748,7 +779,7 @@ int main()
             sc = CreateScenario();
             // TODO: Implement reading from config files
             config_scenario(&sc);
-            printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
+            printf ("Value of NoiseSNR in main=%f\n",sc.noiseSNR);
             //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
             fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
