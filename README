@@ -1,7 +1,7 @@
 
 Latest version:
 Compile with
-$ gcc -Wall crts.c -o crts -lm -lc -lliquid -lpthread
+$ gcc -Wall crts.c -o crts -lm -lc -lliquid -lpthread -lconfig
 
 
 
