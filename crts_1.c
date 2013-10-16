@@ -58,7 +58,7 @@ int config_master_file(char ** scenario_list)
 {
     config_t cfg;               /*Returns all parameters in this structure */
     config_setting_t *setting;
-    const char **str;           /*Stores the value of the String Parameters in Config file*/
+    const char *str;           /*Stores the value of the String Parameters in Config file*/
     int tmpI;                   /*Stores the value of Integer Parameters from Config file*/
     double tmpD;                
 
@@ -111,13 +111,13 @@ int config_master_file(char ** scenario_list)
          strcat (current_sc,tmpS);
          if (config_setting_lookup_string(setting, current_sc, &str))
           {
-              strcpy(&scenario_list[i],&str);          //THIS IS THE LINE WITH THE ISSUE
-              printf ("STR=%s",*str);
+              strcpy((*scenario_list)+i,str);          //THIS IS THE LINE WITH THE ISSUE
+              printf ("STR=%s",str);
           }
         /*else
             printf("\nNo 'param2' setting in configuration file.");
           */
-        printf ("Scenario File:%s", scenario_list [i]);
+        printf ("Scenario File:%s", scenario_list[i]);
         } 
     
     }
@@ -767,7 +767,7 @@ int main()
             sc = CreateScenario();
             // TODO: Implement reading from config files
             printf ("Before Calling Config_Scenario\n");
-            config_scenario(&sc,&scenario_list[i_Sc]);
+            config_scenario(&sc,scenario_list[i_Sc]);
             printf ("After Calling Config_Scenario\n");
             //config_scenario(&sc);
             printf ("Value of NoiseSNR in main=%d\n",sc.noiseSNR);
