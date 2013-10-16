@@ -177,7 +177,7 @@ int cogengine_master_file(char cogengine_list[30][60])
     if (setting != NULL)
     {
         
-        if (config_setting_lookup_int(setting, "NumberofScenarios", &tmpI))
+        if (config_setting_lookup_int(setting, "NumberofCogEngines", &tmpI))
         {
             no_of_cogengines=tmpI;
             printf ("\n%d",tmpI);
@@ -185,12 +185,12 @@ int cogengine_master_file(char cogengine_list[30][60])
         
        for (i=1;i<=no_of_cogengines;i++)
        {
-         //strcpy (current_sc,"scenario_");
-         //sprintf (tmpS,"%d",i);
+         strcpy (current_ce,"cogengine_");
+         sprintf (tmpS,"%d",i);
          //printf ("\n Scenario Number =%s", tmpS);
-         //strcat (current_sc,tmpS);
+         strcat (current_ce,tmpS);
          //printf ("\n CURRENT SCENARIO =%s", current_sc);
-         if (config_setting_lookup_string(setting, current_sc, &str))
+         if (config_setting_lookup_string(setting, current_ce, &str))
           {
               strcpy((cogengine_list)+i-1,str);          
               printf ("\nSTR=%s\n",str);
@@ -198,7 +198,7 @@ int cogengine_master_file(char cogengine_list[30][60])
         /*else
             printf("\nNo 'param2' setting in configuration file.");
           */
-        printf ("Scenario File:%s\n", cogengine_list[i]);
+        printf ("Cognitive Engine File:%s\n", cogengine_list[i]);
         } 
     //int asdf;
     //for (asdf=0; asdf<30; asdf++)

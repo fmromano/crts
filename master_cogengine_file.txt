@@ -1,0 +1,11 @@
+
+//config1.txt
+// Basic Information:
+filename = "Master Configuation File for Scenarios";
+
+// Parameters
+params = 
+{
+NumberofCogEngines =2;
+cogengine_1 = "config_cog_engine.txt";
+};
