@@ -72,7 +72,6 @@ int config_master_file(char scenario_list[30][60])
     //Initialization
     config_init(&cfg);
    
-    printf ("\nInside config_master_file function\n Variables Declared");
    
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_config_file.txt"))
@@ -145,17 +144,18 @@ int cogengine_master_file(char cogengine_list[30][60])
    // char *config_file_name; 
    // strcpy (config_file_name,"master_config_file.txt");
 
-    char current_sc[30];
+    char current_ce[30];
     int no_of_cogengines=1;
     int i;
     char tmpS[30];
     //Initialization
     config_init(&cfg);
    
-    printf ("\nInside config_master_file function\n Variables Declared");
-   
+    printf ("\nInside cogengine_master_file function\n");
+    printf ("%sCogEngine List[0]:\n",cogengine_list[0] );
+
     // Read the file. If there is an error, report it and exit. 
-    if (!config_read_file(&cfg,"master_config_file.txt"))
+    if (!config_read_file(&cfg,"master_cogengine_file.txt"))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         printf("\nCould not find master file\n");
@@ -164,7 +164,6 @@ int cogengine_master_file(char cogengine_list[30][60])
     }
     else
         printf("Found master config file\n");
-
   
     /* Get the configuration file name. */
     if (config_lookup_string(&cfg, "filename", &str))
@@ -176,7 +175,6 @@ int cogengine_master_file(char cogengine_list[30][60])
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        
         if (config_setting_lookup_int(setting, "NumberofCogEngines", &tmpI))
         {
             no_of_cogengines=tmpI;
@@ -200,16 +198,9 @@ int cogengine_master_file(char cogengine_list[30][60])
           */
         printf ("Cognitive Engine File:%s\n", cogengine_list[i]);
         } 
-    //int asdf;
-    //for (asdf=0; asdf<30; asdf++)
-    //    printf("scenario_list[%d][0]: %c\n", asdf, scenario_list[asdf][0]);
-
-	
-    
     }
     config_destroy(&cfg);
-     //return scenarios;
-return -1;
+    return -1;
 } 
 
 //struct Master_File CreateMasterFile() {
@@ -235,7 +226,6 @@ int config_cog_engine(struct CognitiveEngine * ce,char *current_cogengine_file)
     int tmpI;                   /*Stores the value of Integer Parameters from Config file*/
     double tmpD;                
 
-    
 
     //Initialization
     config_init(&cfg);
@@ -803,8 +793,8 @@ int main()
     //strcpy(SCList,'\0');
     printf ("\nInitialized scenario array");
     //for (i_Sc=0;i_Sc<NumSc;i_Sc++)
-       config_master_file(scenario_list);  
        cogengine_master_file(cogengine_list);  
+       config_master_file(scenario_list);  
     printf ("\nCalled config_master_file function\n");
     //int asdf = 0;
     //for (asdf=0; asdf<30; asdf++)

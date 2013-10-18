@@ -6,6 +6,7 @@ filename = "Master Configuation File for Scenarios";
 // Parameters
 params = 
 {
-NumberofCogEngines =1;
-cogengine_1 = "config_cog_engine.txt";
+NumberofScenarios =1;
+scenario_1 = "AWGN4.txt";
+//scenario_2 = "config_scenario.txt";
 };
