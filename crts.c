@@ -10,6 +10,10 @@
 // For config file
 #include <libconfig.h>
 
+// CRTS Header Files
+//#include "ce/ce1.h"
+//#include "tx_JC.h"
+
 //TCP Header Files
 #include <sys/socket.h> // for socket(), connect(), send(), and recv() 
 #include <sys/types.h>
@@ -52,27 +56,187 @@ struct Scenario {
     float fadeDPhi;
 };
 
-///////////////////Cognitive Engine//////////////
-int configCE(struct CognitiveEngine * ce)
-{
-    config_t cfg;               // Returns all parameters in this structure
-    config_setting_t *setting;
-    //const char str[30];
-    //const char str[30];
-    const char * str;
-    //str1, *str2, *str3, *str4;
-    //int tmp,tmp2,tmp3,tmp4,tmp5;
-    int tmpI;
-    double tmpD;
-    //double tmp6,tmp7,tmp8;
 
-    char *config_file_name = "config_cog_engine.txt";
+///////////////////////////////Master File Settings: Choosing which config files will be used////////////////
+
+int config_master_file(char scenario_list[30][60])
+{
+    config_t cfg;               /*Returns all parameters in this structure */
+    config_setting_t *setting;
+    const char *str;           /*Stores the value of the String Parameters in Config file*/
+    int tmpI;                   /*Stores the value of Integer Parameters from Config file*/
+    double tmpD;                
+
+   // char *config_file_name; 
+   // strcpy (config_file_name,"master_config_file.txt");
+
+    char current_sc[30];
+    int no_of_scenarios=1;
+    int i;
+    char tmpS[30];
+    //Initialization
+    config_init(&cfg);
+   
+   
+    // Read the file. If there is an error, report it and exit. 
+    if (!config_read_file(&cfg,"master_config_file.txt"))
+    {
+        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        printf("\nCould not find master file\n");
+        config_destroy(&cfg);
+        return -1;
+    }
+    else
+        printf("Found master config file\n");
+
+  
+    /* Get the configuration file name. */
+    if (config_lookup_string(&cfg, "filename", &str))
+        printf("\nFile Type: %s", str);
+    else
+        printf("\nNo 'filename' setting in configuration file.");
+
+    /*Read the parameter group*/
+    setting = config_lookup(&cfg, "params");
+    if (setting != NULL)
+    {
+        
+        if (config_setting_lookup_int(setting, "NumberofScenarios", &tmpI))
+        {
+            no_of_scenarios=tmpI;
+            printf ("\n%d",tmpI);
+        }
+        
+       for (i=1;i<=no_of_scenarios;i++)
+       {
+         strcpy (current_sc,"scenario_");
+         sprintf (tmpS,"%d",i);
+         printf ("\n Scenario Number =%s", tmpS);
+         strcat (current_sc,tmpS);
+         printf ("\n CURRENT SCENARIO =%s", current_sc);
+         if (config_setting_lookup_string(setting, current_sc, &str))
+          {
+              strcpy((scenario_list)+i-1,str);          
+              printf ("\nSTR=%s\n",str);
+          }
+        /*else
+            printf("\nNo 'param2' setting in configuration file.");
+          */
+        printf ("Scenario File:%s\n", scenario_list[i]);
+        } 
+    //int asdf;
+    //for (asdf=0; asdf<30; asdf++)
+    //    printf("scenario_list[%d][0]: %c\n", asdf, scenario_list[asdf][0]);
+
+	
+    
+    }
+    config_destroy(&cfg);
+     //return scenarios;
+return -1;
+} 
+
+///////////////////////////////Master File Settings: Choosing which cognitive engine config files will be used////////////////
+
+int cogengine_master_file(char cogengine_list[30][60])
+{
+    config_t cfg;               /*Returns all parameters in this structure */
+    config_setting_t *setting;
+    const char *str;           /*Stores the value of the String Parameters in Config file*/
+    int tmpI;                   /*Stores the value of Integer Parameters from Config file*/
+    double tmpD;                
+
+   // char *config_file_name; 
+   // strcpy (config_file_name,"master_config_file.txt");
+
+    char current_ce[30];
+    int no_of_cogengines=1;
+    int i;
+    char tmpS[30];
+    //Initialization
+    config_init(&cfg);
+   
+    printf ("\nInside cogengine_master_file function\n");
+    printf ("%sCogEngine List[0]:\n",cogengine_list[0] );
+
+    // Read the file. If there is an error, report it and exit. 
+    if (!config_read_file(&cfg,"master_cogengine_file.txt"))
+    {
+        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        printf("\nCould not find master file\n");
+        config_destroy(&cfg);
+        return -1;
+    }
+    else
+        printf("Found master config file\n");
+  
+    /* Get the configuration file name. */
+    if (config_lookup_string(&cfg, "filename", &str))
+        printf("\nFile Type: %s", str);
+    else
+        printf("\nNo 'filename' setting in configuration file.");
+
+    /*Read the parameter group*/
+    setting = config_lookup(&cfg, "params");
+    if (setting != NULL)
+    {
+        if (config_setting_lookup_int(setting, "NumberofCogEngines", &tmpI))
+        {
+            no_of_cogengines=tmpI;
+            printf ("\n%d",tmpI);
+        }
+        
+       for (i=1;i<=no_of_cogengines;i++)
+       {
+         strcpy (current_ce,"cogengine_");
+         sprintf (tmpS,"%d",i);
+         //printf ("\n Scenario Number =%s", tmpS);
+         strcat (current_ce,tmpS);
+         //printf ("\n CURRENT SCENARIO =%s", current_sc);
+         if (config_setting_lookup_string(setting, current_ce, &str))
+          {
+              strcpy((cogengine_list)+i-1,str);          
+              printf ("\nSTR=%s\n",str);
+          }
+        /*else
+            printf("\nNo 'param2' setting in configuration file.");
+          */
+        printf ("Cognitive Engine File:%s\n", cogengine_list[i]);
+        } 
+    }
+    config_destroy(&cfg);
+    return -1;
+} 
+
+//struct Master_File CreateMasterFile() {
+//    struct MasterFile mf = {
+//    };
+//        strcpy(mf.scenario, "scenario1.txt");
+//        strcpy(mf.cogengine, "cog_engine1.txt");
+//    return ce;
+//    // TODO: Call function to read config file and change specified parameters. e.g.
+//    // ReadCEConfig(&ce);
+//}
+
+
+///////////////////Cognitive Engine///////////////////////////////////////////////////////////
+////////Reading the cognitive radio parameters from the configuration file////////////////////
+
+
+int config_cog_engine(struct CognitiveEngine * ce,char *current_cogengine_file)
+{
+    config_t cfg;               /*Returns all parameters in this structure */
+    config_setting_t *setting;
+    const char * str;           /*Stores the value of the String Parameters in Config file*/
+    int tmpI;                   /*Stores the value of Integer Parameters from Config file*/
+    double tmpD;                
+
 
     //Initialization
     config_init(&cfg);
 
     // Read the file. If there is an error, report it and exit. 
-    if (!config_read_file(&cfg, config_file_name))
+    if (!config_read_file(&cfg,current_cogengine_file))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
@@ -169,8 +333,8 @@ int configCE(struct CognitiveEngine * ce)
         }
      }
     config_destroy(&cfg);
-    return 1;
-} // End configCE()
+     return 1;
+} // End config_cog_engine()
 
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
@@ -187,30 +351,43 @@ struct CognitiveEngine CreateCognitiveEngine() {
         strcpy(ce.modScheme, "QPSK");
         strcpy(ce.option_to_adapt, "mod_scheme");
         strcpy(ce.goal, "payload_valid");
-        strcpy(ce.crcScheme, "32");
-        strcpy(ce.innerFEC, "none");
-        strcpy(ce.outerFEC, "Hamming128");
+        strcpy(ce.crcScheme, "none");
+        strcpy(ce.innerFEC, "Hamming128");
+        strcpy(ce.outerFEC, "none");
     return ce;
+    // TODO: Call function to read config file and change specified parameters. e.g.
+    // ReadCEConfig(&ce);
 }
 
-int configSc(struct Scenario * sc)
+int config_scenario(struct Scenario * sc, char *current_scenario_file)
+//int config_scenario(struct Scenario * sc)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     //const char *str1, *str2;
+    //char str[30];
     const char * str;
     //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
-    double tmpD;
-    
+    int i;
+    char scFileLocation[60];
 
-    char *config_file_name = "config_scenario.txt";
+    //char config_file_name[30];
+    //strcpy(config_file_name,current_scenario_file);
+    printf("In config_scenario(): string current_scenario_file: \n%s\n", current_scenario_file);
+    //printf("In config_scenario(): string config_file_name: \n%s\n", config_file_name);
+    //char *config_file_name = config_scenario;
+
+    // Because the file is in the folder 'scconfigs'
+    strcpy(scFileLocation, "scconfigs/");
+    strcat(scFileLocation, current_scenario_file);
+    printf("In config_scenario(): string scFileLocation: \n%s\n", scFileLocation);
 
     // Initialization 
     config_init(&cfg);
 
     // Read the file. If there is an error, report it and exit. 
-    if (!config_read_file(&cfg, config_file_name))
+    if (!config_read_file(&cfg, scFileLocation))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
@@ -480,24 +657,30 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     crc_scheme check;
     if (strcmp(ce.crcScheme, "none") == 0) {
         check = LIQUID_CRC_NONE;
+        printf("check = LIQUID_CRC_NONE\n");
     }
     else if (strcmp(ce.crcScheme, "checksum") == 0) {
         check = LIQUID_CRC_CHECKSUM;
+        printf("check = LIQUID_CRC_CHECKSUM\n");
     }
     else if (strcmp(ce.crcScheme, "8") == 0) {
         check = LIQUID_CRC_8;
+        printf("check = LIQUID_CRC_8\n");
     }
     else if (strcmp(ce.crcScheme, "16") == 0) {
         check = LIQUID_CRC_16;
+        printf("check = LIQUID_CRC_16\n");
     }
     else if (strcmp(ce.crcScheme, "24") == 0) {
         check = LIQUID_CRC_24;
+        printf("check = LIQUID_CRC_24\n");
     }
     else if (strcmp(ce.crcScheme, "32") == 0) {
         check = LIQUID_CRC_32;
+        printf("check = LIQUID_CRC_32\n");
     }
     else {
-        printf("ERROR: unknown CRC");
+        printf("ERROR: unknown CRC\n");
         //TODO: Skip current test if given an unkown parameter.
     }
 
@@ -506,18 +689,22 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     fec_scheme fec0;
     if (strcmp(ce.innerFEC, "none") == 0) {
         fec0 = LIQUID_FEC_NONE;
+        printf("fec0 = LIQUID_FEC_NONE\n");
     }
     else if (strcmp(ce.innerFEC, "Hamming74") == 0) {
         fec0 = LIQUID_FEC_HAMMING74;
+        printf("fec0 = LIQUID_FEC_HAMMING74\n");
     }
     else if (strcmp(ce.innerFEC, "Hamming128") == 0) {
         fec0 = LIQUID_FEC_HAMMING128;
+        printf("fec0 = LIQUID_FEC_HAMMING128\n");
     }
     else if (strcmp(ce.innerFEC, "REP3") == 0) {
         fec0 = LIQUID_FEC_REP3;
+        printf("fec0 = LIQUID_FEC_REP3\n");
     }
     else {
-        printf("ERROR: unknown inner FEC");
+        printf("ERROR: unknown inner FEC\n");
         //TODO: Skip current test if given an unkown parameter.
     }
 
@@ -526,18 +713,22 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     fec_scheme fec1;
     if (strcmp(ce.outerFEC, "none") == 0) {
         fec1 = LIQUID_FEC_NONE;
+        printf("fec1 = LIQUIDFECNONE\n");
     }
     else if (strcmp(ce.outerFEC, "Hamming74") == 0) {
         fec1 = LIQUID_FEC_HAMMING74;
+        printf("fec1 = LIQUID_FEC_HAMMING74\n");
     }
     else if (strcmp(ce.outerFEC, "Hamming128") == 0) {
         fec1 = LIQUID_FEC_HAMMING128;
+        printf("fec1 = LIQUID_FEC_HAMMING128\n");
     }
     else if (strcmp(ce.outerFEC, "REP3") == 0) {
         fec1 = LIQUID_FEC_REP3;
+        printf("fec1 = LIQUID_FEC_REP3\n");
     }
     else {
-        printf("ERROR: unknown outer FEC");
+        printf("ERROR: unknown outer FEC\n");
         //TODO: Skip current test if given an unkown parameter.
     }
 
@@ -787,20 +978,20 @@ int main()
     float feedback[100];
 
     // Number of Cognitive Engines
-    int NumCE = 3;
-    int NumSc = 3;
+    int NumCE = 1;
+    int NumSc = 2;
 
     // List of Cognitive Engines 
     char CEList[NumCE][20];         // char arrays of 20 chars each.
     strcpy(CEList[0], "ce1.conf");
-    strcpy(CEList[1], "ce2.conf");
-    strcpy(CEList[2], "ce3.conf");
+    //strcpy(CEList[1], "ce2.conf");
+    //strcpy(CEList[2], "ce3.conf");
 
     // List of Scenarios
     char ScList[NumSc][20];         // char arrays of 20 chars each.
     strcpy(ScList[0], "Sc1.conf");
     strcpy(ScList[1], "Sc2.conf");
-    strcpy(ScList[2], "Sc3.conf");
+    //strcpy(ScList[2], "Sc3.conf");
 
     // Iterators
     int i_CE = 0;
@@ -809,17 +1000,37 @@ int main()
     int N = 0; // Iterations of transmission before receiving.
     int i_N = 0;
     int isLastSymbol = 0;
+    char scenario_list [30][60];
+    char cogengine_list [30][60];
+    
+    printf("variables declared.\n");
+
+    //char **scenario_list = config_master_file(); 
+    printf ("\nDeclared scenario array");
+    //strcpy(SCList,'\0');
+    printf ("\nInitialized scenario array");
+    //for (i_Sc=0;i_Sc<NumSc;i_Sc++)
+    cogengine_master_file(cogengine_list);  
+    config_master_file(scenario_list);  
+    printf ("\nCalled config_master_file function\n");
+    //int asdf = 0;
+    //for (asdf=0; asdf<30; asdf++)
+    //    printf("scenario_list[0][%d]: %c\n", asdf, scenario_list[0][asdf]);
 
     // Cognitive engine struct used in each test
     struct CognitiveEngine ce = CreateCognitiveEngine();
     // Scenario struct used in each test
     struct Scenario sc = CreateScenario();
-    // framegenerator object used in each test
+
+    printf("structs declared\n");
+    //framegenerator object used in each test
     ofdmflexframegen fg;
 
     // framesynchronizer object used in each test
     // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
     ofdmflexframesync fs;
+
+    printf("frame objects declared\n");
 
     // Buffers for packet/frame data
     unsigned char header[8];                         // Must always be 8 bytes for ofdmflexframe
@@ -845,7 +1056,8 @@ int main()
         // Initialize current CE
         ce = CreateCognitiveEngine();
         // TODO: Implemenet reading from configuration files
-        configCE(&ce);
+        config_cog_engine(&ce,cogengine_list[i_CE]);
+        
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
@@ -853,7 +1065,11 @@ int main()
             // Initialize current Scenario
             sc = CreateScenario();
             // TODO: Implement reading from config files
-            configSc(&sc);
+            printf("Before Calling Config_Scenario\n");
+            printf("scenario_list[i_Sc]=%s\n", scenario_list[i_Sc]);
+            config_scenario(&sc,scenario_list[i_Sc]);
+            printf ("After Calling Config_Scenario\n");
+            //config_scenario(&sc);
             printf ("Value of NoiseSNR in main=%f\n",sc.noiseSNR);
             //printf ("config_data=%d\n",config_data);
             // Initialize Transmitter Defaults for current CE and Sc
