@@ -4,9 +4,8 @@ Compile with
 $ gcc -Wall crts.c -o crts -lm -lc -lliquid -lpthread -lconfig
 
 
+All scenario config files should be placed in the scconfigs/ folder.
+All cognitive engine config files should be in the same directory as crts.c
 
 
-Old:
-Compile with 
-$ gcc -Wall -o crts tx_JC.c ce/ce1.c scenarios/scenario1.c -lm -lc -lliquid -lpthread -I hdr/
 
