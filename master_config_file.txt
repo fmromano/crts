@@ -6,7 +6,7 @@ filename = "Master Configuation File for Scenarios";
 // Parameters
 params = 
 {
-NumberofScenarios =1;
+NumberofScenarios =2;
 scenario_1 = "AWGN4.txt";
-//scenario_2 = "config_scenario.txt";
+scenario_2 = "AWGN10.txt";
 };

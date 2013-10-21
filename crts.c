@@ -313,8 +313,8 @@ struct CognitiveEngine CreateCognitiveEngine() {
         .taperLen = 4                     // Taper length
     };
         strcpy(ce.modScheme, "QPSK");
-        strcpy(ce.option_to_adapt, "modscheme");
-        strcpy(ce.goal, "payloadvalid");
+        strcpy(ce.option_to_adapt, "mod_scheme");
+        strcpy(ce.goal, "payload_valid");
         strcpy(ce.crcScheme, "none");
         strcpy(ce.innerFEC, "Hamming128");
         strcpy(ce.outerFEC, "none");
@@ -438,8 +438,10 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
     }
 
     config_destroy(&cfg);
+
+    printf("End of readScConfigFile() Function\n");
     return 1;
-}
+} // End readScConfigFile()
 
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
@@ -687,7 +689,7 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
 
     // Initialize Frame generator and Frame Synchronizer Objects
     ofdmflexframegenprops_init_default(&fgprops);
-    fgprops.modscheme      = ms;
+    fgprops.mod_scheme      = ms;
     fgprops.check           = check;
     fgprops.fec0            = fec0;
     fgprops.fec1            = fec1;
@@ -700,7 +702,7 @@ int rxCallback(unsigned char *  _header,
                 int              _header_valid,
                 unsigned char *  _payload,
                 unsigned int     _payload_len,
-                int              _payloadvalid,
+                int              _payload_valid,
                 framesyncstats_s _stats,
                 void *           _userdata)
 {
@@ -739,7 +741,7 @@ int rxCallback(unsigned char *  _header,
     // TODO: Send other useful data through feedback array
     float feedback[8];
     feedback[0] = (float) _header_valid;
-    feedback[1] = (float) _payloadvalid;
+    feedback[1] = (float) _payload_valid;
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
    
@@ -886,10 +888,14 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
     //feedback[100];
     printf("ce->goal=%s\n", ce->goal);
 
-    if (strcmp(ce->goal, "payloadvalid") == 0)
+    if (strcmp(ce->goal, "payload_valid") == 0)
     {
-        printf("Goal is payloadvalid. Setting latestGoalValue to %f\n", feedback[1]);
+        printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
         ce->latestGoalValue = feedback[1];
+    }
+    else
+    {
+        printf("Unkown Goal\n");
     }
     // TODO: implement if statements for other possible goals.
 
@@ -913,7 +919,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
     printf("Modifying Tx parameters");
     // TODO: Implement a similar if statement for each possible option
     // that can be adapted.
-    if (strcmp(ce->option_to_adapt, "modscheme") == 0) {
+    if (strcmp(ce->option_to_adapt, "mod_scheme") == 0) {
         strcpy(ce->modScheme, "BPSK");
     }
     return 1;
