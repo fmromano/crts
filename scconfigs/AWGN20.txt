@@ -5,5 +5,5 @@ filename = "AWGN20";
 //Parameters for White Gaussian Noise
 params = 
 {
-noiseSNR = 1
+noiseSNR = 1.0
 };

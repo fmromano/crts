@@ -57,8 +57,7 @@ int readScMasterFile(char scenario_list[30][60])
     config_t cfg;                   // Returns all parameters in this structure 
     config_setting_t *setting;
     const char *str;                // Stores the value of the String Parameters in Config file
-    int tmpI;                       // Stores the value of Integer Parameters from Config file
-    double tmpD;                
+    int tmpI;                       // Stores the value of Integer Parameters from Config file                
 
     char current_sc[30];
     int no_of_scenarios=1;
@@ -124,8 +123,7 @@ int readCEMasterFile(char cogengine_list[30][60])
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     const char *str;            // Stores the value of the String Parameters in Config file
-    int tmpI;                   // Stores the value of Integer Parameters from Config file
-    double tmpD;                
+    int tmpI;                   // Stores the value of Integer Parameters from Config file             
 
     char current_ce[30];
     int no_of_cogengines=1;
@@ -334,7 +332,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
     const char * str;
     //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
-    int i;
+    double tmpD;
     char scFileLocation[60];
 
     printf("In readScConfigFile(): string current_scenario_file: \n%s\n", current_scenario_file);
@@ -374,20 +372,20 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
         else
             printf("\nNo AddNoise setting in configuration file.");
         
-        // Read the integer
-        if (config_setting_lookup_int(setting, "noiseSNR", &tmpI))
+        // Read the double
+        if (config_setting_lookup_float(setting, "noiseSNR", &tmpD))
         {
-            printf("\nNoise SNR: %d", tmpI);
-            sc->noiseSNR=tmpI;
+            printf("\nNoise SNR: %f", tmpD);
+            sc->noiseSNR=(float) tmpD;
         }
         else
             printf("\nNo Noise SNR setting in configuration file.");
        
-        // Read the integer
-        if (config_setting_lookup_int(setting, "noiseDPhi", &tmpI))
+        // Read the double
+        if (config_setting_lookup_float(setting, "noiseDPhi", &tmpD))
         {
-            sc->noiseDPhi=tmpI;
-            printf("\nNoiseDPhi: %d", tmpI);
+            sc->noiseDPhi=(float) tmpD;
+            printf("\nNoiseDPhi: %f", tmpD);
         }
         else
             printf("\nNo NoiseDPhi setting in configuration file.");
@@ -410,26 +408,29 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
         else
             printf("\nNo addFading setting in configuration file.");
 
-        if (config_setting_lookup_int(setting, "fadeK", &tmpI))
+        // Read the double
+        if (config_setting_lookup_float(setting, "fadeK", &tmpD))
         {
-            sc->addFading=tmpI;
-            printf("\naddFading: %d", tmpI);
+            sc->addFading=(float)tmpD;
+            printf("\naddFading: %f", tmpD);
         }
         else
             printf("\nNo addFading setting in configuration file.");
 
-        if (config_setting_lookup_int(setting, "fadeFd", &tmpI))
+        // Read the double
+        if (config_setting_lookup_float(setting, "fadeFd", &tmpD))
         {
-            sc->addFading=tmpI;
-            printf("\naddFading: %d", tmpI);
+            sc->addFading=(float)tmpD;
+            printf("\naddFading: %f", tmpD);
         }
         else
             printf("\nNo addFading setting in configuration file.");
 
-        if (config_setting_lookup_int(setting, "fadeDPhi", &tmpI))
+        // Read the double
+        if (config_setting_lookup_float(setting, "fadeDPhi", &tmpD))
         {
-            sc->addFading=tmpI;
-            printf("\naddFading: %d", tmpI);
+            sc->addFading=(float)tmpD;
+            printf("\naddFading: %f", tmpD);
         }
         else
             printf("\nNo addFading setting in configuration file.");
@@ -742,7 +743,7 @@ int rxCallback(unsigned char *  _header,
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
    
-    for (i=0; i<8; i++)
+    for (i=0; i<4; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
 
     // Receiver sends data to server
@@ -883,6 +884,8 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
     }
     // Copy the data from the server
     //feedback[100];
+    printf("ce->goal=%s\n", ce->goal);
+
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
         printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
@@ -1026,7 +1029,7 @@ int main()
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
 
                     // TODO: Create this function
-                    //enactScenario();
+                    enactScenario(frameSamples,ce,sc);
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
