@@ -7,10 +7,8 @@ filename = "Sample Configuration File";
 params = 
 {
 default_tx_power = 12.4;
-threshold=1e-4;
 numSubcarriers = 128;
-modScheme = "QPSK";
-goal  = "BER";
+goal  = "payload_valid";
 option_to_adapt=1;
 latestGoalValue=10;
 iterations=2;
