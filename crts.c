@@ -63,6 +63,7 @@ int readScMasterFile(char scenario_list[30][60])
     int no_of_scenarios=1;
     int i;
     char tmpS[30];
+    char *status="\0";
     //Initialization
     config_init(&cfg);
    
@@ -97,6 +98,7 @@ int readScMasterFile(char scenario_list[30][60])
         }
         
        for (i=1;i<=no_of_scenarios;i++)
+       //while (strcmp (status,"end"!=0))
        {
          strcpy (current_sc,"scenario_");
          sprintf (tmpS,"%d",i);
@@ -112,10 +114,10 @@ int readScMasterFile(char scenario_list[30][60])
             printf("\nNo 'param2' setting in configuration file.");
           */
         printf ("Scenario File:%s\n", scenario_list[i]);
-        } 
+      } 
     }
     config_destroy(&cfg);
-    return -1;
+    return no_of_scenarios;
 } // End readScMasterFile()
 
 int readCEMasterFile(char cogengine_list[30][60])
@@ -181,7 +183,7 @@ int readCEMasterFile(char cogengine_list[30][60])
         } 
     }
     config_destroy(&cfg);
-    return -1;
+    return no_of_cogengines;
 } // End readCEMasterFile()
 
 
@@ -277,13 +279,13 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
         if (config_setting_lookup_int(setting, "taperLen", &tmpI))
         {
            ce->payloadLen=tmpI; 
-           printf("\nPayloadLen: %d", tmpI);
+           printf("\ntaperLen: %d", tmpI);
         }
         // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
            ce->default_tx_power=tmpD; 
-           printf("\nDefault Tx Power: %f", tmpD);
+           printf("\nDefault Tx Power: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "latestGoalValue", &tmpD))
         {
@@ -467,6 +469,8 @@ void addAWGN(float complex * transmit_buffer, struct CognitiveEngine ce, struct 
     float dphi  = sc.noiseDPhi;                              // carrier frequency offset
     float SNRdB = sc.noiseSNR;                               // signal-to-noise ratio [dB]
     unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+    
+    //printf("In addAWGN: SNRdB=%f\n", SNRdB);
 
     // noise parameters
     float nstd = powf(10.0f, -SNRdB/20.0f); // noise standard deviation
@@ -936,8 +940,8 @@ int main()
     float feedback[100];
 
     // Number of Cognitive Engines
-    int NumCE = 1;
-    int NumSc = 2;
+    //int NumCE = 1;
+    //int NumSc = 1;
 
     // Iterators
     int i_CE = 0;
@@ -952,8 +956,8 @@ int main()
     
     printf("variables declared.\n");
 
-    readCEMasterFile(cogengine_list);  
-    readScMasterFile(scenario_list);  
+    int NumCE=readCEMasterFile(cogengine_list);  
+    int NumSc=readScMasterFile(scenario_list);  
     printf ("\nCalled readScMasterFile function\n");
 
     // Cognitive engine struct used in each test
@@ -997,7 +1001,9 @@ int main()
         readCEConfigFile(&ce,cogengine_list[i_CE]);
         
         // Run each CE through each scenario
+        //for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
+       //while (strcmp (status,"end"!=0))
         {
             printf("Starting Scenario %d\n", i_Sc +1);
             // Initialize current Scenario
@@ -1035,7 +1041,7 @@ int main()
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
 
                     // TODO: Create this function
-                   // enactScenario(frameSamples,ce,sc);
+                    enactScenario(frameSamples,ce,sc);
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
