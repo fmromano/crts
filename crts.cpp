@@ -213,9 +213,6 @@ int readCEMasterFile(char cogengine_list[30][60])
               strcpy(*((cogengine_list)+i-1),str);          
               printf ("\nSTR=%s\n",str);
           }
-        /*else
-            printf("\nNo 'param2' setting in configuration file.");
-          */
         printf ("Cognitive Engine File:%s\n", cogengine_list[i]);
         } 
     }
@@ -264,9 +261,6 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
             strcpy(ce->option_to_adapt,str);
             printf ("%s",str);
         }
-        /*else
-            printf("\nNo 'param2' setting in configuration file.");
-            */
        
         if (config_setting_lookup_string(setting, "goal", &str))
         {
@@ -560,7 +554,7 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
         y[i] = tmp*( std::imag(x)*sig + s ) +
                           ( std::real(x)*sig     );
     }
-  for (i=0; i<symbol_len; i++) {
+    for (i=0; i<symbol_len; i++) {
         transmit_buffer[i] *= std::exp(tmp*phi);  // apply carrier offset
         phi += dphi;                                  // update carrier phase
         transmit_buffer[i] *= y[i];                   // apply Rice-K distribution
@@ -737,9 +731,9 @@ int rxCallback(unsigned char *  _header,
     int connect_status;
     if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
     {   
-    printf("Receive Failed to Connect to server.\n");
-    printf("connect_status = %d\n", connect_status);
-    exit(1);
+        printf("Receive Failed to Connect to server.\n");
+        printf("connect_status = %d\n", connect_status);
+        exit(1);
     }
    
     framesyncstats_print(&_stats); 
@@ -781,9 +775,6 @@ int txGeneratePacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, unsigned
 {
     // Iterator
     int i = 0;
-    // Buffers for data
-    //unsigned char header[8];
-    //unsigned char payload[ce.payloadLen];
 
     // Generate data
     printf("\n\ngenerating data that will go in frame...\n");
@@ -835,7 +826,6 @@ void * startTCPServer(void * _read_buffer )
         printf("Transmitter Failed to Create Server Socket.\n");
         exit(1);
     }
-    //printf("sock_listen= %d\n", sock_listen);
 
     // Construct local (server) address structure 
     memset(&servAddr, 0, sizeof(servAddr));       // Zero out structure 
@@ -891,10 +881,10 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
     for (i = 0; i<4;i++) {
         printf("feedback[%d]= %f\n", i, feedback[i]);
     }
-    // Copy the data from the server
-    //feedback[100];
+
     printf("ce->goal=%s\n", ce->goal);
 
+    // Copy the data from the server
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
         printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
@@ -902,7 +892,7 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
     }
     else
     {
-        printf("Unkown Goal\n");
+        printf("ERROR: Unkown Goal!\n");
     }
     // TODO: implement if statements for other possible goals.
 
@@ -934,7 +924,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
 
 void initializeUSRPs()
 {
-    
+    return;
 } // end initializeUSRPs()
 
 int main()
@@ -949,10 +939,6 @@ int main()
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
     float feedback[100];
-
-    // Number of Cognitive Engines
-    //int NumCE = 1;
-    //int NumSc = 1;
 
     // Iterators
     int i_CE = 0;
@@ -1012,9 +998,8 @@ int main()
         readCEConfigFile(&ce,cogengine_list[i_CE]);
         
         // Run each CE through each scenario
-        //for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
-       //while (strcmp (status,"end"!=0))
+        //while (strcmp (status,"end"!=0))
         {
             printf("Starting Scenario %d\n", i_Sc +1);
             // Initialize current Scenario
@@ -1042,12 +1027,9 @@ int main()
                 printf("DoneTransmitting= %d\n", DoneTransmitting);
                 // Generate data to go into frame (packet)
                 txGeneratePacket(ce, &fg, header, payload);
-                // Simulate N tranmissions before simulating receiving them.
                 // i.e. Need to transmit each symbol in frame.
                 isLastSymbol = 0;
-                //N = ce.iterations;
                 N = 0;
-                //for (i_N= 0; i_N< N; i_N++)
                 while (!isLastSymbol) 
                 {
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
