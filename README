@@ -1,11 +1,17 @@
 
 Latest version:
+C++:
+Compile with
+$ g++ -Wall crts.cpp -o crts_plus -lm -lliquid -lpthread -lconfig
+
+
+C:
 Compile with
 $ gcc -Wall crts.c -o crts -lm -lc -lliquid -lpthread -lconfig
 
 
 All scenario config files should be placed in the scconfigs/ folder.
-All cognitive engine config files should be in the same directory as crts.c
+All cognitive engine config files should be place in the ceconfigs/ folder.
 
 
 
