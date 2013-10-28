@@ -4,7 +4,7 @@
 #include <complex>
 #include <liquid/liquid.h>
 // Definition of liquid_float_complex changes depending on
-// whether complex.h is included before or after liquid.h
+// whether <complex> is included before or after liquid.h
 #include <time.h>
 #include <string.h>
 // For Threading (POSIX Threads)
@@ -21,7 +21,6 @@
 #include <errno.h>
 #define PORT 1353
 #define MAXPENDING 5
-
 
 
 struct CognitiveEngine {
@@ -55,6 +54,42 @@ struct Scenario {
     float fadeDPhi;
 };
 
+// Default parameters for a Cognitive Engine
+struct CognitiveEngine CreateCognitiveEngine() {
+    struct CognitiveEngine ce = {};
+    ce.default_tx_power = 10.0;
+    ce.threshold = 1.0;                 // Desired value for goal
+    ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
+    ce.iterations = 100;                // Number of transmissions made before attemting to receive them.
+    ce.payloadLen = 120;                // Length of payload in frame generation
+    ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
+    ce.CPLen = 16;                      // Cyclic Prefix length
+    ce.taperLen = 4;                     // Taper length
+    strcpy(ce.modScheme, "QPSK");
+    strcpy(ce.option_to_adapt, "mod_scheme");
+    strcpy(ce.goal, "payload_valid");
+    strcpy(ce.crcScheme, "none");
+    strcpy(ce.innerFEC, "Hamming128");
+    strcpy(ce.outerFEC, "none");
+    return ce;
+} // End CreateCognitiveEngine()
+
+// Default parameter for Scenario
+struct Scenario CreateScenario() {
+    struct Scenario sc = {};
+    sc.addNoise = 1,
+    sc.noiseSNR = 7.0f, // in dB
+    sc.noiseDPhi = 0.001f,
+
+    sc.addInterference = 0,
+
+    sc.addFading = 0,
+    sc.fadeK = 30.0f,
+    sc.fadeFd = 0.2f,
+    sc.fadeDPhi = 0.001f;
+    return sc;
+} // End CreateScenario()
+
 int readScMasterFile(char scenario_list[30][60])
 {
     config_t cfg;                   // Returns all parameters in this structure 
@@ -71,7 +106,7 @@ int readScMasterFile(char scenario_list[30][60])
    
    
     // Read the file. If there is an error, report it and exit. 
-    if (!config_read_file(&cfg,"master_config_file.txt"))
+    if (!config_read_file(&cfg,"master_scenario_file.txt"))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         printf("\nCould not find master file\n");
@@ -188,7 +223,6 @@ int readCEMasterFile(char cogengine_list[30][60])
     return no_of_cogengines;
 } // End readCEMasterFile()
 
-
 ///////////////////Cognitive Engine///////////////////////////////////////////////////////////
 ////////Reading the cognitive radio parameters from the configuration file////////////////////
 int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
@@ -198,13 +232,16 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
     const char * str;           // Stores the value of the String Parameters in Config file
     int tmpI;                   // Stores the value of Integer Parameters from Config file
     double tmpD;                
+    char ceFileLocation[60];
 
+    strcpy(ceFileLocation, "ceconfigs/");
+    strcat(ceFileLocation, current_cogengine_file);
 
     //Initialization
     config_init(&cfg);
 
     // Read the file. If there is an error, report it and exit. 
-    if (!config_read_file(&cfg,current_cogengine_file))
+    if (!config_read_file(&cfg,ceFileLocation))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
@@ -304,26 +341,6 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
      return 1;
 } // End readCEConfigFile()
 
-// Default parameters for a Cognitive Engine
-struct CognitiveEngine CreateCognitiveEngine() {
-    struct CognitiveEngine ce = {};
-    ce.default_tx_power = 10.0;
-    ce.threshold = 1.0;                 // Desired value for goal
-    ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
-    ce.iterations = 100;                // Number of transmissions made before attemting to receive them.
-    ce.payloadLen = 120;                // Length of payload in frame generation
-    ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
-    ce.CPLen = 16;                      // Cyclic Prefix length
-    ce.taperLen = 4;                     // Taper length
-    strcpy(ce.modScheme, "QPSK");
-    strcpy(ce.option_to_adapt, "mod_scheme");
-    strcpy(ce.goal, "payload_valid");
-    strcpy(ce.crcScheme, "none");
-    strcpy(ce.innerFEC, "Hamming128");
-    strcpy(ce.outerFEC, "none");
-    return ce;
-} // End CreateCognitiveEngine()
-
 int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
 {
     config_t cfg;               // Returns all parameters in this structure 
@@ -336,12 +353,12 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
     double tmpD;
     char scFileLocation[60];
 
-    printf("In readScConfigFile(): string current_scenario_file: \n%s\n", current_scenario_file);
+    //printf("In readScConfigFile(): string current_scenario_file: \n%s\n", current_scenario_file);
 
     // Because the file is in the folder 'scconfigs'
     strcpy(scFileLocation, "scconfigs/");
     strcat(scFileLocation, current_scenario_file);
-    printf("In readScConfigFile(): string scFileLocation: \n%s\n", scFileLocation);
+    //printf("In readScConfigFile(): string scFileLocation: \n%s\n", scFileLocation);
 
     // Initialization 
     config_init(&cfg);
@@ -443,22 +460,6 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
     printf("End of readScConfigFile() Function\n");
     return 1;
 } // End readScConfigFile()
-
-// Default parameter for Scenario
-struct Scenario CreateScenario() {
-    struct Scenario sc = {};
-    sc.addNoise = 1,
-    sc.noiseSNR = 7.0f, // in dB
-    sc.noiseDPhi = 0.001f,
-
-    sc.addInterference = 0,
-
-    sc.addFading = 0,
-    sc.fadeK = 30.0f,
-    sc.fadeFd = 0.2f,
-    sc.fadeDPhi = 0.001f
-    return sc;
-} // End CreateScenario()
 
 // Add AWGN
 void addAWGN(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
@@ -931,8 +932,16 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
     return 1;
 }   // End ceModifyTxParams()
 
+void initializeUSRPs()
+{
+    
+} // end initializeUSRPs()
+
 int main()
 {
+    // TEMPORARY VARIABLE
+    int usingUSRPs = 1;
+
     // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
     int serverThreadReturn = 0;  // return value of creating TCPServer thread
@@ -1010,15 +1019,17 @@ int main()
             printf("Starting Scenario %d\n", i_Sc +1);
             // Initialize current Scenario
             sc = CreateScenario();
-            // TODO: Implement reading from config files
-            printf("Before Calling Config_Scenario\n");
-            printf("scenario_list[i_Sc]=%s\n", scenario_list[i_Sc]);
+            //printf("Before Calling Config_Scenario\n");
+            //printf("scenario_list[i_Sc]=%s\n", scenario_list[i_Sc]);
             readScConfigFile(&sc,scenario_list[i_Sc]);
-            printf ("After Calling Config_Scenario\n");
+            //printf ("After Calling Config_Scenario\n");
 
             // Initialize Transmitter Defaults for current CE and Sc
             fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
-                //TODO: Initialize Connection to USRP                                     
+
+            //TODO: Initialize Connection to USRP                                     
+            if (usingUSRPs)
+                initializeUSRPs();    
 
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
@@ -1039,10 +1050,8 @@ int main()
                 //for (i_N= 0; i_N< N; i_N++)
                 while (!isLastSymbol) 
                 {
-                    // TODO: Create this function
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
 
-                    // TODO: Create this function
                     enactScenario(frameSamples,ce,sc);
 
                     // TODO: Create this function
