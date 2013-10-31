@@ -188,6 +188,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     // Set Rx Frequency
     // TODO: Allow setting of center frequency from command line
     usrp->set_rx_freq(400e6);
+    printf("RX Freq set to %f MHz\n", (usrp->get_rx_freq()/1e6));
     // Wait for USRP to settle at the frequency
     while (not usrp->get_rx_sensor("lo_locked").to_bool()){
         usleep(1000);
@@ -198,10 +199,12 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     // Set the rf gain (dB)
     // TODO: Allow setting of gain from command line
     usrp->set_rx_gain(0.0);
+    printf("RX Gain set to %f dB\n", usrp->get_rx_gain());
 
     // Set the rx_rate
     // TODO: Allow setting of rx_rate from command line
     usrp->set_rx_rate(1e6);
+    printf("RX rate set to %f MS/s\n", (usrp->get_rx_rate()/1e6));
 
     return usrp;
 } // end initializeUSRPs()
