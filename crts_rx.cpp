@@ -20,8 +20,6 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#include <uhd/device.hpp>
-#include <uhd/types/device_addr.hpp>
 #define PORT 1353
 #define MAXPENDING 5
 
@@ -168,12 +166,12 @@ int rxReceivePacket(unsigned int numSubcarriers, unsigned int CPLen, ofdmflexfra
     return 1;
 } // End rxReceivePacket()
 
-void initializeUSRPs()
+uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
     uhd::device_addr_t dev_addr;
     // TODO: Allow setting of USRP Address from command line
     dev_addr["addr0"] = "8b9cadb0";
-    uhd::usrp::multi_usrp::sptr dev = uhd::usrp::multi_usrp::make(dev_addr);
+    uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
 
     // set the board to use the A RX frontend (RX channel 0)
     //uhd::usrp::subdev_spec_t spec;
@@ -181,23 +179,31 @@ void initializeUSRPs()
     //spec.subdev_spec_t("A:0");
     //spec.db_name = "A";
     //spec.sd_name = "0";
-
     //dev->set_rx_subdev_spec("A:0", 0);
-    dev->set_rx_subdev_spec(sd, 0);
+    //dev->set_rx_subdev_spec(sd, 0);
 
     // Set the antenna port
-    dev->set_rx_antenna("TX/RX");
+    //dev->set_rx_antenna("TX/RX");
 
     // Set Rx Frequency
     // TODO: Allow setting of center frequency from command line
-    dev->set_rx_freq(900e6);
+    usrp->set_rx_freq(400e6);
     // Wait for USRP to settle at the frequency
-    while (not dev->get_rx_sensor("lo_locked").to_bool()){
+    while (not usrp->get_rx_sensor("lo_locked").to_bool()){
         usleep(1000);
             //sleep for a short time 
     }
+    //printf("USRP tuned and ready.\n");
 
-    return;
+    // Set the rf gain (dB)
+    // TODO: Allow setting of gain from command line
+    usrp->set_rx_gain(0.0);
+
+    // Set the rx_rate
+    // TODO: Allow setting of rx_rate from command line
+    usrp->set_rx_rate(1e6);
+
+    return usrp;
 } // end initializeUSRPs()
 
 int main()
@@ -212,29 +218,45 @@ int main()
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
 
-    // Buffers for packet/frame data
-    unsigned char header[8];                       // Must always be 8 bytes for ofdmflexframe
-    unsigned char payload[1000];                   // Large enough to accomodate any (reasonable) payload that
-                                                   // the CE wants to use.
-    std::complex<float> frameSamples[10000];       // Buffer of frame samples for each symbol.
-                                                   // Large enough to accomodate any (reasonable) payload that 
-                                                   // the CE wants to use.
+    // Initialize Connection to USRP                                     
+    uhd::usrp::multi_usrp::sptr usrp = initializeUSRPs();    
 
-    //TODO: Initialize Connection to USRP                                     
-    initializeUSRPs();    
+    // Create a receive streamer
+    // Linearly map channels (index0 = channel0, index1 = channel1, ...)
+    uhd::stream_args_t stream_args("fc32"); //complex floats
+    //stream_args.channels = 0;
+    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);
+    const size_t samplesPerPacket  = rx_stream->get_max_num_samps();
+
+    //std::vector<std::complex<float> > frameSamples[samplesPerPacket];
+    std::complex<float> frameSamples[samplesPerPacket];
+    uhd::rx_metadata_t metaData;
+
+    // Begin streaming data from USRP
+    usrp->issue_stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
 
     // Initialize Receiver Defaults for current CE and Sc
     fs = CreateFS(numSubcarriers, CPLen, taperLen);
 
-    // TODO: Create this function
-    // Store a copy of the packet that was transmitted. For reference.
-    // txStoreTransmittedPacket();
-
     while (1)
     {
+        size_t num_rx_samps = rx_stream->recv(
+            frameSamples, samplesPerPacket, metaData,
+            3.0,
+            1 
+        );
+
+        // TODO: Add error capabilities. 
+        // See http://code.ettus.com/redmine/ettus/projects/uhd/repository/revisions/master/entry/host/examples/rx_samples_to_file.cpp
+        // lines 85-113
+
+        // TODO: Create this function
+        // Store a copy of the packet that was transmitted. For reference.
+        // txStoreTransmittedPacket();
+
         // Rx Receives packet
         rxReceivePacket(numSubcarriers, CPLen, &fs, frameSamples);
-    }
+    } // End while
 
     return 0;
-}
+} // End main()
