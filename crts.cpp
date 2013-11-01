@@ -19,6 +19,7 @@
 #include <string.h>     // for memset() 
 #include <unistd.h>     // for close() 
 #include <errno.h>
+#include <uhd/usrp/multi_usrp.hpp>
 #define PORT 1353
 #define MAXPENDING 5
 
@@ -922,9 +923,41 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
     return 1;
 }   // End ceModifyTxParams()
 
-void initializeUSRPs()
+uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
-    return;
+    uhd::device_addr_t dev_addr;
+    // TODO: Allow setting of USRP Address from command line
+    dev_addr["addr0"] = "8b9cadb0";
+    uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
+
+    //Lock mboard clocks
+    //usrp->set_clock_source(ref);
+
+    // Set the TX freq (in Hz)
+    usrp->set_tx_freq(400e6);
+    printf("TX Freq set to %f MHz\n", (usrp->get_tx_freq()/1e6));
+    // Wait for USRP to settle at the frequency
+    while (not usrp->get_tx_sensor("lo_locked").to_bool()){
+        usleep(1000);
+            //sleep for a short time 
+    }
+    //printf("USRP tuned and ready.\n");
+ 
+    // Set the rf gain (dB)
+    // TODO: Allow setting of gain from command line
+    usrp->set_tx_gain(-40.0);
+    printf("TX Gain set to %f dB\n", usrp->get_tx_gain());
+ 
+    // Set the rx_rate (Samples/s)
+    // TODO: Allow setting of tx_rate from command line
+    usrp->set_tx_rate(1e6);
+    printf("TX rate set to %f MS/s\n", (usrp->get_tx_rate()/1e6));
+
+    // Set the IF BW (in Hz)
+    usrp->set_tx_bandwidth(20e3);
+    printf("TX bandwidth set to %f kHz\n", (usrp->get_tx_bandwidth()/1e3));
+
+    return usrp;
 } // end initializeUSRPs()
 
 int main()
