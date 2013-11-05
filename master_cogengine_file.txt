@@ -1,11 +1,11 @@
 
 //config1.txt
 // Basic Information:
-filename = "Master Configuation File for Scenarios";
+filename = "Master Configuation File for Congnitive Engines";
 
 // Parameters
 params = 
 {
-NumberofCogEngines =1;
+NumberofCogEngines = 1;
 cogengine_1 = "config_cog_engine.txt";
 };

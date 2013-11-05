@@ -115,14 +115,15 @@ int readScMasterFile(char scenario_list[30][60])
         return -1;
     }
     else
-        printf("Found master config file\n");
+        printf("\nFound master Scenario config file\n");
 
   
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
-        printf("\nFile Type: %s", str);
+        //printf("File Type: %s\n", str)
+        ;
     else
-        printf("\nNo 'filename' setting in configuration file.");
+        printf("No 'filename' setting in configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -132,7 +133,7 @@ int readScMasterFile(char scenario_list[30][60])
         if (config_setting_lookup_int(setting, "NumberofScenarios", &tmpI))
         {
             no_of_scenarios=tmpI;
-            printf ("\n%d",tmpI);
+            printf ("Number of Scenarios: %d\n",tmpI);
         }
         
        for (i=1;i<=no_of_scenarios;i++)
@@ -140,18 +141,18 @@ int readScMasterFile(char scenario_list[30][60])
        {
          strcpy (current_sc,"scenario_");
          sprintf (tmpS,"%d",i);
-         printf ("\n Scenario Number =%s", tmpS);
+         //printf ("\n Scenario Number =%s", tmpS);
          strcat (current_sc,tmpS);
-         printf ("\n CURRENT SCENARIO =%s", current_sc);
+         //printf ("\n CURRENT SCENARIO =%s", current_sc);
          if (config_setting_lookup_string(setting, current_sc, &str))
           {
               strcpy(*((scenario_list)+i-1),str);          
-              printf ("\nSTR=%s\n",str);
+              //printf ("\nSTR=%s\n",str);
           }
         /*else
             printf("\nNo 'param2' setting in configuration file.");
           */
-        printf ("Scenario File:%s\n", scenario_list[i]);
+        printf ("Scenario File: %s\n", *((scenario_list)+i-1) );
       } 
     }
     config_destroy(&cfg);
@@ -172,8 +173,8 @@ int readCEMasterFile(char cogengine_list[30][60])
     //Initialization
     config_init(&cfg);
    
-    printf ("\nInside readCEMasterFile function\n");
-    printf ("%sCogEngine List[0]:\n",cogengine_list[0] );
+    //printf ("\nInside readCEMasterFile function\n");
+    //printf ("%sCogEngine List[0]:\n",cogengine_list[0] );
 
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_cogengine_file.txt"))
@@ -184,13 +185,14 @@ int readCEMasterFile(char cogengine_list[30][60])
         return -1;
     }
     else
-        printf("Found master config file\n");
+        printf("Found master Cognitive Engine config file.\n");
   
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
-        printf("\nFile Type: %s", str);
+        //printf("File Type: %s\n", str)
+        ;
     else
-        printf("\nNo 'filename' setting in configuration file.");
+        printf("No 'filename' setting in master CE configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -199,22 +201,22 @@ int readCEMasterFile(char cogengine_list[30][60])
         if (config_setting_lookup_int(setting, "NumberofCogEngines", &tmpI))
         {
             no_of_cogengines=tmpI;
-            printf ("\n%d",tmpI);
+            printf ("Number of Congnitive Engines: %d\n",tmpI);
         }
         
-       for (i=1;i<=no_of_cogengines;i++)
-       {
-         strcpy (current_ce,"cogengine_");
-         sprintf (tmpS,"%d",i);
-         //printf ("\n Scenario Number =%s", tmpS);
-         strcat (current_ce,tmpS);
-         //printf ("\n CURRENT SCENARIO =%s", current_sc);
-         if (config_setting_lookup_string(setting, current_ce, &str))
-          {
-              strcpy(*((cogengine_list)+i-1),str);          
-              printf ("\nSTR=%s\n",str);
-          }
-        printf ("Cognitive Engine File:%s\n", cogengine_list[i]);
+        for (i=1;i<=no_of_cogengines;i++)
+        {
+            strcpy (current_ce,"cogengine_");
+            sprintf (tmpS,"%d",i);
+            //printf ("\n Scenario Number =%s", tmpS);
+            strcat (current_ce,tmpS);
+            //printf ("\n CURRENT SCENARIO =%s", current_sc);
+            if (config_setting_lookup_string(setting, current_ce, &str))
+            {
+                strcpy(*((cogengine_list)+i-1),str);          
+                //printf ("\nSTR=%s\n",str);
+            }
+            printf ("Cognitive Engine File: %s\n", *((cogengine_list)+i-1) );
         } 
     }
     config_destroy(&cfg);
@@ -248,9 +250,9 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
 
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
-        printf("\nFile Type: %s", str);
+        printf("Cognitive Engine Configuration File Name: %s\n", str);
     else
-        printf("\nNo 'filename' setting in configuration file.");
+        printf("No 'filename' setting in configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -260,13 +262,13 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
-            printf ("%s",str);
+            printf ("Option to adapt: %s",str);
         }
        
         if (config_setting_lookup_string(setting, "goal", &str))
         {
             strcpy(ce->goal,str);
-            printf ("%s",str);
+            printf ("Goal: %s",str);
         }
         if (config_setting_lookup_string(setting, "modScheme", &str))
         {
@@ -368,7 +370,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
 
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
-        printf("\nFile Type: %s", str);
+        printf("\nFile Name: %s", str);
     else
         printf("\nNo 'filename' setting in configuration file.");
 
@@ -452,7 +454,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
 
     config_destroy(&cfg);
 
-    printf("End of readScConfigFile() Function\n");
+    //printf("End of readScConfigFile() Function\n");
     return 1;
 } // End readScConfigFile()
 
@@ -569,7 +571,8 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
 } // End addRiceFading()
 
 // Enact Scenario
-void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+// TODO: Alter code for when usingUSRPs
+void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc, int usingUSRPs)
 {
     // Check AWGN
     if (sc.addNoise == 1){
@@ -590,6 +593,7 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
 // Create Frame generator with CE and Scenario parameters
 ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
 
+    printf("Setting inital ofdmflexframegen options:\n");
     // Set Modulation Scheme
     // TODO: add other liquid-supported mod schemes
     modulation_scheme ms;
@@ -790,13 +794,23 @@ int txGeneratePacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, unsigned
     return 1;
 } // End txGeneratePacket()
 
-int txTransmitPacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, std::complex<float> * frameSamples)
+int txTransmitPacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, std::complex<float> * frameSamples, 
+                        uhd::tx_metadata_t md, uhd::tx_streamer::sptr txStream, int usingUSRPs)
 {
     int isLastSymbol = ofdmflexframegen_writesymbol(*_fg, frameSamples);
+
+    if (usingUSRPs)
+    {
+        unsigned int symbolLen = ce.numSubcarriers + ce.CPLen;
+        txStream->send(frameSamples, symbolLen, md);
+
+    }
+
     return isLastSymbol;
 } // End txTransmitPacket()
 
-int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::complex<float> * frameSamples)
+// TODO: Alter code for when usingUSRPs
+int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::complex<float> * frameSamples, int usingUSRPs)
 {
     unsigned int symbolLen = ce.numSubcarriers + ce.CPLen;
     ofdmflexframesync_execute(*_fs, frameSamples, symbolLen);
@@ -808,9 +822,9 @@ int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::com
 // to an array that is accessible to the CE
 void * startTCPServer(void * _read_buffer )
 {
-    printf("Server thread called.\n");
+    printf("(Server thread called.)\n");
     // Iterator
-    int i;
+    //int i;
     // Buffer for data sent by client. This memory address is also given to CE
     float * read_buffer = (float *) _read_buffer;
     //  Local (server) address
@@ -849,7 +863,7 @@ void * startTCPServer(void * _read_buffer )
             printf("Failed to Set Sleeping (listening) Mode\n");
             exit(1);
         }
-        printf("Server is now in listening mode\n");
+        printf("\n(Server is now in listening mode)\n");
 
         // Accept a connection from client
         //printf("Server is waiting to accept connection from client\n");
@@ -864,8 +878,9 @@ void * startTCPServer(void * _read_buffer )
         // Transmitter receives data from client (receiver)
             // Zero the read buffer. Then read the data into it.
             bzero(read_buffer, 256);
-            int read_status = -1;   // indicates success/failure of read operation.
-            read_status = read(socket_to_client, read_buffer, 255);
+            //int read_status = -1;   // indicates success/failure of read operation.
+            //read_status = read(socket_to_client, read_buffer, 255);
+            read(socket_to_client, read_buffer, 255);
         // Print the data received
         //printf("read_status= %d\n", read_status);
         //printf("\nServer (transmitter) received:\n" );
@@ -914,7 +929,7 @@ int ceOptimized(struct CognitiveEngine ce)
 
 int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
 {
-    printf("Modifying Tx parameters");
+    printf("Modifying Tx parameters...\n");
     // TODO: Implement a similar if statement for each possible option
     // that can be adapted.
     if (strcmp(ce->option_to_adapt, "mod_scheme") == 0) {
@@ -925,9 +940,20 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
 
 uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
+    uhd::device_addr_t hint; //an empty hint discovers all devices
+    uhd::device_addrs_t dev_addrs = uhd::device::find(hint);
+    std::string str = dev_addrs[0].to_string();
+    const char * c = str.c_str();
+    printf("First UHD Device found: %s\n", c ); 
+    //std::string strpp = dev_addrs[0].to_pp_string();
+    //const char * cpp = strpp.c_str();
+    //printf("All UHD Devices found: %s\n", cpp ); 
+
     uhd::device_addr_t dev_addr;
     // TODO: Allow setting of USRP Address from command line
-    dev_addr["addr0"] = "8b9cadb0";
+    dev_addr["addr0"] = "type=usrp1,serial=8b9cadb0";
+    //uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
+    //dev_addr["addr0"] = "8b9cadb0";
     uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
 
     //Lock mboard clocks
@@ -960,6 +986,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     return usrp;
 } // end initializeUSRPs()
 
+
 int main()
 {
     // TEMPORARY VARIABLE
@@ -967,7 +994,7 @@ int main()
 
     // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
-    int serverThreadReturn = 0;  // return value of creating TCPServer thread
+    //int serverThreadReturn = 0;  // return value of creating TCPServer thread
 
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
@@ -977,25 +1004,25 @@ int main()
     int i_CE = 0;
     int i_Sc = 0;
     int DoneTransmitting = 0;
-    int N = 0;                 // Iterations of transmission before receiving.
-    int i_N = 0;
+    //int N = 0;                 // Iterations of transmission before receiving.
+    //int i_N = 0;
     int isLastSymbol = 0;
     char scenario_list [30][60];
-    printf ("\nDeclared scenario array");
+    //printf ("Declared scenario array\n");
     char cogengine_list [30][60];
     
-    printf("variables declared.\n");
+    //printf("variables declared.\n");
 
     int NumCE=readCEMasterFile(cogengine_list);  
     int NumSc=readScMasterFile(scenario_list);  
-    printf ("\nCalled readScMasterFile function\n");
+    //printf ("\nCalled readScMasterFile function\n");
 
     // Cognitive engine struct used in each test
     struct CognitiveEngine ce = CreateCognitiveEngine();
     // Scenario struct used in each test
     struct Scenario sc = CreateScenario();
 
-    printf("structs declared\n");
+    //printf("structs declared\n");
     // framegenerator object used in each test
     ofdmflexframegen fg;
 
@@ -1003,7 +1030,7 @@ int main()
     // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
     ofdmflexframesync fs;
 
-    printf("frame objects declared\n");
+    //printf("frame objects declared\n");
 
     // Buffers for packet/frame data
     unsigned char header[8];                       // Must always be 8 bytes for ofdmflexframe
@@ -1012,11 +1039,18 @@ int main()
     std::complex<float> frameSamples[10000];      // Buffer of frame samples for each symbol.
                                                    // Large enough to accomodate any (reasonable) payload that 
                                                    // the CE wants to use.
+    // USRP objects
+    uhd::tx_metadata_t metaData;
+    uhd::usrp::multi_usrp::sptr usrp;
+    uhd::tx_streamer::sptr txStream;
+                                                   
 
     ////////////////////// End variable initializations.
 
     // Begin TCP Server Thread
-    serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+    //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+    pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+
     // Allow server time to finish initialization
     sleep(.1);
 
@@ -1034,7 +1068,7 @@ int main()
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         //while (strcmp (status,"end"!=0))
         {
-            printf("Starting Scenario %d\n", i_Sc +1);
+            printf("\n\nStarting Scenario %d\n", i_Sc +1);
             // Initialize current Scenario
             sc = CreateScenario();
             //printf("Before Calling Config_Scenario\n");
@@ -1047,7 +1081,7 @@ int main()
 
             //TODO: Initialize Connection to USRP                                     
             if (usingUSRPs)
-                initializeUSRPs();    
+                usrp = initializeUSRPs();    
 
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
@@ -1062,12 +1096,23 @@ int main()
                 txGeneratePacket(ce, &fg, header, payload);
                 // i.e. Need to transmit each symbol in frame.
                 isLastSymbol = 0;
-                N = 0;
+                //N = 0;
+
+                if (usingUSRPs) 
+                {
+                    metaData.start_of_burst = false;
+                    metaData.end_of_burst   = false;  
+                    metaData.has_time_spec  = false; 
+
+                    uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
+                    txStream = usrp->get_tx_stream(stream_args);
+                }
+
                 while (!isLastSymbol) 
                 {
-                    isLastSymbol = txTransmitPacket(ce, &fg, frameSamples);
+                    isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
 
-                    enactScenario(frameSamples,ce,sc);
+                    enactScenario(frameSamples,ce,sc, usingUSRPs);
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
@@ -1075,7 +1120,8 @@ int main()
                 
                     // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
                     // Rx Receives packet
-                    rxReceivePacket(ce, &fs, frameSamples);
+                    if (!usingUSRPs) 
+                        rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
                 } // End Transmition For loop
 
                 // Receive and analyze data from rx
