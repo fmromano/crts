@@ -6,6 +6,12 @@ filename = "Master Configuation File for Congnitive Engines";
 // Parameters
 params = 
 {
-NumberofCogEngines = 1;
-cogengine_1 = "config_cog_engine.txt";
+    NumberofCogEngines = 1;
+    cogengine_1 = "ce1.txt";
+    //cogengine_2 = "ce2.txt";
+    //cogengine_2 = "ce3.txt";
+    //cogengine_1 = "ce1.txt";
+    //cogengine_2 = "ce2.txt";
+    //cogengine_3 = "ce3.txt";
+
 };

@@ -6,7 +6,10 @@ filename = "Master Configuation File for Scenarios";
 // Parameters
 params = 
 {
-NumberofScenarios =2;
-scenario_1 = "AWGN4.txt";
-scenario_2 = "AWGN10.txt";
+NumberofScenarios =4;
+scenario_1 = "wincom1.txt";
+scenario_2 = "wincom2.txt";
+scenario_3 = "wincom3.txt";
+scenario_4 = "wincom4.txt";
+//scenario_5 = "wincom5.txt";
 };

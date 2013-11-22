@@ -20,74 +20,8 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1353
+#define PORT 1395
 #define MAXPENDING 5
-
-struct CognitiveEngine {
-    char modScheme[20];
-    char crcScheme[20];
-    char innerFEC[20];
-    char outerFEC[20];
-    float default_tx_power;
-    char option_to_adapt[20];
-    char goal[20];
-    float threshold;
-    float latestGoalValue;
-    int iterations;
-    int payloadLen;
-    unsigned int numSubcarriers;
-    unsigned int CPLen;
-    unsigned int taperLen;
-};
-
-struct Scenario {
-    int addNoise; //Does the Scenario have noise?
-    float noiseSNR;
-    float noiseDPhi;
-
-    int addInterference; // Does the Scenario have interference?
-
-    int addFading; // Does the Secenario have fading?
-    float fadeK;
-    float fadeFd;
-    float fadeDPhi;
-};
-
-// Default parameters for a Cognitive Engine
-struct CognitiveEngine CreateCognitiveEngine() {
-    struct CognitiveEngine ce = {};
-    ce.default_tx_power = 10.0;
-    ce.threshold = 1.0;                 // Desired value for goal
-    ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
-    ce.iterations = 100;                // Number of transmissions made before attemting to receive them.
-    ce.payloadLen = 120;                // Length of payload in frame generation
-    ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
-    ce.CPLen = 16;                      // Cyclic Prefix length
-    ce.taperLen = 4;                     // Taper length
-    strcpy(ce.modScheme, "QPSK");
-    strcpy(ce.option_to_adapt, "mod_scheme");
-    strcpy(ce.goal, "payload_valid");
-    strcpy(ce.crcScheme, "none");
-    strcpy(ce.innerFEC, "Hamming128");
-    strcpy(ce.outerFEC, "none");
-    return ce;
-} // End CreateCognitiveEngine()
-
-// Default parameter for Scenario
-struct Scenario CreateScenario() {
-    struct Scenario sc = {};
-    sc.addNoise = 1,
-    sc.noiseSNR = 7.0f, // in dB
-    sc.noiseDPhi = 0.001f,
-
-    sc.addInterference = 0,
-
-    sc.addFading = 0,
-    sc.fadeK = 30.0f,
-    sc.fadeFd = 0.2f,
-    sc.fadeDPhi = 0.001f;
-    return sc;
-} // End CreateScenario()
 
 int rxCallback(unsigned char *  _header,
                 int              _header_valid,
@@ -159,10 +93,12 @@ ofdmflexframesync CreateFS(unsigned int numSubcarriers, unsigned int CPLen, unsi
      return fs;
 } // End CreateFS();
 
-int rxReceivePacket(unsigned int numSubcarriers, unsigned int CPLen, ofdmflexframesync * _fs, std::complex<float> * frameSamples)
+int rxReceivePacket(unsigned int numSubcarriers, unsigned int CPLen, ofdmflexframesync * _fs, std::complex<float> * frameSamples, unsigned int len)
 {
     unsigned int symbolLen = numSubcarriers + CPLen;
     ofdmflexframesync_execute(*_fs, frameSamples, symbolLen);
+    //ofdmflexframesync_execute(*_fs, frameSamples, 1);
+    //ofdmflexframesync_execute(*_fs, frameSamples, len);
     return 1;
 } // End rxReceivePacket()
 
@@ -170,7 +106,8 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
     uhd::device_addr_t dev_addr;
     // TODO: Allow setting of USRP Address from command line
-    dev_addr["addr0"] = "8b9cadb0";
+    //dev_addr["addr0"] = "8b9cadb0";
+    dev_addr["addr0"] = "44b6b0e6";
     uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
 
     // set the board to use the A RX frontend (RX channel 0)
@@ -201,10 +138,6 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     usrp->set_rx_gain(0.0);
     printf("RX Gain set to %f dB\n", usrp->get_rx_gain());
 
-    // Set the rx_rate
-    // TODO: Allow setting of rx_rate from command line
-    usrp->set_rx_rate(1e6);
-    printf("RX rate set to %f MS/s\n", (usrp->get_rx_rate()/1e6));
 
     return usrp;
 } // end initializeUSRPs()
@@ -224,6 +157,17 @@ int main()
     // Initialize Connection to USRP                                     
     uhd::usrp::multi_usrp::sptr usrp = initializeUSRPs();    
 
+    // TODO: Move this into initializeUSRPs()
+        // Set the rx_rate
+        // TODO: Allow setting of bandwidth from command line
+        float bandwidth = 500.0e3; // Hz
+        float rx_rate = 2.0f*bandwidth;
+        usrp->set_rx_rate(rx_rate);
+        double usrp_rx_rate = usrp->get_rx_rate();
+        double rx_resamp_rate = rx_rate/usrp_rx_rate;
+        msresamp_crcf resamp = msresamp_crcf_create(rx_resamp_rate, 60.0f);
+        printf("RX rate set to %f MS/s\n", (usrp->get_rx_rate()/1e6));
+
     // Create a receive streamer
     // Linearly map channels (index0 = channel0, index1 = channel1, ...)
     uhd::stream_args_t stream_args("fc32"); //complex floats
@@ -232,7 +176,9 @@ int main()
     const size_t samplesPerPacket  = rx_stream->get_max_num_samps();
 
     //std::vector<std::complex<float> > frameSamples[samplesPerPacket];
-    std::complex<float> frameSamples[samplesPerPacket];
+    std::complex<float> buffer[samplesPerPacket];
+    unsigned int br_len = samplesPerPacket/rx_resamp_rate;
+    std::complex<float> buffer_resampled[br_len];
     uhd::rx_metadata_t metaData;
 
     // Begin streaming data from USRP
@@ -244,10 +190,34 @@ int main()
     while (1)
     {
         size_t num_rx_samps = rx_stream->recv(
-            frameSamples, samplesPerPacket, metaData,
+            buffer, samplesPerPacket, metaData,
             3.0,
             1 
         );
+
+        // Resample the data according to difference between nominal and USRP sample rates
+        // If this is done one at a time, why is the an entire array used for buffer_resampled?
+        // Is the first element of buffer_resampled overwritten each time?
+        //unsigned int j;
+        //for (j=0; j<num_rx_samps; j++) {
+        //    // get sample 
+        //    std::complex<float> usrp_sample = buffer[j];
+
+        //    // resample one at a time
+        //    unsigned int nw;
+        //    msresamp_crcf_execute(resamp, &usrp_sample, 1, buffer_resampled, &nw);
+
+        //    // Rx Receives packet
+        //    rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled);
+        //}
+
+        // resample 
+        unsigned int nw;
+        msresamp_crcf_execute(resamp, buffer, samplesPerPacket, buffer_resampled, &nw);
+
+        // Rx Receives packet
+        rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, br_len);
+        //rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, nw);
 
         // TODO: Add error capabilities. 
         // See http://code.ettus.com/redmine/ettus/projects/uhd/repository/revisions/master/entry/host/examples/rx_samples_to_file.cpp
@@ -257,8 +227,6 @@ int main()
         // Store a copy of the packet that was transmitted. For reference.
         // txStoreTransmittedPacket();
 
-        // Rx Receives packet
-        rxReceivePacket(numSubcarriers, CPLen, &fs, frameSamples);
     } // End while
 
     return 0;

@@ -1,0 +1,14 @@
+
+//config1.txt
+// Basic Information:
+filename = "Sample Configuration File";
+
+// Parameters
+params = 
+{
+    goal="X_errorFreePayloads";
+    threshold=1000.0;
+    modScheme="BPSK";
+    option_to_adapt="decrease_mod_scheme_PSK";
+    adjustOn="packet_error_rate";
+};

@@ -20,20 +20,26 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1353
+#define PORT 1395
 #define MAXPENDING 5
 
 
 struct CognitiveEngine {
-    char modScheme[20];
-    char crcScheme[20];
-    char innerFEC[20];
-    char outerFEC[20];
+    char modScheme[30];
+    char crcScheme[30];
+    char innerFEC[30];
+    char outerFEC[30];
+    char adjustOn[30];
     float default_tx_power;
-    char option_to_adapt[20];
-    char goal[20];
+    char option_to_adapt[30];
+    char goal[30];
     float threshold;
     float latestGoalValue;
+    float weightedAvg; 
+    float PER;
+    float framesReceived;
+    float validPayloads;
+    float errorFreePayloads;
     int iterations;
     int payloadLen;
     unsigned int numSubcarriers;
@@ -66,12 +72,19 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
     ce.CPLen = 16;                      // Cyclic Prefix length
     ce.taperLen = 4;                     // Taper length
+    ce.weightedAvg = 0.0;
+    ce.PER = 0.0;
+    ce.framesReceived = 0.0;
+    ce.validPayloads = 0.0;
+    ce.errorFreePayloads = 0.0;
     strcpy(ce.modScheme, "QPSK");
-    strcpy(ce.option_to_adapt, "mod_scheme");
+    strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
     strcpy(ce.crcScheme, "none");
-    strcpy(ce.innerFEC, "Hamming128");
+    strcpy(ce.innerFEC, "none");
     strcpy(ce.outerFEC, "none");
+    //strcpy(ce.adjustOn, "weighted_avg_payload_valid"); 
+    strcpy(ce.adjustOn, "packet_error_rate"); 
     return ce;
 } // End CreateCognitiveEngine()
 
@@ -262,76 +275,81 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
-            printf ("Option to adapt: %s",str);
+            printf ("Option to adapt: %s\n",str);
         }
        
         if (config_setting_lookup_string(setting, "goal", &str))
         {
             strcpy(ce->goal,str);
-            printf ("Goal: %s",str);
+            printf ("Goal: %s\n",str);
+        }
+        if (config_setting_lookup_string(setting, "adjustOn", &str))
+        {
+            strcpy(ce->adjustOn,str);
+            printf ("adjustOn: %s\n",str);
         }
         if (config_setting_lookup_string(setting, "modScheme", &str))
         {
             strcpy(ce->modScheme,str);
-            printf ("Modulation Scheme:%s",str);
+            printf ("Modulation Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "crcScheme", &str))
         {
             strcpy(ce->crcScheme,str);
-            printf ("CRC Scheme:%s",str);
+            printf ("CRC Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "innerFEC", &str))
         {
             strcpy(ce->innerFEC,str);
-            printf ("Inner FEC Scheme:%s",str);
+            printf ("Inner FEC Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "outerFEC", &str))
         {
             strcpy(ce->outerFEC,str);
-            printf ("Outer FEC Scheme:%s",str);
+            printf ("Outer FEC Scheme:%s\n",str);
         }
 
         // Read the integers
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            ce->iterations=tmpI;
-           printf("\nIterations: %d", tmpI);
+           printf("Iterations: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLen", &tmpI))
         {
            ce->payloadLen=tmpI; 
-           printf("\nPayloadLen: %d", tmpI);
+           printf("PayloadLen: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "numSubcarriers", &tmpI))
         {
            ce->numSubcarriers=tmpI; 
-           printf("\nNumber of Subcarriers: %d", tmpI);
+           printf("Number of Subcarriers: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "CPLen", &tmpI))
         {
            ce->CPLen=tmpI; 
-           printf("\nCPLen: %d", tmpI);
+           printf("CPLen: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "taperLen", &tmpI))
         {
-           ce->payloadLen=tmpI; 
-           printf("\ntaperLen: %d", tmpI);
+           ce->taperLen=tmpI; 
+           printf("taperLen: %d\n", tmpI);
         }
         // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
            ce->default_tx_power=tmpD; 
-           printf("\nDefault Tx Power: %f\n", tmpD);
+           printf("Default Tx Power: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "latestGoalValue", &tmpD))
         {
            ce->latestGoalValue=tmpD; 
-           printf("\nLatest Goal Value: %f", tmpD);
+           printf("Latest Goal Value: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "threshold", &tmpD))
         {
            ce->threshold=tmpD; 
-           printf("\nThreshold: %f", tmpD);
+           printf("Threshold: %f\n", tmpD);
         }
      }
     config_destroy(&cfg);
@@ -342,10 +360,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
-    //const char *str1, *str2;
-    //char str[30];
     const char * str;
-    //int tmp,tmp2,tmp3,tmp4,tmp5;
     int tmpI;
     double tmpD;
     char scFileLocation[60];
@@ -579,14 +594,14 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
        addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
-       printf("Warning: There is currently no interference function");
+       printf("WARNING: There is currently no interference scenario functionality!\n");
        // Interference function
     }
     if (sc.addFading == 1){
        addRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       printf("Nothing Added by Scenario\n");
+       printf("Nothing Added by Scenario!\n");
     }
 } // End enactScenario()
 
@@ -606,9 +621,57 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     else if ( strcmp(ce.modScheme, "OOK") ==0) {
         ms = LIQUID_MODEM_OOK;
     }
+    else if ( strcmp(ce.modScheme, "8PSK") ==0) {
+        ms = LIQUID_MODEM_PSK8;
+    }
+    else if ( strcmp(ce.modScheme, "16PSK") ==0) {
+        ms = LIQUID_MODEM_PSK16;
+    }
+    else if ( strcmp(ce.modScheme, "32PSK") ==0) {
+        ms = LIQUID_MODEM_PSK32;
+    }
+    else if ( strcmp(ce.modScheme, "64PSK") ==0) {
+        ms = LIQUID_MODEM_PSK64;
+    }
+    else if ( strcmp(ce.modScheme, "128PSK") ==0) {
+        ms = LIQUID_MODEM_PSK128;
+    }
+    else if ( strcmp(ce.modScheme, "8QAM") ==0) {
+        ms = LIQUID_MODEM_QAM8;
+    }
+    else if ( strcmp(ce.modScheme, "16QAM") ==0) {
+        ms = LIQUID_MODEM_QAM16;
+    }
+    else if ( strcmp(ce.modScheme, "32QAM") ==0) {
+        ms = LIQUID_MODEM_QAM32;
+    }
+    else if ( strcmp(ce.modScheme, "64QAM") ==0) {
+        ms = LIQUID_MODEM_QAM64;
+    }
+    else if ( strcmp(ce.modScheme, "BASK") ==0) {
+        ms = LIQUID_MODEM_ASK2;
+    }
+    else if ( strcmp(ce.modScheme, "4ASK") ==0) {
+        ms = LIQUID_MODEM_ASK4;
+    }
+    else if ( strcmp(ce.modScheme, "8ASK") ==0) {
+        ms = LIQUID_MODEM_ASK8;
+    }
+    else if ( strcmp(ce.modScheme, "16ASK") ==0) {
+        ms = LIQUID_MODEM_ASK16;
+    }
+    else if ( strcmp(ce.modScheme, "32ASK") ==0) {
+        ms = LIQUID_MODEM_ASK32;
+    }
+    else if ( strcmp(ce.modScheme, "64ASK") ==0) {
+        ms = LIQUID_MODEM_ASK64;
+    }
+    else if ( strcmp(ce.modScheme, "128ASK") ==0) {
+        ms = LIQUID_MODEM_ASK128;
+    }
     else {
-        printf("ERROR: Unkown Modulation Scheme");
-        //TODO: Skip current test if given an unkown parameter.
+        printf("ERROR: Unknown Modulation Scheme");
+        //TODO: Skip current test if given an unknown parameter.
     }
 
     // Set Cyclic Redundency Check Scheme
@@ -639,7 +702,7 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     }
     else {
         printf("ERROR: unknown CRC\n");
-        //TODO: Skip current test if given an unkown parameter.
+        //TODO: Skip current test if given an unknown parameter.
     }
 
     // Set inner forward error correction scheme
@@ -661,9 +724,13 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
         fec0 = LIQUID_FEC_REP3;
         printf("fec0 = LIQUID_FEC_REP3\n");
     }
+    else if (strcmp(ce.innerFEC, "REP5") == 0) {
+        fec0 = LIQUID_FEC_REP5;
+        printf("fec0 = LIQUID_FEC_REP5\n");
+    }
     else {
         printf("ERROR: unknown inner FEC\n");
-        //TODO: Skip current test if given an unkown parameter.
+        //TODO: Skip current test if given an unknown parameter.
     }
 
     // Set outer forward error correction scheme
@@ -685,9 +752,13 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
         fec1 = LIQUID_FEC_REP3;
         printf("fec1 = LIQUID_FEC_REP3\n");
     }
+    else if (strcmp(ce.outerFEC, "REP5") == 0) {
+        fec1 = LIQUID_FEC_REP5;
+        printf("fec0 = LIQUID_FEC_REP5\n");
+    }
     else {
         printf("ERROR: unknown outer FEC\n");
-        //TODO: Skip current test if given an unkown parameter.
+        //TODO: Skip current test if given an unknown parameter.
     }
 
     // Frame generation parameters
@@ -699,19 +770,25 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     fgprops.check           = check;
     fgprops.fec0            = fec0;
     fgprops.fec1            = fec1;
+    printf("About to create fg...\n");
     ofdmflexframegen fg = ofdmflexframegen_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, &fgprops);
+    printf("fg created\n");
 
     return fg;
 } // End CreateFG()
 
 int rxCallback(unsigned char *  _header,
-                int              _header_valid,
-                unsigned char *  _payload,
-                unsigned int     _payload_len,
-                int              _payload_valid,
-                framesyncstats_s _stats,
-                void *           _userdata)
+               int              _header_valid,
+               unsigned char *  _payload,
+               unsigned int     _payload_len,
+               int              _payload_valid,
+               framesyncstats_s _stats,
+               void *           _userdata)
 {
+    // 
+    float * frameNumber = (float *) _userdata;
+    *frameNumber = *frameNumber +1;
+
     // Iterator
     int i = 0;
 
@@ -719,10 +796,10 @@ int rxCallback(unsigned char *  _header,
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
-    printf("Receiver Failed to Create Client Socket\n");
-    exit(1);
+        printf("Receiver Failed to Create Client Socket. error: %s\n", strerror(errno));
+        exit(1);
     }   
-    printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
+    //printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
     // Parameters for connecting to server
     // TODO: Allow selection of IP address and port in command line parameters.
@@ -736,13 +813,36 @@ int rxCallback(unsigned char *  _header,
     int connect_status;
     if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
     {   
-        printf("Receive Failed to Connect to server.\n");
+        printf("Receiver Failed to Connect to server.\n");
         printf("connect_status = %d\n", connect_status);
         exit(1);
     }
    
-    framesyncstats_print(&_stats); 
-      
+    //framesyncstats_print(&_stats); 
+
+    // Check if packet is error-free
+    float headerErrorFree = 0.0;
+    float payloadErrorFree = 0.0;
+    if (_header_valid) {
+        headerErrorFree = 1.0;
+        for (i=0; i<8; i++) 
+        {
+            if (!(_header[i] == (i & 0xff))) {
+                headerErrorFree = 0.0;
+            }
+        }
+    }
+    if (_payload_valid)
+    {
+        payloadErrorFree = 1.0;
+        for (i=0; i<(signed int)_payload_len; i++)
+        {
+            if (!(_payload[i] == (i & 0xff))) {
+                payloadErrorFree = 0.0;
+            }
+        }
+    }
+          
     // Data that will be sent to server
     // TODO: Send other useful data through feedback array
     float feedback[8];
@@ -750,8 +850,11 @@ int rxCallback(unsigned char *  _header,
     feedback[1] = (float) _payload_valid;
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
+    feedback[4] = *frameNumber;
+    feedback[5] = headerErrorFree;
+    feedback[6] = payloadErrorFree;
    
-    for (i=0; i<4; i++)
+    for (i=0; i<7; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
 
     // Receiver sends data to server
@@ -766,10 +869,10 @@ int rxCallback(unsigned char *  _header,
 } // end rxCallback()
 
 // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc)
+ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, float * frameNumber)
 {
      ofdmflexframesync fs =
-             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, NULL);
+             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, (void *) frameNumber);
 
      return fs;
 } // End CreateFS();
@@ -780,13 +883,15 @@ int txGeneratePacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, unsigned
 {
     // Iterator
     int i = 0;
+    printf("ce.payloadLen= %u", ce.payloadLen);
 
     // Generate data
-    printf("\n\ngenerating data that will go in frame...\n");
+    printf("\n\nGenerating data that will go in frame...\n");
     for (i=0; i<8; i++)
     header[i] = i & 0xff;
     for (i=0; i<ce.payloadLen; i++)
-    payload[i] = rand() & 0xff;
+    //payload[i] = rand() & 0xff;
+    payload[i] = i & 0xff;
 
     // Assemble frame
     ofdmflexframegen_assemble(*_fg, header, payload, ce.payloadLen);
@@ -823,8 +928,6 @@ int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::com
 void * startTCPServer(void * _read_buffer )
 {
     printf("(Server thread called.)\n");
-    // Iterator
-    //int i;
     // Buffer for data sent by client. This memory address is also given to CE
     float * read_buffer = (float *) _read_buffer;
     //  Local (server) address
@@ -841,7 +944,6 @@ void * startTCPServer(void * _read_buffer )
         printf("Transmitter Failed to Create Server Socket.\n");
         exit(1);
     }
-
     // Construct local (server) address structure 
     memset(&servAddr, 0, sizeof(servAddr));       // Zero out structure 
     servAddr.sin_family = AF_INET;                // Internet address family 
@@ -853,7 +955,6 @@ void * startTCPServer(void * _read_buffer )
         printf("bind() error\n");
         exit(1);
     }
-
     // Listen and accept connections indefinitely
     while (1)
     {
@@ -881,24 +982,25 @@ void * startTCPServer(void * _read_buffer )
             //int read_status = -1;   // indicates success/failure of read operation.
             //read_status = read(socket_to_client, read_buffer, 255);
             read(socket_to_client, read_buffer, 255);
-        // Print the data received
-        //printf("read_status= %d\n", read_status);
-        //printf("\nServer (transmitter) received:\n" );
-        //printf("readbuffer[0]= %f\n", read_buffer[0]);
-        //printf("readbuffer[1]= %f\n", read_buffer[1]);
-        //printf("readbuffer[2]= %f\n", read_buffer[2]);
+        close(socket_to_client);
+
     } // End listening While loop
 } // End startTCPServer()
 
-int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
+int ceProcessData(struct CognitiveEngine * ce, float * feedback)
 {
     int i = 0;
-    printf("In ceAnalyzeData():\nfeedback=\n");
-    for (i = 0; i<4;i++) {
+    printf("In ceProcessData():\nfeedback=\n");
+    for (i = 0; i<7;i++) {
         printf("feedback[%d]= %f\n", i, feedback[i]);
     }
 
-    printf("ce->goal=%s\n", ce->goal);
+    ce->framesReceived = feedback[4];
+    ce->validPayloads += feedback[1];
+    ce->errorFreePayloads += feedback[6];
+    ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
+
+    //printf("ce->goal=%s\n", ce->goal);
 
     // Copy the data from the server
     if (strcmp(ce->goal, "payload_valid") == 0)
@@ -906,18 +1008,30 @@ int ceAnalyzeData(struct CognitiveEngine * ce, float * feedback)
         printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
         ce->latestGoalValue = feedback[1];
     }
+    if (strcmp(ce->goal, "X_valid_payloads") == 0)
+    {
+        printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
+        ce->latestGoalValue += feedback[1];
+    }
+    if(strcmp(ce->goal, "X_errorFreePayloads") == 0)
+    {
+        printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[6]);
+        ce->latestGoalValue += feedback[6];
+    }
     else
     {
-        printf("ERROR: Unkown Goal!\n");
+        printf("ERROR: Unknown Goal!\n");
     }
     // TODO: implement if statements for other possible goals.
 
     return 1;
-} // End ceAnalyzeData()
+} // End ceProcessData()
 
 int ceOptimized(struct CognitiveEngine ce)
 {
    printf("Checking if goal value has been reached.\n");
+   printf("ce.latestGoalValue= %f\n", ce.latestGoalValue);
+   printf("ce.threshold= %f\n", ce.threshold);
    if (ce.latestGoalValue >= ce.threshold)
    {
        printf("Goal is reached\n");
@@ -929,32 +1043,172 @@ int ceOptimized(struct CognitiveEngine ce)
 
 int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
 {
-    printf("Modifying Tx parameters...\n");
-    // TODO: Implement a similar if statement for each possible option
-    // that can be adapted.
-    if (strcmp(ce->option_to_adapt, "mod_scheme") == 0) {
-        strcpy(ce->modScheme, "BPSK");
+    int modify = 0;
+    printf("ce->adjustOn = %s\n", ce->adjustOn);
+    // Check what values determine if parameters should be modified
+    if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
+        // Check if parameters should be modified
+        if(feedback[1]<1)
+        {
+            modify = 1;
+            printf("lpv. Modifying...\n");
+        }
+    }
+    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid") == 0) {
+        // Check if parameters should be modified
+        // TODO: Move to ceAnalyzeData
+        ce->weightedAvg += feedback[1];
+        // TODO: Allow this value to be changed
+        if (ce->weightedAvg < 0.5)
+        {
+            modify = 1;
+            printf("wapv. Modifying...\n");
+        }
+    }
+    if(strcmp(ce->adjustOn, "packet_error_rate") == 0) {
+        // Check if parameters should be modified
+        // TODO: Allow this value to be changed
+        printf("PER = %f\n", ce->PER);
+        if(ce->PER <0.5)
+        {
+            modify = 1;
+            printf("per. Modifying...\n" );
+        }
+    }
+    if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
+        // Check if parameters should be modified
+        if(feedback[6]<1){
+            modify = 1;
+            printf("lpef. Modifying...\n");
+        }
+    }
+
+    // If so, modify the specified parameter
+    if (modify) 
+    {
+        printf("Modifying Tx parameters...\n");
+        // TODO: Implement a similar if statement for each possible option
+        // that can be adapted.
+
+        // Doesn't work.
+        if (strcmp(ce->option_to_adapt, "decrease_numSubcarriers") == 0) {
+            if (ce->numSubcarriers > 2)
+                ce->numSubcarriers -= 2;
+        }
+
+        if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_PSK") == 0) {
+            if (strcmp(ce->modScheme, "QPSK") == 0) {
+                strcpy(ce->modScheme, "BPSK");
+            }
+            if (strcmp(ce->modScheme, "8PSK") == 0) {
+                strcpy(ce->modScheme, "QPSK");
+            }
+            if (strcmp(ce->modScheme, "16PSK") == 0) {
+                strcpy(ce->modScheme, "8PSK");
+            }
+            if (strcmp(ce->modScheme, "32PSK") == 0) {
+                strcpy(ce->modScheme, "16PSK");
+            }
+            if (strcmp(ce->modScheme, "64PSK") == 0) {
+                strcpy(ce->modScheme, "32PSK");
+            }
+            if (strcmp(ce->modScheme, "128PSK") == 0) {
+                strcpy(ce->modScheme, "64PSK");
+                printf("New modscheme: 64PSK\n");
+            }
+        }
+        // TODO: DOens't work. Fix.
+        if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_ASK") == 0) {
+            if (strcmp(ce->modScheme, "128ASK") == 0) {
+                strcpy(ce->modScheme, "64ASK");
+            }
+            if (strcmp(ce->modScheme, "64ASK") == 0) {
+                strcpy(ce->modScheme, "32ASK");
+            }
+            if (strcmp(ce->modScheme, "32ASK") == 0) {
+                strcpy(ce->modScheme, "16ASK");
+            }
+            if (strcmp(ce->modScheme, "16ASK") == 0) {
+                strcpy(ce->modScheme, "8ASK");
+            }
+            if (strcmp(ce->modScheme, "8ASK") == 0) {
+                strcpy(ce->modScheme, "4ASK");
+            }
+            if (strcmp(ce->modScheme, "4ASK") == 0) {
+                strcpy(ce->modScheme, "BASK");
+            }
+        }
+
+        if (strcmp(ce->option_to_adapt, "mod_scheme->BPSK") == 0) {
+            strcpy(ce->modScheme, "BPSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->QPSK") == 0) {
+            strcpy(ce->modScheme, "QPSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->8PSK") == 0) {
+            strcpy(ce->modScheme, "8PSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->16PSK") == 0) {
+            strcpy(ce->modScheme, "16PSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->328PSK") == 0) {
+            strcpy(ce->modScheme, "32PSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->64PSK") == 0) {
+            strcpy(ce->modScheme, "64PSK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->8QAM") == 0) {
+            strcpy(ce->modScheme, "8QAM");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->16QAM") == 0) {
+            strcpy(ce->modScheme, "16QAM");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->32QAM") == 0) {
+            strcpy(ce->modScheme, "32QAM");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->64QAM") == 0) {
+            strcpy(ce->modScheme, "64QAM");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->OOK") == 0) {
+            strcpy(ce->modScheme, "OOK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->4ASK") == 0) {
+            strcpy(ce->modScheme, "4ASK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->8ASK") == 0) {
+            strcpy(ce->modScheme, "8ASK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->16ASK") == 0) {
+            strcpy(ce->modScheme, "16ASK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->32ASK") == 0) {
+            strcpy(ce->modScheme, "32ASK");
+        }
+        if (strcmp(ce->option_to_adapt, "mod_scheme->64ASK") == 0) {
+            strcpy(ce->modScheme, "64ASK");
+        }
     }
     return 1;
 }   // End ceModifyTxParams()
 
 uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
-    uhd::device_addr_t hint; //an empty hint discovers all devices
-    uhd::device_addrs_t dev_addrs = uhd::device::find(hint);
-    std::string str = dev_addrs[0].to_string();
-    const char * c = str.c_str();
-    printf("First UHD Device found: %s\n", c ); 
-    //std::string strpp = dev_addrs[0].to_pp_string();
-    //const char * cpp = strpp.c_str();
-    //printf("All UHD Devices found: %s\n", cpp ); 
+    //uhd::device_addr_t hint; //an empty hint discovers all devices
+    //uhd::device_addrs_t dev_addrs = uhd::device::find(hint);
+    //std::string str = dev_addrs[0].to_string();
+    //const char * c = str.c_str();
+    //printf("First UHD Device found: %s\n", c ); 
+
+    //std::string str2 = dev_addrs[1].to_string();
+    //const char * c2 = str2.c_str();
+    //printf("Second UHD Device found: %s\n", c2 ); 
 
     uhd::device_addr_t dev_addr;
     // TODO: Allow setting of USRP Address from command line
     dev_addr["addr0"] = "type=usrp1,serial=8b9cadb0";
     //uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
     //dev_addr["addr0"] = "8b9cadb0";
-    uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
+    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
 
     //Lock mboard clocks
     //usrp->set_clock_source(ref);
@@ -965,13 +1219,13 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     // Wait for USRP to settle at the frequency
     while (not usrp->get_tx_sensor("lo_locked").to_bool()){
         usleep(1000);
-            //sleep for a short time 
+        //sleep for a short time 
     }
     //printf("USRP tuned and ready.\n");
  
     // Set the rf gain (dB)
     // TODO: Allow setting of gain from command line
-    usrp->set_tx_gain(-40.0);
+    usrp->set_tx_gain(0.0);
     printf("TX Gain set to %f dB\n", usrp->get_tx_gain());
  
     // Set the rx_rate (Samples/s)
@@ -980,15 +1234,17 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     printf("TX rate set to %f MS/s\n", (usrp->get_tx_rate()/1e6));
 
     // Set the IF BW (in Hz)
-    usrp->set_tx_bandwidth(20e3);
+    usrp->set_tx_bandwidth(500e3);
     printf("TX bandwidth set to %f kHz\n", (usrp->get_tx_bandwidth()/1e3));
 
     return usrp;
 } // end initializeUSRPs()
 
-
 int main()
 {
+    // Seed the PRNG
+    srand( time(NULL));
+
     // TEMPORARY VARIABLE
     int usingUSRPs = 1;
 
@@ -1052,45 +1308,52 @@ int main()
     pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
 
     // Allow server time to finish initialization
-    sleep(.1);
+    usleep(0.1e6);
+    
+    // Initialize Data File
+    FILE * dataFile = fopen("data", "w");
 
     // Begin running tests
 
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
-        printf("\nStarting Cognitive Engine %d\n", i_CE +1);
-        // Initialize current CE
-        ce = CreateCognitiveEngine();
-        readCEConfigFile(&ce,cogengine_list[i_CE]);
+        printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
+
         
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
-        //while (strcmp (status,"end"!=0))
         {
-            printf("\n\nStarting Scenario %d\n", i_Sc +1);
+            // Initialize current CE
+            ce = CreateCognitiveEngine();
+            readCEConfigFile(&ce,cogengine_list[i_CE]);
+
+            printf("\n\nStarting Scenario %d\n", i_Sc+1);
             // Initialize current Scenario
             sc = CreateScenario();
-            //printf("Before Calling Config_Scenario\n");
-            //printf("scenario_list[i_Sc]=%s\n", scenario_list[i_Sc]);
             readScConfigFile(&sc,scenario_list[i_Sc]);
-            //printf ("After Calling Config_Scenario\n");
 
-            // Initialize Transmitter Defaults for current CE and Sc
-            fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
+            fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
+            fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderErrorFree\tpayloadErrorFree\n");
 
-            //TODO: Initialize Connection to USRP                                     
+            // Initialize Connection to USRP                                     
             if (usingUSRPs)
                 usrp = initializeUSRPs();    
 
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-            fs = CreateFS(ce, sc);
+            float frameNum = 0.0;
+            fs = CreateFS(ce, sc, &frameNum);
 
+            std::clock_t begin = std::clock();
             // Begin Testing Scenario
             DoneTransmitting = 0;
             while(!DoneTransmitting)
             {
+                // Initialize Transmitter Defaults for current CE and Sc
+                fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
+                ofdmflexframegen_print(fg);
+
                 printf("DoneTransmitting= %d\n", DoneTransmitting);
                 // Generate data to go into frame (packet)
                 txGeneratePacket(ce, &fg, header, payload);
@@ -1112,7 +1375,7 @@ int main()
                 {
                     isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
 
-                    enactScenario(frameSamples,ce,sc, usingUSRPs);
+                    enactScenario(frameSamples, ce, sc, usingUSRPs);
 
                     // TODO: Create this function
                     // Store a copy of the packet that was transmitted. For reference.
@@ -1123,9 +1386,13 @@ int main()
                     if (!usingUSRPs) 
                         rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
                 } // End Transmition For loop
+                
+                // TODO: Find another way to fix this
+                usleep(100.0);
 
-                // Receive and analyze data from rx
-                ceAnalyzeData(&ce, feedback);
+
+                // Process data from rx
+                ceProcessData(&ce, feedback);
                 // Modify transmission parameters (in fg and in USRP) accordingly
                 if (!ceOptimized(ce)) 
                 {
@@ -1136,22 +1403,36 @@ int main()
                 {
                     printf("ceOptimized() returned true\n");
                     DoneTransmitting = 1;
-                    printf("else: DoneTransmitting= %d\n", DoneTransmitting);
+                    //printf("else: DoneTransmitting= %d\n", DoneTransmitting);
                 }
 
+                // Record the feedback data received
+                fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
+                        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6]);
+
+                // For debugging
+                printf("ce.numSubcarriers= %u\n", ce.numSubcarriers);
+                printf("ce.CPLen= %u\n", ce.CPLen);
+                printf("ce.numSubcarriers= %u\n", ce.numSubcarriers);
+
             } // End Test While loop
+            clock_t end = clock();
+            double time = double(end-begin)/CLOCKS_PER_SEC;
+            fprintf(dataFile, "Elasped Time: %f (s)", time);
+
+            // Reset the goal
+            ce.latestGoalValue = 0.0;
+            ce.errorFreePayloads = 0.0;
+            printf("Scenario %i completed for CE %i.\n", i_Sc+1, i_CE+1);
+            fprintf(dataFile, "\n\n");
             
         } // End Scenario For loop
+
+        printf("Tests on Cognitive Engine %i completed.\n", i_CE+1);
 
     } // End CE for loop
 
     return 0;
 }
-
-
-
-
-
-
 
 
