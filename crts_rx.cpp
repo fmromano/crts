@@ -5,6 +5,7 @@
 #include <liquid/liquid.h>
 // Definition of liquid_float_complex changes depending on
 // whether <complex> is included before or after liquid.h
+#include <liquid/ofdmtxrx.h>
 #include <time.h>
 #include <string.h>
 // For Threading (POSIX Threads)
@@ -38,8 +39,8 @@ int rxCallback(unsigned char *  _header,
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
-    printf("Receiver Failed to Create Client Socket\n");
-    exit(1);
+        printf("Receiver Failed to Create Client Socket\n");
+        exit(1);
     }   
     printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
@@ -124,7 +125,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
 
     // Set Rx Frequency
     // TODO: Allow setting of center frequency from command line
-    usrp->set_rx_freq(400e6);
+    usrp->set_rx_freq(450e6);
     printf("RX Freq set to %f MHz\n", (usrp->get_rx_freq()/1e6));
     // Wait for USRP to settle at the frequency
     while (not usrp->get_rx_sensor("lo_locked").to_bool()){
@@ -144,6 +145,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
 
 int main()
 {
+    int debug_enabled = 1;
 
     // Frame Synchronizer parameters
     // TODO: Make these adjustable from command line
@@ -151,49 +153,75 @@ int main()
     unsigned int CPLen = 16;                      // Cyclic Prefix length
     unsigned int taperLen = 4;                     // Taper length
 
+    // TODO: Make these adjustable from command line
+    //float bandwidth = 500.0e3;  // Hz
+    float bandwidth = 1.0e6;  // Hz
+    float frequency = 450.0e6;  // Hz
+    float uhd_rxgain = 20.0;    // dB
+
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
 
     // Initialize Connection to USRP                                     
-    uhd::usrp::multi_usrp::sptr usrp = initializeUSRPs();    
+    unsigned char * p = NULL;   // default subcarrier allocation
+    ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*)&bandwidth);
 
-    // TODO: Move this into initializeUSRPs()
-        // Set the rx_rate
-        // TODO: Allow setting of bandwidth from command line
-        float bandwidth = 500.0e3; // Hz
-        float rx_rate = 2.0f*bandwidth;
-        usrp->set_rx_rate(rx_rate);
-        double usrp_rx_rate = usrp->get_rx_rate();
-        double rx_resamp_rate = rx_rate/usrp_rx_rate;
-        msresamp_crcf resamp = msresamp_crcf_create(rx_resamp_rate, 60.0f);
-        printf("RX rate set to %f MS/s\n", (usrp->get_rx_rate()/1e6));
+    // enable debugging on request
+    if (debug_enabled)
+        txcvr.debug_enable();
 
-    // Create a receive streamer
-    // Linearly map channels (index0 = channel0, index1 = channel1, ...)
-    uhd::stream_args_t stream_args("fc32"); //complex floats
-    //stream_args.channels = 0;
-    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);
-    const size_t samplesPerPacket  = rx_stream->get_max_num_samps();
 
-    //std::vector<std::complex<float> > frameSamples[samplesPerPacket];
-    std::complex<float> buffer[samplesPerPacket];
-    unsigned int br_len = samplesPerPacket/rx_resamp_rate;
-    std::complex<float> buffer_resampled[br_len];
-    uhd::rx_metadata_t metaData;
+    //uhd::usrp::multi_usrp::sptr usrp = initializeUSRPs();    
 
-    // Begin streaming data from USRP
-    usrp->issue_stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+    //// TODO: Move this into initializeUSRPs()
+    //    // Set the rx_rate
+    //    // TODO: Allow setting of bandwidth from command line
+    //    float bandwidth = 500.0e3; // Hz
+    //    float rx_rate = 2.0f*bandwidth;
+    //    usrp->set_rx_rate(rx_rate);
+    //    double usrp_rx_rate = usrp->get_rx_rate();
+    //    double rx_resamp_rate = rx_rate/usrp_rx_rate;
+    //    msresamp_crcf resamp = msresamp_crcf_create(rx_resamp_rate, 60.0f);
+    //    printf("RX rate set to %f MS/s\n", (usrp->get_rx_rate()/1e6));
+
+    //// Create a receive streamer
+    //// Linearly map channels (index0 = channel0, index1 = channel1, ...)
+    //uhd::stream_args_t stream_args("fc32"); //complex floats
+    ////stream_args.channels = 0;
+    //uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);
+    //const size_t samplesPerPacket  = rx_stream->get_max_num_samps();
+
+    ////std::vector<std::complex<float> > frameSamples[samplesPerPacket];
+    //std::complex<float> buffer[samplesPerPacket];
+    //unsigned int br_len = samplesPerPacket/rx_resamp_rate;
+    //std::complex<float> buffer_resampled[br_len];
+    //uhd::rx_metadata_t metaData;
+
+    //// Begin streaming data from USRP
+    //usrp->issue_stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
 
     // Initialize Receiver Defaults for current CE and Sc
-    fs = CreateFS(numSubcarriers, CPLen, taperLen);
+    //fs = CreateFS(numSubcarriers, CPLen, taperLen);
 
-    while (1)
+    // set properties
+    txcvr.set_rx_freq(frequency);
+    txcvr.set_rx_rate(bandwidth);
+    txcvr.set_rx_gain_uhd(uhd_rxgain);
+
+    // run conditions
+    int continue_running = 1;
+
+    // Start Receiver
+    txcvr.start_rx();
+
+
+    while (continue_running)
     {
-        size_t num_rx_samps = rx_stream->recv(
-            buffer, samplesPerPacket, metaData,
-            3.0,
-            1 
-        );
+        //size_t num_rx_samps = rx_stream->recv(
+        //    buffer, samplesPerPacket, metaData,
+        //    3.0,
+        //    1 
+        //);
 
         // Resample the data according to difference between nominal and USRP sample rates
         // If this is done one at a time, why is the an entire array used for buffer_resampled?
@@ -212,12 +240,12 @@ int main()
         //}
 
         // resample 
-        unsigned int nw;
-        msresamp_crcf_execute(resamp, buffer, samplesPerPacket, buffer_resampled, &nw);
+        //unsigned int nw;
+        //msresamp_crcf_execute(resamp, buffer, samplesPerPacket, buffer_resampled, &nw);
 
-        // Rx Receives packet
-        rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, br_len);
-        //rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, nw);
+        //// Rx Receives packet
+        //rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, br_len);
+        ////rxReceivePacket(numSubcarriers, CPLen, &fs, buffer_resampled, nw);
 
         // TODO: Add error capabilities. 
         // See http://code.ettus.com/redmine/ettus/projects/uhd/repository/revisions/master/entry/host/examples/rx_samples_to_file.cpp

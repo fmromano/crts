@@ -5,6 +5,7 @@
 #include <liquid/liquid.h>
 // Definition of liquid_float_complex changes depending on
 // whether <complex> is included before or after liquid.h
+#include <liquid/ofdmtxrx.h>
 #include <time.h>
 #include <string.h>
 // For Threading (POSIX Threads)
@@ -40,6 +41,10 @@ struct CognitiveEngine {
     float framesReceived;
     float validPayloads;
     float errorFreePayloads;
+    float frequency;
+    float bandwidth;
+    float txgain_dB;
+    float uhd_txgain;
     int iterations;
     int payloadLen;
     unsigned int numSubcarriers;
@@ -77,6 +82,10 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.framesReceived = 0.0;
     ce.validPayloads = 0.0;
     ce.errorFreePayloads = 0.0;
+    ce.frequency = 450.0e6;
+    ce.bandwidth = 1.0e6;
+    ce.txgain_dB = -12.0;
+    ce.uhd_txgain = 40.0;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -605,68 +614,65 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
     }
 } // End enactScenario()
 
-// Create Frame generator with CE and Scenario parameters
-ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
-
-    printf("Setting inital ofdmflexframegen options:\n");
-    // Set Modulation Scheme
-    // TODO: add other liquid-supported mod schemes
+modulation_scheme convertModScheme(char * modScheme)
+{
     modulation_scheme ms;
-    if (strcmp(ce.modScheme, "QPSK") == 0) {
+    // TODO: add other liquid-supported mod schemes
+    if (strcmp(modScheme, "QPSK") == 0) {
         ms = LIQUID_MODEM_QPSK;
     }
-    else if ( strcmp(ce.modScheme, "BPSK") ==0) {
+    else if ( strcmp(modScheme, "BPSK") ==0) {
         ms = LIQUID_MODEM_BPSK;
     }
-    else if ( strcmp(ce.modScheme, "OOK") ==0) {
+    else if ( strcmp(modScheme, "OOK") ==0) {
         ms = LIQUID_MODEM_OOK;
     }
-    else if ( strcmp(ce.modScheme, "8PSK") ==0) {
+    else if ( strcmp(modScheme, "8PSK") ==0) {
         ms = LIQUID_MODEM_PSK8;
     }
-    else if ( strcmp(ce.modScheme, "16PSK") ==0) {
+    else if ( strcmp(modScheme, "16PSK") ==0) {
         ms = LIQUID_MODEM_PSK16;
     }
-    else if ( strcmp(ce.modScheme, "32PSK") ==0) {
+    else if ( strcmp(modScheme, "32PSK") ==0) {
         ms = LIQUID_MODEM_PSK32;
     }
-    else if ( strcmp(ce.modScheme, "64PSK") ==0) {
+    else if ( strcmp(modScheme, "64PSK") ==0) {
         ms = LIQUID_MODEM_PSK64;
     }
-    else if ( strcmp(ce.modScheme, "128PSK") ==0) {
+    else if ( strcmp(modScheme, "128PSK") ==0) {
         ms = LIQUID_MODEM_PSK128;
     }
-    else if ( strcmp(ce.modScheme, "8QAM") ==0) {
+    else if ( strcmp(modScheme, "8QAM") ==0) {
         ms = LIQUID_MODEM_QAM8;
     }
-    else if ( strcmp(ce.modScheme, "16QAM") ==0) {
+    else if ( strcmp(modScheme, "16QAM") ==0) {
         ms = LIQUID_MODEM_QAM16;
     }
-    else if ( strcmp(ce.modScheme, "32QAM") ==0) {
+    else if ( strcmp(modScheme, "32QAM") ==0) {
         ms = LIQUID_MODEM_QAM32;
     }
-    else if ( strcmp(ce.modScheme, "64QAM") ==0) {
+    else if ( strcmp(modScheme, "64QAM") ==0) {
         ms = LIQUID_MODEM_QAM64;
     }
-    else if ( strcmp(ce.modScheme, "BASK") ==0) {
+    else if ( strcmp(modScheme, "BASK") ==0) {
         ms = LIQUID_MODEM_ASK2;
     }
-    else if ( strcmp(ce.modScheme, "4ASK") ==0) {
+    else if ( strcmp(modScheme, "4ASK") ==0) {
         ms = LIQUID_MODEM_ASK4;
     }
-    else if ( strcmp(ce.modScheme, "8ASK") ==0) {
+    else if ( strcmp(modScheme, "8ASK") ==0) {
         ms = LIQUID_MODEM_ASK8;
     }
-    else if ( strcmp(ce.modScheme, "16ASK") ==0) {
+    else if ( strcmp(modScheme, "16ASK") ==0) {
         ms = LIQUID_MODEM_ASK16;
     }
-    else if ( strcmp(ce.modScheme, "32ASK") ==0) {
+    else if ( strcmp(modScheme, "32ASK") ==0) {
         ms = LIQUID_MODEM_ASK32;
     }
-    else if ( strcmp(ce.modScheme, "64ASK") ==0) {
+    else if ( strcmp(modScheme, "64ASK") ==0) {
         ms = LIQUID_MODEM_ASK64;
     }
-    else if ( strcmp(ce.modScheme, "128ASK") ==0) {
+    else if ( strcmp(modScheme, "128ASK") ==0) {
         ms = LIQUID_MODEM_ASK128;
     }
     else {
@@ -674,29 +680,33 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
         //TODO: Skip current test if given an unknown parameter.
     }
 
-    // Set Cyclic Redundency Check Scheme
+    return ms;
+} // End convertModScheme()
+
+crc_scheme convertCRCScheme(char * crcScheme)
+{
     crc_scheme check;
-    if (strcmp(ce.crcScheme, "none") == 0) {
+    if (strcmp(crcScheme, "none") == 0) {
         check = LIQUID_CRC_NONE;
         printf("check = LIQUID_CRC_NONE\n");
     }
-    else if (strcmp(ce.crcScheme, "checksum") == 0) {
+    else if (strcmp(crcScheme, "checksum") == 0) {
         check = LIQUID_CRC_CHECKSUM;
         printf("check = LIQUID_CRC_CHECKSUM\n");
     }
-    else if (strcmp(ce.crcScheme, "8") == 0) {
+    else if (strcmp(crcScheme, "8") == 0) {
         check = LIQUID_CRC_8;
         printf("check = LIQUID_CRC_8\n");
     }
-    else if (strcmp(ce.crcScheme, "16") == 0) {
+    else if (strcmp(crcScheme, "16") == 0) {
         check = LIQUID_CRC_16;
         printf("check = LIQUID_CRC_16\n");
     }
-    else if (strcmp(ce.crcScheme, "24") == 0) {
+    else if (strcmp(crcScheme, "24") == 0) {
         check = LIQUID_CRC_24;
         printf("check = LIQUID_CRC_24\n");
     }
-    else if (strcmp(ce.crcScheme, "32") == 0) {
+    else if (strcmp(crcScheme, "32") == 0) {
         check = LIQUID_CRC_32;
         printf("check = LIQUID_CRC_32\n");
     }
@@ -705,61 +715,58 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
         //TODO: Skip current test if given an unknown parameter.
     }
 
-    // Set inner forward error correction scheme
+    return check;
+} // End convertCRCScheme()
+
+fec_scheme convertFECScheme(char * FEC)
+{
     // TODO: add other liquid-supported FEC schemes
-    fec_scheme fec0;
-    if (strcmp(ce.innerFEC, "none") == 0) {
-        fec0 = LIQUID_FEC_NONE;
-        printf("fec0 = LIQUID_FEC_NONE\n");
+    fec_scheme fec;
+    if (strcmp(FEC, "none") == 0) {
+        fec = LIQUID_FEC_NONE;
+        printf("fec = LIQUID_FEC_NONE\n");
     }
-    else if (strcmp(ce.innerFEC, "Hamming74") == 0) {
-        fec0 = LIQUID_FEC_HAMMING74;
-        printf("fec0 = LIQUID_FEC_HAMMING74\n");
+    else if (strcmp(FEC, "Hamming74") == 0) {
+        fec = LIQUID_FEC_HAMMING74;
+        printf("fec = LIQUID_FEC_HAMMING74\n");
     }
-    else if (strcmp(ce.innerFEC, "Hamming128") == 0) {
-        fec0 = LIQUID_FEC_HAMMING128;
-        printf("fec0 = LIQUID_FEC_HAMMING128\n");
+    else if (strcmp(FEC, "Hamming128") == 0) {
+        fec = LIQUID_FEC_HAMMING128;
+        printf("fec = LIQUID_FEC_HAMMING128\n");
     }
-    else if (strcmp(ce.innerFEC, "REP3") == 0) {
-        fec0 = LIQUID_FEC_REP3;
-        printf("fec0 = LIQUID_FEC_REP3\n");
+    else if (strcmp(FEC, "REP3") == 0) {
+        fec = LIQUID_FEC_REP3;
+        printf("fec = LIQUID_FEC_REP3\n");
     }
-    else if (strcmp(ce.innerFEC, "REP5") == 0) {
-        fec0 = LIQUID_FEC_REP5;
-        printf("fec0 = LIQUID_FEC_REP5\n");
+    else if (strcmp(FEC, "REP5") == 0) {
+        fec = LIQUID_FEC_REP5;
+        printf("fec = LIQUID_FEC_REP5\n");
     }
     else {
-        printf("ERROR: unknown inner FEC\n");
+        printf("ERROR: unknown FEC\n");
         //TODO: Skip current test if given an unknown parameter.
     }
+    return fec;
+} // End convertFECScheme()
+
+// Create Frame generator with CE and Scenario parameters
+ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
+
+    printf("Setting inital ofdmflexframegen options:\n");
+    // Set Modulation Scheme
+    modulation_scheme ms = convertModScheme(ce.modScheme);
+
+    // Set Cyclic Redundency Check Scheme
+    crc_scheme check = convertCRCScheme(ce.crcScheme);
+
+    // Set inner forward error correction scheme
+    printf("Inner FEC: ");
+    fec_scheme fec0 = convertFECScheme(ce.innerFEC);
 
     // Set outer forward error correction scheme
     // TODO: add other liquid-supported FEC schemes
-    fec_scheme fec1;
-    if (strcmp(ce.outerFEC, "none") == 0) {
-        fec1 = LIQUID_FEC_NONE;
-        printf("fec1 = LIQUIDFECNONE\n");
-    }
-    else if (strcmp(ce.outerFEC, "Hamming74") == 0) {
-        fec1 = LIQUID_FEC_HAMMING74;
-        printf("fec1 = LIQUID_FEC_HAMMING74\n");
-    }
-    else if (strcmp(ce.outerFEC, "Hamming128") == 0) {
-        fec1 = LIQUID_FEC_HAMMING128;
-        printf("fec1 = LIQUID_FEC_HAMMING128\n");
-    }
-    else if (strcmp(ce.outerFEC, "REP3") == 0) {
-        fec1 = LIQUID_FEC_REP3;
-        printf("fec1 = LIQUID_FEC_REP3\n");
-    }
-    else if (strcmp(ce.outerFEC, "REP5") == 0) {
-        fec1 = LIQUID_FEC_REP5;
-        printf("fec0 = LIQUID_FEC_REP5\n");
-    }
-    else {
-        printf("ERROR: unknown outer FEC\n");
-        //TODO: Skip current test if given an unknown parameter.
-    }
+    printf("Outer FEC: ");
+    fec_scheme fec1 = convertFECScheme(ce.outerFEC);
 
     // Frame generation parameters
     ofdmflexframegenprops_s fgprops;
@@ -1214,7 +1221,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     //usrp->set_clock_source(ref);
 
     // Set the TX freq (in Hz)
-    usrp->set_tx_freq(400e6);
+    usrp->set_tx_freq(450e6);
     printf("TX Freq set to %f MHz\n", (usrp->get_tx_freq()/1e6));
     // Wait for USRP to settle at the frequency
     while (not usrp->get_tx_sensor("lo_locked").to_bool()){
@@ -1338,7 +1345,9 @@ int main()
 
             // Initialize Connection to USRP                                     
             if (usingUSRPs)
-                usrp = initializeUSRPs();    
+            {
+                //usrp = initializeUSRPs();    
+            }
 
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
@@ -1350,46 +1359,83 @@ int main()
             DoneTransmitting = 0;
             while(!DoneTransmitting)
             {
-                // Initialize Transmitter Defaults for current CE and Sc
-                fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
-                ofdmflexframegen_print(fg);
-
-                printf("DoneTransmitting= %d\n", DoneTransmitting);
-                // Generate data to go into frame (packet)
-                txGeneratePacket(ce, &fg, header, payload);
-                // i.e. Need to transmit each symbol in frame.
-                isLastSymbol = 0;
-                //N = 0;
-
                 if (usingUSRPs) 
                 {
-                    metaData.start_of_burst = false;
-                    metaData.end_of_burst   = false;  
-                    metaData.has_time_spec  = false; 
+                    //metaData.start_of_burst = false;
+                    //metaData.end_of_burst   = false;  
+                    //metaData.has_time_spec  = false; 
 
-                    uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
-                    txStream = usrp->get_tx_stream(stream_args);
+                    //uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
+                    //txStream = usrp->get_tx_stream(stream_args);
+
+                    // create transceiver object
+                    unsigned char * p = NULL;   // default subcarrier allocation
+                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, NULL, NULL);
+                    printf("DoneTransmitting= %d\n", DoneTransmitting);
+
+                    // set properties
+                    txcvr.set_tx_freq(ce.frequency);
+                    txcvr.set_tx_rate(ce.bandwidth);
+                    txcvr.set_tx_gain_soft(ce.txgain_dB);
+                    txcvr.set_tx_gain_uhd(ce.uhd_txgain);
+
+                    txcvr.debug_enable();
+
+                    int i = 0;
+                    // Generate data
+                    printf("\n\nGenerating data that will go in frame...\n");
+                    for (i=0; i<8; i++)
+                        header[i] = i & 0xff;
+                    for (i=0; i<ce.payloadLen; i++)
+                        payload[i] = i & 0xff;
+
+                    // Set Modulation Scheme
+                    modulation_scheme ms = convertModScheme(ce.modScheme);
+
+                    // Set Cyclic Redundency Check Scheme
+                    //crc_scheme check = convertCRCScheme(ce.crcSchere);
+
+                    // Set inner forward error correction scheme
+                    printf("Inner FEC: ");
+                    fec_scheme fec0 = convertFECScheme(ce.innerFEC);
+
+                    // Set outer forward error correction scheme
+                    // TODO: add other liquid-supported FEC schemes
+                    printf("Outer FEC: ");
+                    fec_scheme fec1 = convertFECScheme(ce.outerFEC);
+
+                    txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+                }
+                else
+                {
+                    // Initialize Transmitter Defaults for current CE and Sc
+                    fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
+                    ofdmflexframegen_print(fg);
+
+                    // Generate data to go into frame (packet)
+                    txGeneratePacket(ce, &fg, header, payload);
+                    printf("DoneTransmitting= %d\n", DoneTransmitting);
+
+                    // i.e. Need to transmit each symbol in frame.
+                    isLastSymbol = 0;
+                    while (!isLastSymbol) 
+                    {
+                        isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
+
+                        enactScenario(frameSamples, ce, sc, usingUSRPs);
+
+                        // TODO: Create this function
+                        // Store a copy of the packet that was transmitted. For reference.
+                        // txStoreTransmittedPacket();
+                    
+                        // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
+                        // Rx Receives packet
+                        rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
+                    } // End Transmition For loop
                 }
 
-                while (!isLastSymbol) 
-                {
-                    isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
-
-                    enactScenario(frameSamples, ce, sc, usingUSRPs);
-
-                    // TODO: Create this function
-                    // Store a copy of the packet that was transmitted. For reference.
-                    // txStoreTransmittedPacket();
-                
-                    // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-                    // Rx Receives packet
-                    if (!usingUSRPs) 
-                        rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
-                } // End Transmition For loop
-                
                 // TODO: Find another way to fix this
                 usleep(100.0);
-
 
                 // Process data from rx
                 ceProcessData(&ce, feedback);
