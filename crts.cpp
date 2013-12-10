@@ -734,13 +734,21 @@ fec_scheme convertFECScheme(char * FEC)
         fec = LIQUID_FEC_HAMMING128;
         printf("fec = LIQUID_FEC_HAMMING128\n");
     }
-    else if (strcmp(FEC, "REP3") == 0) {
-        fec = LIQUID_FEC_REP3;
-        printf("fec = LIQUID_FEC_REP3\n");
+    else if (strcmp(FEC, "Golay2412") == 0) {
+        fec = LIQUID_FEC_GOLAY2412;
+        printf("fec = LIQUID_FEC_GOLAY2412\n");
     }
-    else if (strcmp(FEC, "REP5") == 0) {
-        fec = LIQUID_FEC_REP5;
-        printf("fec = LIQUID_FEC_REP5\n");
+    else if (strcmp(FEC, "SEC-DED2216") == 0) {
+        fec = LIQUID_FEC_SECDED2216;
+        printf("fec = LIQUID_FEC_SECDED2216\n");
+    }
+    else if (strcmp(FEC, "SEC-DED3932") == 0) {
+        fec = LIQUID_FEC_SECDED3932;
+        printf("fec = LIQUID_FEC_SECDED3932\n");
+    }
+    else if (strcmp(FEC, "SEC-DED7264") == 0) {
+        fec = LIQUID_FEC_SECDED7264;
+        printf("fec = LIQUID_FEC_SECDED7264\n");
     }
     else {
         printf("ERROR: unknown FEC\n");
@@ -1144,6 +1152,66 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
             if (strcmp(ce->modScheme, "4ASK") == 0) {
                 strcpy(ce->modScheme, "BASK");
             }
+        }
+        // Not use FEC
+        if (strcmp(ce->option_to_adapt, "no_fec") == 0) {
+           if (strcmp(ce->outerFEC, "none") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+           if (strcmp(ce->outerFEC, "Hamming74") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+           if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+               strcpy(ce->outerFEC, "none");
+           }
+        }
+        // FEC modifying (change to higher)
+        if (strcmp(ce->option_to_adapt, "use_change_higher_fec") == 0) {
+           if (strcmp(ce->outerFEC, "none") == 0) {
+               strcpy(ce->outerFEC, "Hamming74");
+           }
+           if (strcmp(ce->outerFEC, "Hamming74") == 0) {
+               strcpy(ce->outerFEC, "Hamming128");
+           }
+           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+               strcpy(ce->outerFEC, "Golay2412");
+           }
+           if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED2216");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED3932");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED7264");
+           } 
+        }
+        // FEC modifying (change to lower)
+        if (strcmp(ce->option_to_adapt, "use_change_lower_fec") == 0) {
+           if (strcmp(ce->outerFEC, "SEC-DED7264") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED3932");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED2216");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+               strcpy(ce->outerFEC, "Golay2412");
+           }
+           if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+               strcpy(ce->outerFEC, "Hamming128");
+           }
+           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+               strcpy(ce->outerFEC, "Hamming74");
+           }
         }
 
         if (strcmp(ce->option_to_adapt, "mod_scheme->BPSK") == 0) {
