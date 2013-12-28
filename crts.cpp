@@ -38,6 +38,8 @@ struct CognitiveEngine {
     float latestGoalValue;
     float weightedAvg; 
     float PER;
+    float BERLastPacket;
+    float BERTotal;
     float framesReceived;
     float validPayloads;
     float errorFreePayloads;
@@ -79,6 +81,8 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.taperLen = 4;                     // Taper length
     ce.weightedAvg = 0.0;
     ce.PER = 0.0;
+    ce.BERLastPacket = 0.0;
+    ce.BERTotal = 0.0;
     ce.framesReceived = 0.0;
     ce.validPayloads = 0.0;
     ce.errorFreePayloads = 0.0;
@@ -835,26 +839,21 @@ int rxCallback(unsigned char *  _header,
    
     //framesyncstats_print(&_stats); 
 
-    // Check if packet is error-free
-    float headerErrorFree = 0.0;
-    float payloadErrorFree = 0.0;
-    if (_header_valid) {
-        headerErrorFree = 1.0;
-        for (i=0; i<8; i++) 
-        {
-            if (!(_header[i] == (i & 0xff))) {
-                headerErrorFree = 0.0;
-            }
+    // Check number of bit errors in packet 
+    float headerErrors = 0.0;
+    float payloadErrors = 0.0;
+
+    for (i=0; i<8; i++) 
+    {
+        if (!(_header[i] == (i & 0xff))) {
+            headerErrors++;
         }
     }
-    if (_payload_valid)
+
+    for (i=0; i<(signed int)_payload_len; i++)
     {
-        payloadErrorFree = 1.0;
-        for (i=0; i<(signed int)_payload_len; i++)
-        {
-            if (!(_payload[i] == (i & 0xff))) {
-                payloadErrorFree = 0.0;
-            }
+        if (!(_payload[i] == (i & 0xff))) {
+            payloadErrors++;
         }
     }
           
@@ -866,8 +865,8 @@ int rxCallback(unsigned char *  _header,
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
     feedback[4] = *frameNumber;
-    feedback[5] = headerErrorFree;
-    feedback[6] = payloadErrorFree;
+    feedback[5] = headerErrors;
+    feedback[6] = payloadErrors;
    
     for (i=0; i<7; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
@@ -1012,8 +1011,12 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
 
     ce->framesReceived = feedback[4];
     ce->validPayloads += feedback[1];
-    ce->errorFreePayloads += feedback[6];
+    if feedback[6] == 0
+    {
+        ce->errorFreePayloads++;
+    }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
+    ce->BERLastPacket = feedback[6]/ce->payloadLen;
 
     //printf("ce->goal=%s\n", ce->goal);
 
@@ -1409,7 +1412,7 @@ int main()
             readScConfigFile(&sc,scenario_list[i_Sc]);
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
-            fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderErrorFree\tpayloadErrorFree\n");
+            fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
 
             // Initialize Connection to USRP                                     
             if (usingUSRPs)
@@ -1521,8 +1524,8 @@ int main()
                 }
 
                 // Record the feedback data received
-                fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
-                        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6]);
+                fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
+                        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
 
                 // For debugging
                 printf("ce.numSubcarriers= %u\n", ce.numSubcarriers);
