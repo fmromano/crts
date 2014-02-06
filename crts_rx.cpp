@@ -21,7 +21,7 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1395
+#define PORT 1399
 #define MAXPENDING 5
 
 int rxCallback(unsigned char *  _header,
@@ -62,7 +62,26 @@ int rxCallback(unsigned char *  _header,
     }
    
     framesyncstats_print(&_stats); 
-      
+
+    // Check number of bit errors in packet 
+    float headerErrors = 0.0; 
+    float payloadErrors = 0.0; 
+
+    for (i=0; i<8; i++) 
+    {    
+        if (!(_header[i] == (i & 0xff))) {
+        headerErrors++;
+        }
+    }    
+
+    for (i=0; i<(signed int)_payload_len; i++) 
+    {    
+        if (!(_payload[i] == (i & 0xff))) {
+        payloadErrors++;
+        }
+    }    
+
+
     // Data that will be sent to server
     // TODO: Send other useful data through feedback array
     float feedback[8];
@@ -70,8 +89,11 @@ int rxCallback(unsigned char *  _header,
     feedback[1] = (float) _payload_valid;
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
+    feedback[4] = 0.0; // TODO: Find a way to let crts_rx count frames received but start over with each scenario
+    feedback[5] = headerErrors;
+    feedback[6] = payloadErrors;
    
-    for (i=0; i<4; i++)
+    for (i=0; i<7; i++)
     printf("feedback data before transmission: %f\n", feedback[i]);
 
     // Receiver sends data to server
@@ -85,6 +107,7 @@ int rxCallback(unsigned char *  _header,
 
 } // end rxCallback()
 
+/*
 // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
 ofdmflexframesync CreateFS(unsigned int numSubcarriers, unsigned int CPLen, unsigned int taperLen)
 {
@@ -93,6 +116,7 @@ ofdmflexframesync CreateFS(unsigned int numSubcarriers, unsigned int CPLen, unsi
 
      return fs;
 } // End CreateFS();
+*/
 
 int rxReceivePacket(unsigned int numSubcarriers, unsigned int CPLen, ofdmflexframesync * _fs, std::complex<float> * frameSamples, unsigned int len)
 {
@@ -103,6 +127,7 @@ int rxReceivePacket(unsigned int numSubcarriers, unsigned int CPLen, ofdmflexfra
     return 1;
 } // End rxReceivePacket()
 
+/*
 uhd::usrp::multi_usrp::sptr initializeUSRPs()
 {
     uhd::device_addr_t dev_addr;
@@ -142,6 +167,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
 
     return usrp;
 } // end initializeUSRPs()
+*/
 
 int main()
 {
@@ -160,15 +186,12 @@ int main()
     float uhd_rxgain = 20.0;    // dB
 
     // framesynchronizer object used in each test
-    ofdmflexframesync fs;
+    //ofdmflexframesync fs;
 
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
     ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*)&bandwidth);
 
-    // enable debugging on request
-    if (debug_enabled)
-        txcvr.debug_enable();
 
 
     //uhd::usrp::multi_usrp::sptr usrp = initializeUSRPs();    
@@ -207,6 +230,18 @@ int main()
     txcvr.set_rx_freq(frequency);
     txcvr.set_rx_rate(bandwidth);
     txcvr.set_rx_gain_uhd(uhd_rxgain);
+    // This doesn't seem to work
+    //char antenna[] = "RX2";
+    //txcvr.set_rx_antenna(antenna);
+
+    // enable debugging on request
+    if (debug_enabled) {
+        txcvr.debug_enable();
+        printf("Set Rx freq to %f\n", frequency);
+        printf("Set Rx rate to %f\n", bandwidth);
+        printf("Set uhd Rx gain to %f\n", uhd_rxgain);
+        printf("Set Rx antenna to %s\n", "RX2");
+    }
 
     // run conditions
     int continue_running = 1;

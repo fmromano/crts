@@ -21,7 +21,7 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1395
+#define PORT 1399
 #define MAXPENDING 5
 
 
@@ -1011,8 +1011,9 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
 
     ce->framesReceived = feedback[4];
     ce->validPayloads += feedback[1];
-    if feedback[6] == 0
+    if ( feedback[6] == 0)
     {
+        printf("Error Free payload!\n");
         ce->errorFreePayloads++;
     }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
@@ -1033,8 +1034,8 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
     }
     if(strcmp(ce->goal, "X_errorFreePayloads") == 0)
     {
-        printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[6]);
-        ce->latestGoalValue += feedback[6];
+        printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->errorFreePayloads);
+        ce->latestGoalValue  = ce->errorFreePayloads;
     }
     else
     {
@@ -1318,6 +1319,40 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
     return usrp;
 } // end initializeUSRPs()
 
+
+int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int debug)
+{
+    // TODO: Find another way to fix this
+    usleep(1000000.0);
+
+    int DoneTransmitting = 0;
+
+    // Process data from rx
+    ceProcessData(cePtr, feedback);
+    // Modify transmission parameters (in fg and in USRP) accordingly
+    if (!ceOptimized(*cePtr)) 
+    {
+        printf("ceOptimized() returned false\n");
+        ceModifyTxParams(cePtr, feedback);
+    }
+    else
+    {
+        printf("ceOptimized() returned true\n");
+        DoneTransmitting = 1;
+        //printf("else: DoneTransmitting= %d\n", DoneTransmitting);
+    }
+
+    // For debugging
+    if (debug)
+    {
+        printf("ce.numSubcarriers= %u\n", cePtr->numSubcarriers);
+        printf("ce.CPLen= %u\n", cePtr->CPLen);
+        printf("ce.numSubcarriers= %u\n", cePtr->numSubcarriers);
+    }
+
+    return DoneTransmitting;
+} // End postTxTasks()
+
 int main()
 {
     // Seed the PRNG
@@ -1325,6 +1360,7 @@ int main()
 
     // TEMPORARY VARIABLE
     int usingUSRPs = 1;
+    int debug = 1;
 
     // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
@@ -1414,12 +1450,6 @@ int main()
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
             fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
 
-            // Initialize Connection to USRP                                     
-            if (usingUSRPs)
-            {
-                //usrp = initializeUSRPs();    
-            }
-
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             float frameNum = 0.0;
@@ -1428,111 +1458,115 @@ int main()
             std::clock_t begin = std::clock();
             // Begin Testing Scenario
             DoneTransmitting = 0;
-            while(!DoneTransmitting)
-            {
+
+            //while(!DoneTransmitting)
+            //{
                 if (usingUSRPs) 
                 {
-                    //metaData.start_of_burst = false;
-                    //metaData.end_of_burst   = false;  
-                    //metaData.has_time_spec  = false; 
-
-                    //uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
-                    //txStream = usrp->get_tx_stream(stream_args);
-
+                    //usrp = initializeUSRPs();    
                     // create transceiver object
                     unsigned char * p = NULL;   // default subcarrier allocation
+                    if (debug) 
+                        printf("Using ofdmtxrx\n");
                     ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, NULL, NULL);
-                    printf("DoneTransmitting= %d\n", DoneTransmitting);
 
-                    // set properties
-                    txcvr.set_tx_freq(ce.frequency);
-                    txcvr.set_tx_rate(ce.bandwidth);
-                    txcvr.set_tx_gain_soft(ce.txgain_dB);
-                    txcvr.set_tx_gain_uhd(ce.uhd_txgain);
-
-                    txcvr.debug_enable();
-
-                    int i = 0;
-                    // Generate data
-                    printf("\n\nGenerating data that will go in frame...\n");
-                    for (i=0; i<8; i++)
-                        header[i] = i & 0xff;
-                    for (i=0; i<ce.payloadLen; i++)
-                        payload[i] = i & 0xff;
-
-                    // Set Modulation Scheme
-                    modulation_scheme ms = convertModScheme(ce.modScheme);
-
-                    // Set Cyclic Redundency Check Scheme
-                    //crc_scheme check = convertCRCScheme(ce.crcSchere);
-
-                    // Set inner forward error correction scheme
-                    printf("Inner FEC: ");
-                    fec_scheme fec0 = convertFECScheme(ce.innerFEC);
-
-                    // Set outer forward error correction scheme
-                    // TODO: add other liquid-supported FEC schemes
-                    printf("Outer FEC: ");
-                    fec_scheme fec1 = convertFECScheme(ce.outerFEC);
-
-                    txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
-                }
-                else
-                {
-                    // Initialize Transmitter Defaults for current CE and Sc
-                    fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
-                    ofdmflexframegen_print(fg);
-
-                    // Generate data to go into frame (packet)
-                    txGeneratePacket(ce, &fg, header, payload);
-                    printf("DoneTransmitting= %d\n", DoneTransmitting);
-
-                    // i.e. Need to transmit each symbol in frame.
-                    isLastSymbol = 0;
-                    while (!isLastSymbol) 
+                    while(!DoneTransmitting)
                     {
-                        isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
 
-                        enactScenario(frameSamples, ce, sc, usingUSRPs);
+                        printf("DoneTransmitting= %d\n", DoneTransmitting);
+                        //metaData.start_of_burst = false;
+                        //metaData.end_of_burst   = false;  
+                        //metaData.has_time_spec  = false; 
 
-                        // TODO: Create this function
-                        // Store a copy of the packet that was transmitted. For reference.
-                        // txStoreTransmittedPacket();
-                    
-                        // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-                        // Rx Receives packet
-                        rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
-                    } // End Transmition For loop
+                        //uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
+                        //txStream = usrp->get_tx_stream(stream_args);
+
+                        // set properties
+                        txcvr.set_tx_freq(ce.frequency);
+                        txcvr.set_tx_rate(ce.bandwidth);
+                        txcvr.set_tx_gain_soft(ce.txgain_dB);
+                        txcvr.set_tx_gain_uhd(ce.uhd_txgain);
+                        txcvr.set_tx_antenna("TX/RX");
+
+                        if (debug) {
+                            txcvr.debug_enable();
+                            printf("Set frequency to %f\n", ce.frequency);
+                            printf("Set bandwidth to %f\n", ce.bandwidth);
+                            printf("Set txgain_dB to %f\n", ce.txgain_dB);
+                            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain);
+                            printf("Set Tx antenna to %s\n", "TX/RX");
+                        }
+
+                        int i = 0;
+                        // Generate data
+                        printf("\n\nGenerating data that will go in frame...\n");
+                        for (i=0; i<8; i++)
+                            header[i] = i & 0xff;
+                        for (i=0; i<ce.payloadLen; i++)
+                            payload[i] = i & 0xff;
+
+                        // Set Modulation Scheme
+                        modulation_scheme ms = convertModScheme(ce.modScheme);
+
+                        // Set Cyclic Redundency Check Scheme
+                        //crc_scheme check = convertCRCScheme(ce.crcSchere);
+
+                        // Set inner forward error correction scheme
+                        printf("Inner FEC: ");
+                        fec_scheme fec0 = convertFECScheme(ce.innerFEC);
+
+                        // Set outer forward error correction scheme
+                        // TODO: add other liquid-supported FEC schemes
+                        printf("Outer FEC: ");
+                        fec_scheme fec1 = convertFECScheme(ce.outerFEC);
+
+                        txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+
+                        DoneTransmitting = postTxTasks(&ce, feedback, debug);
+                        // Record the feedback data received
+                        fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
+                                feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                    } // End If while loop
                 }
-
-                // TODO: Find another way to fix this
-                usleep(100.0);
-
-                // Process data from rx
-                ceProcessData(&ce, feedback);
-                // Modify transmission parameters (in fg and in USRP) accordingly
-                if (!ceOptimized(ce)) 
+                else // If not using USRPs
                 {
-                    printf("ceOptimized() returned false\n");
-                    ceModifyTxParams(&ce, feedback);
+                    while(!DoneTransmitting)
+                    {
+                        // Initialize Transmitter Defaults for current CE and Sc
+                        fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
+                        ofdmflexframegen_print(fg);
+
+                        // Generate data to go into frame (packet)
+                        txGeneratePacket(ce, &fg, header, payload);
+                        printf("DoneTransmitting= %d\n", DoneTransmitting);
+
+                        // i.e. Need to transmit each symbol in frame.
+                        isLastSymbol = 0;
+                        while (!isLastSymbol) 
+                        {
+                            isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
+
+                            enactScenario(frameSamples, ce, sc, usingUSRPs);
+
+                            // TODO: Create this function
+                            // Store a copy of the packet that was transmitted. For reference.
+                            // txStoreTransmittedPacket();
+                        
+                            // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
+                            // Rx Receives packet
+                            rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
+                        } // End Transmition For loop
+
+                        // posttransmittasks
+                        DoneTransmitting = postTxTasks(&ce, feedback, debug);
+                        // Record the feedback data received
+                        fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
+                                feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                    } // End else While loop
                 }
-                else
-                {
-                    printf("ceOptimized() returned true\n");
-                    DoneTransmitting = 1;
-                    //printf("else: DoneTransmitting= %d\n", DoneTransmitting);
-                }
 
-                // Record the feedback data received
-                fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
-                        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
 
-                // For debugging
-                printf("ce.numSubcarriers= %u\n", ce.numSubcarriers);
-                printf("ce.CPLen= %u\n", ce.CPLen);
-                printf("ce.numSubcarriers= %u\n", ce.numSubcarriers);
-
-            } // End Test While loop
+            //} // End Test While loop
             clock_t end = clock();
             double time = double(end-begin)/CLOCKS_PER_SEC;
             fprintf(dataFile, "Elasped Time: %f (s)", time);
