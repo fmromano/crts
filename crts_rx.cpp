@@ -21,7 +21,7 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1399
+#define PORT 1400
 #define MAXPENDING 5
 
 int rxCallback(unsigned char *  _header,
@@ -46,6 +46,7 @@ int rxCallback(unsigned char *  _header,
 
     // Parameters for connecting to server
     // TODO: Allow selection of IP address and port in command line parameters.
+    // TODO: Set to choose any local port
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;

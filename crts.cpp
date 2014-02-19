@@ -21,7 +21,7 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
-#define PORT 1399
+#define PORT 1400
 #define MAXPENDING 5
 
 
@@ -805,8 +805,11 @@ int rxCallback(unsigned char *  _header,
                void *           _userdata)
 {
     // 
-    float * frameNumber = (float *) _userdata;
-    *frameNumber = *frameNumber +1;
+    //float * frameNumber = (float *) _userdata;
+    //*frameNumber = *frameNumber +1;
+
+    // Access header when it contains floats
+    float * _header_f = (float*) _header;
 
     // Iterator
     int i = 0;
@@ -864,7 +867,8 @@ int rxCallback(unsigned char *  _header,
     feedback[1] = (float) _payload_valid;
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
-    feedback[4] = *frameNumber;
+    //feedback[4] = *frameNumber;
+    feedback[4] = *_header_f;
     feedback[5] = headerErrors;
     feedback[6] = payloadErrors;
    
@@ -893,48 +897,26 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, float 
 
 // Transmit a packet of data.
 // This will need to be modified once we implement the USRPs.
-int txGeneratePacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, unsigned char * header, unsigned char * payload)
-{
-    // Iterator
-    int i = 0;
-    printf("ce.payloadLen= %u", ce.payloadLen);
+//int txGeneratePacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, unsigned char * header, unsigned char * payload)
+//{
+//    return 1;
+//} // End txGeneratePacket()
 
-    // Generate data
-    printf("\n\nGenerating data that will go in frame...\n");
-    for (i=0; i<8; i++)
-    header[i] = i & 0xff;
-    for (i=0; i<ce.payloadLen; i++)
-    //payload[i] = rand() & 0xff;
-    payload[i] = i & 0xff;
-
-    // Assemble frame
-    ofdmflexframegen_assemble(*_fg, header, payload, ce.payloadLen);
-
-    return 1;
-} // End txGeneratePacket()
-
-int txTransmitPacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, std::complex<float> * frameSamples, 
-                        uhd::tx_metadata_t md, uhd::tx_streamer::sptr txStream, int usingUSRPs)
-{
-    int isLastSymbol = ofdmflexframegen_writesymbol(*_fg, frameSamples);
-
-    if (usingUSRPs)
-    {
-        unsigned int symbolLen = ce.numSubcarriers + ce.CPLen;
-        txStream->send(frameSamples, symbolLen, md);
-
-    }
-
-    return isLastSymbol;
-} // End txTransmitPacket()
+//int txTransmitPacket(struct CognitiveEngine ce, ofdmflexframegen * _fg, std::complex<float> * frameSamples, 
+//                        uhd::tx_metadata_t md, uhd::tx_streamer::sptr txStream, int usingUSRPs)
+//{
+//    int isLastSymbol = ofdmflexframegen_writesymbol(*_fg, frameSamples);
+//
+//    return isLastSymbol;
+//} // End txTransmitPacket()
 
 // TODO: Alter code for when usingUSRPs
-int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::complex<float> * frameSamples, int usingUSRPs)
-{
-    unsigned int symbolLen = ce.numSubcarriers + ce.CPLen;
-    ofdmflexframesync_execute(*_fs, frameSamples, symbolLen);
-    return 1;
-} // End rxReceivePacket()
+//int rxReceivePacket(struct CognitiveEngine ce, ofdmflexframesync * _fs, std::complex<float> * frameSamples, int usingUSRPs)
+//{
+//    unsigned int symbolLen = ce.numSubcarriers + ce.CPLen;
+//    ofdmflexframesync_execute(*_fs, frameSamples, symbolLen);
+//    return 1;
+//} // End rxReceivePacket()
 
 // Create a TCP socket for the server and bind it to a port
 // Then sit and listen/accept all connections and write the data
@@ -950,6 +932,8 @@ void * startTCPServer(void * _read_buffer )
     struct sockaddr_in clientAddr;              // Client address 
     socklen_t client_addr_size;  // Client address size
     int socket_to_client = -1;
+
+    int reusePortOption = 1;
         
     // Create socket for incoming connections 
     int sock_listen;
@@ -958,6 +942,14 @@ void * startTCPServer(void * _read_buffer )
         printf("Transmitter Failed to Create Server Socket.\n");
         exit(1);
     }
+
+    // TODO: Allow reuse of a port. See http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
+    if (setsockopt(sock_listen, SOL_SOCKET, SO_REUSEPORT, (void*) &reusePortOption, sizeof(reusePortOption)) < 0 )
+    {
+        printf(" setsockopt() failed\n");
+        exit(1);
+    }
+
     // Construct local (server) address structure 
     memset(&servAddr, 0, sizeof(servAddr));       // Zero out structure 
     servAddr.sin_family = AF_INET;                // Internet address family 
@@ -1370,6 +1362,10 @@ int main()
     // Server uses it to pass data to CE.
     float feedback[100];
 
+    // For creating appropriate symbol length from 
+    // number of subcarriers and CP Length
+    unsigned int symbolLen;
+
     // Iterators
     int i_CE = 0;
     int i_Sc = 0;
@@ -1406,6 +1402,10 @@ int main()
     unsigned char header[8];                       // Must always be 8 bytes for ofdmflexframe
     unsigned char payload[1000];                   // Large enough to accomodate any (reasonable) payload that
                                                    // the CE wants to use.
+
+    // pointer for accessing header array when it has float values
+    float * header_f = (float*) header;
+
     std::complex<float> frameSamples[10000];      // Buffer of frame samples for each symbol.
                                                    // Large enough to accomodate any (reasonable) payload that 
                                                    // the CE wants to use.
@@ -1453,7 +1453,7 @@ int main()
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             float frameNum = 0.0;
-            fs = CreateFS(ce, sc, &frameNum);
+            fs = CreateFS(ce, sc, NULL);
 
             std::clock_t begin = std::clock();
             // Begin Testing Scenario
@@ -1473,7 +1473,7 @@ int main()
                     while(!DoneTransmitting)
                     {
 
-                        printf("DoneTransmitting= %d\n", DoneTransmitting);
+                        //printf("DoneTransmitting= %d\n", DoneTransmitting);
                         //metaData.start_of_burst = false;
                         //metaData.end_of_burst   = false;  
                         //metaData.has_time_spec  = false; 
@@ -1504,6 +1504,8 @@ int main()
                             header[i] = i & 0xff;
                         for (i=0; i<ce.payloadLen; i++)
                             payload[i] = i & 0xff;
+                        // Include frame number in header information
+                        * header_f = frameNum;
 
                         // Set Modulation Scheme
                         modulation_scheme ms = convertModScheme(ce.modScheme);
@@ -1526,6 +1528,9 @@ int main()
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+
+                        // Increment the frame counter
+                        frameNum++;
                     } // End If while loop
                 }
                 else // If not using USRPs
@@ -1537,14 +1542,32 @@ int main()
                         ofdmflexframegen_print(fg);
 
                         // Generate data to go into frame (packet)
-                        txGeneratePacket(ce, &fg, header, payload);
-                        printf("DoneTransmitting= %d\n", DoneTransmitting);
+                        //txGeneratePacket(ce, &fg, header, payload);
+
+                        // Iterator
+                        int i = 0;
+                        //printf("ce.payloadLen= %u", ce.payloadLen);
+
+                        // Generate data
+                        printf("\n\nGenerating data that will go in frame...\n");
+                        for (i=0; i<8; i++)
+                            header[i] = i & 0xff;
+                        for (i=0; i<ce.payloadLen; i++)
+                            payload[i] = i & 0xff;
+                        // Include frame number in header information
+                        * header_f = frameNum;
+
+                        // Assemble frame
+                        ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
+
+                        //printf("DoneTransmitting= %d\n", DoneTransmitting);
 
                         // i.e. Need to transmit each symbol in frame.
                         isLastSymbol = 0;
                         while (!isLastSymbol) 
                         {
-                            isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
+                            //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
+                            isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
 
                             enactScenario(frameSamples, ce, sc, usingUSRPs);
 
@@ -1552,9 +1575,10 @@ int main()
                             // Store a copy of the packet that was transmitted. For reference.
                             // txStoreTransmittedPacket();
                         
-                            // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
                             // Rx Receives packet
-                            rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
+                            //rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
+                            symbolLen = ce.numSubcarriers + ce.CPLen;
+                            ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
 
                         // posttransmittasks
@@ -1562,6 +1586,9 @@ int main()
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+
+                        // Increment the frame counter
+                        frameNum++;
                     } // End else While loop
                 }
 
