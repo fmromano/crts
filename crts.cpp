@@ -21,8 +21,22 @@
 #include <unistd.h>     // for close() 
 #include <errno.h>
 #include <uhd/usrp/multi_usrp.hpp>
+#include <getopt.h>     // For command line options
 #define PORT 1400
 #define MAXPENDING 5
+
+
+void usage() {
+    printf("crts -- test cognitive engines\n");
+    printf("  u,h   :   usage/help\n");
+    printf("  q/v   :   quiet/verbose (not yet implemented)\n");
+    printf("  d     :   print rx data to Stdout rather than to file (not yet implemented)\n");
+    //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
+    //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
+    //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
+    //printf("  t     :   run time [seconds]\n");
+    //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
+}
 
 
 struct CognitiveEngine {
@@ -1345,14 +1359,35 @@ int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int debug)
     return DoneTransmitting;
 } // End postTxTasks()
 
-int main()
+int main(int argc, char ** argv)
 {
     // Seed the PRNG
     srand( time(NULL));
 
     // TEMPORARY VARIABLE
     int usingUSRPs = 1;
+
     int debug = 1;
+    int verbose = 1;
+    int dataToStdout = 0;
+
+    // Check Program options
+    int d;
+    while ((d = getopt(argc,argv,"uhqvd")) != EOF) {
+        switch (d) {
+        case 'u':
+        case 'h':   usage();                       return 0;
+        case 'q':   verbose = 0;                      break;
+        case 'v':   verbose = 1;                      break;
+        case 'd':   dataToStdout = 1;                 break;
+        //case 'f':   frequency = atof(optarg);       break;
+        //case 'b':   bandwidth = atof(optarg);       break;
+        //case 'G':   uhd_rxgain = atof(optarg);      break;
+        //case 't':   num_seconds = atof(optarg);     break;
+        default:
+            verbose = 1;
+        }   
+    }   
 
     // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
@@ -1414,8 +1449,9 @@ int main()
     uhd::usrp::multi_usrp::sptr usrp;
     uhd::tx_streamer::sptr txStream;
                                                    
-
     ////////////////////// End variable initializations.
+
+
 
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
