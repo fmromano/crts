@@ -34,6 +34,9 @@ int rxCallback(unsigned char *  _header,
 {
     // Iterator
     int i = 0;
+    float feedback[8];
+
+    // Data that will be sent to server
 
     // Create a client TCP socket
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
@@ -75,6 +78,7 @@ int rxCallback(unsigned char *  _header,
         }
     }    
 
+
     for (i=0; i<(signed int)_payload_len; i++) 
     {    
         if (!(_payload[i] == (i & 0xff))) {
@@ -83,14 +87,20 @@ int rxCallback(unsigned char *  _header,
     }    
 
 
-    // Data that will be sent to server
     // TODO: Send other useful data through feedback array
-    float feedback[8];
     feedback[0] = (float) _header_valid;
     feedback[1] = (float) _payload_valid;
     feedback[2] = (float) _stats.evm;
     feedback[3] = (float) _stats.rssi;   
-    feedback[4] = 0.0; // TODO: Find a way to let crts_rx count frames received but start over with each scenario
+    if (_header_valid)
+    {
+        feedback[4] = * (float *) _header;
+    }
+    else
+    {
+        feedback[4] = -1;
+    }
+    //feedback[4] = 0.0; // TODO: Find a way to let crts_rx count frames received but start over with each scenario
     feedback[5] = headerErrors;
     feedback[6] = payloadErrors;
    

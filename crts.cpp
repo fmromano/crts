@@ -20,6 +20,8 @@
 #include <string.h>     // for memset() 
 #include <unistd.h>     // for close() 
 #include <errno.h>
+#include <sys/types.h>  // for killing child process
+#include <signal.h>     // for killing child process
 #include <uhd/usrp/multi_usrp.hpp>
 #include <getopt.h>     // For command line options
 #define PORT 1400
@@ -632,6 +634,71 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
     }
 } // End enactScenario()
 
+void * call_uhd_siggen(void * param)
+{
+
+    return NULL;
+} // end call_uhd_siggen()
+
+void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* siggen_pid)
+{
+    // Check AWGN
+    if (sc.addNoise == 1){
+       // Center freq of noise
+       char freq_opt[40] = "-f";
+       char * freq;
+       sprintf(freq, "%f", ce.frequency);
+       strcat(freq_opt, freq);
+
+       // Type of output
+       char output_opt[20] = "--gaussian";
+
+       // Gain of Output
+       char gain_opt[40] = "-g";
+       char * noiseGain_dB;
+       sprintf(noiseGain_dB, "%f", "10");
+       strcat(gain_opt, noiseGain_dB);
+
+
+       //pthread_create( siggenThread_ptr, NULL, call_uhd_siggen, NULL);
+       *siggen_pid = fork();
+       if ( *siggen_pid == -1 )
+       {
+           printf( "failed to fork child for uhd_siggen.\n" );
+           _exit( 1 );
+       }
+       // If this is the child process
+       if (*siggen_pid == 0)
+       {
+           // TODO: external call to uhd_siggen
+           //system("/usr/bin/uhd_siggen_gui");
+           execl("/usr/bin/uhd_siggen", "uhd_siggen", freq_opt, output_opt, gain_opt, (char*)NULL);
+           perror("Error");
+           // Then wait to be killed.
+           while (1) {;}
+       }
+       //printf("WARNING: There is currently no USRP AWGN scenario functionality!\n");
+       // FIXME: This is just test code. Remove when done.
+           sleep(8);
+           printf("siggen_pid= %d\n", *siggen_pid);
+           kill(*siggen_pid, SIGKILL);
+           //printf("ERROR: %s\n", strerror(errno));
+           //perror("Error");
+           while(1) {;}
+    }
+    if (sc.addInterference == 1){
+       printf("WARNING: There is currently no USRP interference scenario functionality!\n");
+       // Interference function
+    }
+    if (sc.addFading == 1){
+       //addRiceFading(transmit_buffer, ce, sc);
+       printf("WARNING: There is currently no USRP Fading scenario functionality!\n");
+    }
+    if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
+       printf("Nothing Added by Scenario!\n");
+    }
+} // End enactUSRPScenario()
+
 modulation_scheme convertModScheme(char * modScheme)
 {
     modulation_scheme ms;
@@ -1017,7 +1084,7 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
 
     ce->framesReceived = feedback[4];
     ce->validPayloads += feedback[1];
-    if ( feedback[6] == 0)
+    if (feedback[1] == 1 && feedback[6] == 0)
     {
         printf("Error Free payload!\n");
         ce->errorFreePayloads++;
@@ -1391,7 +1458,10 @@ int main(int argc, char ** argv)
 
     // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
+    // Threading for using uhd_siggen (for when using USRPs)
+    //pthread_t siggenThread;
     //int serverThreadReturn = 0;  // return value of creating TCPServer thread
+    pid_t uhd_siggen_pid;
 
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
@@ -1506,16 +1576,11 @@ int main(int argc, char ** argv)
                         printf("Using ofdmtxrx\n");
                     ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, NULL, NULL);
 
+                    // Start the Scenario simulations from the scenario USRPs
+                    //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
+
                     while(!DoneTransmitting)
                     {
-
-                        //printf("DoneTransmitting= %d\n", DoneTransmitting);
-                        //metaData.start_of_burst = false;
-                        //metaData.end_of_burst   = false;  
-                        //metaData.has_time_spec  = false; 
-
-                        //uhd::stream_args_t stream_args("fc32"); // Sending complex floats to USRP
-                        //txStream = usrp->get_tx_stream(stream_args);
 
                         // set properties
                         txcvr.set_tx_freq(ce.frequency);
@@ -1542,12 +1607,13 @@ int main(int argc, char ** argv)
                             payload[i] = i & 0xff;
                         // Include frame number in header information
                         * header_f = frameNum;
+                        printf("Frame Num: %f\n", frameNum);
 
                         // Set Modulation Scheme
                         modulation_scheme ms = convertModScheme(ce.modScheme);
 
                         // Set Cyclic Redundency Check Scheme
-                        //crc_scheme check = convertCRCScheme(ce.crcSchere);
+                        //crc_scheme check = convertCRCScheme(ce.crcScheme);
 
                         // Set inner forward error correction scheme
                         printf("Inner FEC: ");
