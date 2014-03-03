@@ -1109,10 +1109,11 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
     ce->BERLastPacket = feedback[6]/ce->payloadLen;
+    ce->weightedAvg += feedback[1];
 
     //printf("ce->goal=%s\n", ce->goal);
 
-    // Copy the data from the server
+    // Update goal value
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
         if (verbose) printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
@@ -1121,7 +1122,7 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     if (strcmp(ce->goal, "X_valid_payloads") == 0)
     {
         if (verbose) printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
-        ce->latestGoalValue += feedback[1];
+        ce->latestGoalValue += ce->validPayloads;
     }
     if(strcmp(ce->goal, "X_errorFreePayloads") == 0)
     {
@@ -1148,7 +1149,7 @@ int ceOptimized(struct CognitiveEngine ce, int verbose)
    }
    if (ce.latestGoalValue >= ce.threshold)
    {
-       if (verbose) printf("Goal is reached\n");
+       if (verbose) printf("Goal is reached!\n");
        return 1;
    }
    if (verbose) printf("Goal not reached yet.\n");
@@ -1170,8 +1171,6 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     if(strcmp(ce->adjustOn, "weighted_avg_payload_valid") == 0) {
         // Check if parameters should be modified
-        // TODO: Move to ceAnalyzeData
-        ce->weightedAvg += feedback[1];
         // TODO: Allow this value to be changed
         if (ce->weightedAvg < 0.5)
         {
@@ -1231,25 +1230,25 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
                 //printf("New modscheme: 64PSK\n");
             }
         }
-        // FIXME: Doens't work. Fix.
+        // Decrease ASK Modulations
         if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_ASK") == 0) {
-            if (strcmp(ce->modScheme, "128ASK") == 0) {
-                strcpy(ce->modScheme, "64ASK");
-            }
-            if (strcmp(ce->modScheme, "64ASK") == 0) {
-                strcpy(ce->modScheme, "32ASK");
-            }
-            if (strcmp(ce->modScheme, "32ASK") == 0) {
-                strcpy(ce->modScheme, "16ASK");
-            }
-            if (strcmp(ce->modScheme, "16ASK") == 0) {
-                strcpy(ce->modScheme, "8ASK");
+            if (strcmp(ce->modScheme, "4ASK") == 0) {
+                strcpy(ce->modScheme, "BASK");
             }
             if (strcmp(ce->modScheme, "8ASK") == 0) {
                 strcpy(ce->modScheme, "4ASK");
             }
-            if (strcmp(ce->modScheme, "4ASK") == 0) {
-                strcpy(ce->modScheme, "BASK");
+            if (strcmp(ce->modScheme, "16ASK") == 0) {
+                strcpy(ce->modScheme, "8ASK");
+            }
+            if (strcmp(ce->modScheme, "32ASK") == 0) {
+                strcpy(ce->modScheme, "16ASK");
+            }
+            if (strcmp(ce->modScheme, "64ASK") == 0) {
+                strcpy(ce->modScheme, "32ASK");
+            }
+            if (strcmp(ce->modScheme, "128ASK") == 0) {
+                strcpy(ce->modScheme, "64ASK");
             }
         }
         // Not use FEC
@@ -1451,7 +1450,7 @@ int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int verbose)
 int main(int argc, char ** argv)
 {
     // Seed the PRNG
-    srand( time(NULL));
+    srand(time(NULL));
 
     // TEMPORARY VARIABLE
     int usingUSRPs = 0;
