@@ -31,7 +31,8 @@
 void usage() {
     printf("crts -- test cognitive engines\n");
     printf("  u,h   :   usage/help\n");
-    printf("  q/v   :   quiet/verbose (not yet implemented)\n");
+    printf("  q     :   quiet - do not print debug info\n");
+    printf("  v     :   verbose - print debug info to Stdout\n");
     printf("  d     :   print rx data to Stdout rather than to file (not yet implemented)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
@@ -133,7 +134,7 @@ struct Scenario CreateScenario() {
     return sc;
 } // End CreateScenario()
 
-int readScMasterFile(char scenario_list[30][60])
+int readScMasterFile(char scenario_list[30][60], int verbose )
 {
     config_t cfg;                   // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -152,12 +153,13 @@ int readScMasterFile(char scenario_list[30][60])
     if (!config_read_file(&cfg,"master_scenario_file.txt"))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
-        printf("\nCould not find master file\n");
+        printf("\nCould not find master scenario file. It should be named 'master_scenario_file.txt'\n");
         config_destroy(&cfg);
         return -1;
     }
     else
-        printf("\nFound master Scenario config file\n");
+        //printf("\nFound master Scenario config file\n")
+        ;
 
   
     // Get the configuration file name. 
@@ -175,7 +177,8 @@ int readScMasterFile(char scenario_list[30][60])
         if (config_setting_lookup_int(setting, "NumberofScenarios", &tmpI))
         {
             no_of_scenarios=tmpI;
-            printf ("Number of Scenarios: %d\n",tmpI);
+            if (verbose)
+                printf ("Number of Scenarios: %d\n",tmpI);
         }
         
        for (i=1;i<=no_of_scenarios;i++)
@@ -194,14 +197,15 @@ int readScMasterFile(char scenario_list[30][60])
         /*else
             printf("\nNo 'param2' setting in configuration file.");
           */
-        printf ("Scenario File: %s\n", *((scenario_list)+i-1) );
+        if (verbose)
+            printf ("Scenario File: %s\n", *((scenario_list)+i-1) );
       } 
     }
     config_destroy(&cfg);
     return no_of_scenarios;
 } // End readScMasterFile()
 
-int readCEMasterFile(char cogengine_list[30][60])
+int readCEMasterFile(char cogengine_list[30][60], int verbose)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -222,12 +226,13 @@ int readCEMasterFile(char cogengine_list[30][60])
     if (!config_read_file(&cfg,"master_cogengine_file.txt"))
     {
         printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
-        printf("\nCould not find master file\n");
+        printf("\nCould not find master file. It should be named 'master_cogengine_file.txt'\n");
         config_destroy(&cfg);
         return -1;
     }
     else
-        printf("Found master Cognitive Engine config file.\n");
+        //printf("Found master Cognitive Engine config file.\n");
+        ;
   
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
@@ -243,7 +248,8 @@ int readCEMasterFile(char cogengine_list[30][60])
         if (config_setting_lookup_int(setting, "NumberofCogEngines", &tmpI))
         {
             no_of_cogengines=tmpI;
-            printf ("Number of Congnitive Engines: %d\n",tmpI);
+            if (verbose)
+                printf ("Number of Congnitive Engines: %d\n",tmpI);
         }
         
         for (i=1;i<=no_of_cogengines;i++)
@@ -258,7 +264,8 @@ int readCEMasterFile(char cogengine_list[30][60])
                 strcpy(*((cogengine_list)+i-1),str);          
                 //printf ("\nSTR=%s\n",str);
             }
-            printf ("Cognitive Engine File: %s\n", *((cogengine_list)+i-1) );
+            if (verbose)
+                printf ("Cognitive Engine File: %s\n", *((cogengine_list)+i-1) );
         } 
     }
     config_destroy(&cfg);
@@ -267,7 +274,7 @@ int readCEMasterFile(char cogengine_list[30][60])
 
 ///////////////////Cognitive Engine///////////////////////////////////////////////////////////
 ////////Reading the cognitive radio parameters from the configuration file////////////////////
-int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
+int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, int verbose)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -292,7 +299,10 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
 
     // Get the configuration file name. 
     if (config_lookup_string(&cfg, "filename", &str))
-        printf("Cognitive Engine Configuration File Name: %s\n", str);
+    {
+        if (verbose)
+            printf("Cognitive Engine Configuration File Name: %s\n", str);
+    }
     else
         printf("No 'filename' setting in configuration file.\n");
 
@@ -304,92 +314,92 @@ int readCEConfigFile(struct CognitiveEngine * ce,char *current_cogengine_file)
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
-            printf ("Option to adapt: %s\n",str);
+            if (verbose) printf("Option to adapt: %s\n",str);
         }
        
         if (config_setting_lookup_string(setting, "goal", &str))
         {
             strcpy(ce->goal,str);
-            printf ("Goal: %s\n",str);
+            if (verbose) printf("Goal: %s\n",str);
         }
         if (config_setting_lookup_string(setting, "adjustOn", &str))
         {
             strcpy(ce->adjustOn,str);
-            printf ("adjustOn: %s\n",str);
+            if (verbose) printf("adjustOn: %s\n",str);
         }
         if (config_setting_lookup_string(setting, "modScheme", &str))
         {
             strcpy(ce->modScheme,str);
-            printf ("Modulation Scheme:%s\n",str);
+            if (verbose) printf("Modulation Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "crcScheme", &str))
         {
             strcpy(ce->crcScheme,str);
-            printf ("CRC Scheme:%s\n",str);
+            if (verbose) printf("CRC Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "innerFEC", &str))
         {
             strcpy(ce->innerFEC,str);
-            printf ("Inner FEC Scheme:%s\n",str);
+            if (verbose) printf("Inner FEC Scheme:%s\n",str);
         }
         if (config_setting_lookup_string(setting, "outerFEC", &str))
         {
             strcpy(ce->outerFEC,str);
-            printf ("Outer FEC Scheme:%s\n",str);
+            if (verbose) printf("Outer FEC Scheme:%s\n",str);
         }
 
         // Read the integers
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            ce->iterations=tmpI;
-           printf("Iterations: %d\n", tmpI);
+           if (verbose) printf("Iterations: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLen", &tmpI))
         {
            ce->payloadLen=tmpI; 
-           printf("PayloadLen: %d\n", tmpI);
+           if (verbose) printf("PayloadLen: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "numSubcarriers", &tmpI))
         {
            ce->numSubcarriers=tmpI; 
-           printf("Number of Subcarriers: %d\n", tmpI);
+           if (verbose) printf("Number of Subcarriers: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "CPLen", &tmpI))
         {
            ce->CPLen=tmpI; 
-           printf("CPLen: %d\n", tmpI);
+           if (verbose) printf("CPLen: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "taperLen", &tmpI))
         {
            ce->taperLen=tmpI; 
-           printf("taperLen: %d\n", tmpI);
+           if (verbose) printf("taperLen: %d\n", tmpI);
         }
         // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
            ce->default_tx_power=tmpD; 
-           printf("Default Tx Power: %f\n", tmpD);
+           if (verbose) printf("Default Tx Power: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "latestGoalValue", &tmpD))
         {
            ce->latestGoalValue=tmpD; 
-           printf("Latest Goal Value: %f\n", tmpD);
+           if (verbose) printf("Latest Goal Value: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "threshold", &tmpD))
         {
            ce->threshold=tmpD; 
-           printf("Threshold: %f\n", tmpD);
+           if (verbose) printf("Threshold: %f\n", tmpD);
         }
      }
     config_destroy(&cfg);
      return 1;
 } // End readCEConfigFile()
 
-int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
+int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verbose)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
-    const char * str;
+    //const char * str;
     int tmpI;
     double tmpD;
     char scFileLocation[60];
@@ -407,16 +417,17 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg, scFileLocation))
     {
-        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        printf("%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
         return -1;
     }
 
-    // Get the configuration file name. 
-    if (config_lookup_string(&cfg, "filename", &str))
-        printf("\nFile Name: %s", str);
-    else
-        printf("\nNo 'filename' setting in configuration file.");
+    //// Get the configuration file name. 
+    //if (config_lookup_string(&cfg, "filename", &str))
+    //    if (verbose)
+    //        printf("File Name: %s\n", str);
+    //else
+    //    printf("No 'filename' setting in configuration file.\n");
 
     // Read the parameter group.
     setting = config_lookup(&cfg, "params");
@@ -425,75 +436,74 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file)
         // Read the integer
         if (config_setting_lookup_int(setting, "addNoise", &tmpI))
         {
-            printf("\nAddnoise: %d", tmpI);
             sc->addNoise=tmpI;
+            if (verbose) printf("Addnoise: %d\n", tmpI);
         }
-        else
-            printf("\nNo AddNoise setting in configuration file.");
+        //else
+        //    printf("No AddNoise setting in configuration file.\n");
         
         // Read the double
         if (config_setting_lookup_float(setting, "noiseSNR", &tmpD))
         {
-            printf("\nNoise SNR: %f", tmpD);
             sc->noiseSNR=(float) tmpD;
+            if (verbose) printf("Noise SNR: %f\n", tmpD);
         }
-        else
-            printf("\nNo Noise SNR setting in configuration file.");
+        //else
+        //    printf("No Noise SNR setting in configuration file.\n");
        
         // Read the double
         if (config_setting_lookup_float(setting, "noiseDPhi", &tmpD))
         {
             sc->noiseDPhi=(float) tmpD;
-            printf("\nNoiseDPhi: %f", tmpD);
+            if (verbose) printf("NoiseDPhi: %f\n", tmpD);
         }
-        else
-            printf("\nNo NoiseDPhi setting in configuration file.");
+        //else
+        //    printf("No NoiseDPhi setting in configuration file.\n");
 
         // Read the integer
         if (config_setting_lookup_int(setting, "addInterference", &tmpI))
         {
             sc->addInterference=tmpI;
-            printf("\naddInterference: %d", tmpI);
+            if (verbose) printf("addInterference: %d\n", tmpI);
         }
-        else
-            printf("\nNo addInterference setting in configuration file.");
+        //else
+        //    printf("No addInterference setting in configuration file.\n");
 
         // Read the integer
         if (config_setting_lookup_int(setting, "addFading", &tmpI))
         {
             sc->addFading=tmpI;
-            printf("\naddFading: %d", tmpI);
+            if (verbose) printf("addFading: %d\n", tmpI);
         }
-        else
-            printf("\nNo addFading setting in configuration file.");
+        //else
+        //    printf("No addFading setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeK", &tmpD))
         {
             sc->addFading=(float)tmpD;
-            printf("\naddFading: %f", tmpD);
+            if (verbose) printf("addFading: %f\n", tmpD);
         }
-        else
-            printf("\nNo addFading setting in configuration file.");
+        //else
+        //    printf("No addFading setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeFd", &tmpD))
         {
             sc->addFading=(float)tmpD;
-            printf("\naddFading: %f", tmpD);
+            if (verbose) printf("addFading: %f\n", tmpD);
         }
-        else
-            printf("\nNo addFading setting in configuration file.");
+        //else
+        //    printf("No addFading setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeDPhi", &tmpD))
         {
             sc->addFading=(float)tmpD;
-            printf("\naddFading: %f", tmpD);
+            if (verbose) printf("addFading: %f\n", tmpD);
         }
-        else
-            printf("\nNo addFading setting in configuration file.");
-    printf("\n");
+        //else
+        //    printf("No addFading setting in configuration file.\n");
     }
 
     config_destroy(&cfg);
@@ -623,14 +633,14 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
        addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
-       printf("WARNING: There is currently no interference scenario functionality!\n");
+       //printf("WARNING: There is currently no interference scenario functionality!\n");
        // Interference function
     }
     if (sc.addFading == 1){
        addRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       printf("Nothing Added by Scenario!\n");
+       //printf("Nothing Added by Scenario!\n");
     }
 } // End enactScenario()
 
@@ -656,7 +666,7 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
        // Gain of Output
        char gain_opt[40] = "-g";
        char * noiseGain_dB;
-       sprintf(noiseGain_dB, "%f", "10");
+       sprintf(noiseGain_dB, "%f", 10.0);
        strcat(gain_opt, noiseGain_dB);
 
 
@@ -687,15 +697,15 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
            while(1) {;}
     }
     if (sc.addInterference == 1){
-       printf("WARNING: There is currently no USRP interference scenario functionality!\n");
+       //printf("WARNING: There is currently no USRP interference scenario functionality!\n");
        // Interference function
     }
     if (sc.addFading == 1){
        //addRiceFading(transmit_buffer, ce, sc);
-       printf("WARNING: There is currently no USRP Fading scenario functionality!\n");
+       //printf("WARNING: There is currently no USRP Fading scenario functionality!\n");
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       printf("Nothing Added by Scenario!\n");
+       //printf("Nothing Added by Scenario!\n");
     }
 } // End enactUSRPScenario()
 
@@ -768,32 +778,32 @@ modulation_scheme convertModScheme(char * modScheme)
     return ms;
 } // End convertModScheme()
 
-crc_scheme convertCRCScheme(char * crcScheme)
+crc_scheme convertCRCScheme(char * crcScheme, int verbose)
 {
     crc_scheme check;
     if (strcmp(crcScheme, "none") == 0) {
         check = LIQUID_CRC_NONE;
-        printf("check = LIQUID_CRC_NONE\n");
+        if (verbose) printf("check = LIQUID_CRC_NONE\n");
     }
     else if (strcmp(crcScheme, "checksum") == 0) {
         check = LIQUID_CRC_CHECKSUM;
-        printf("check = LIQUID_CRC_CHECKSUM\n");
+        if (verbose) printf("check = LIQUID_CRC_CHECKSUM\n");
     }
     else if (strcmp(crcScheme, "8") == 0) {
         check = LIQUID_CRC_8;
-        printf("check = LIQUID_CRC_8\n");
+        if (verbose) printf("check = LIQUID_CRC_8\n");
     }
     else if (strcmp(crcScheme, "16") == 0) {
         check = LIQUID_CRC_16;
-        printf("check = LIQUID_CRC_16\n");
+        if (verbose) printf("check = LIQUID_CRC_16\n");
     }
     else if (strcmp(crcScheme, "24") == 0) {
         check = LIQUID_CRC_24;
-        printf("check = LIQUID_CRC_24\n");
+        if (verbose) printf("check = LIQUID_CRC_24\n");
     }
     else if (strcmp(crcScheme, "32") == 0) {
         check = LIQUID_CRC_32;
-        printf("check = LIQUID_CRC_32\n");
+        if (verbose) printf("check = LIQUID_CRC_32\n");
     }
     else {
         printf("ERROR: unknown CRC\n");
@@ -803,37 +813,37 @@ crc_scheme convertCRCScheme(char * crcScheme)
     return check;
 } // End convertCRCScheme()
 
-fec_scheme convertFECScheme(char * FEC)
+fec_scheme convertFECScheme(char * FEC, int verbose)
 {
     // TODO: add other liquid-supported FEC schemes
     fec_scheme fec;
     if (strcmp(FEC, "none") == 0) {
         fec = LIQUID_FEC_NONE;
-        printf("fec = LIQUID_FEC_NONE\n");
+        if (verbose) printf("fec = LIQUID_FEC_NONE\n");
     }
     else if (strcmp(FEC, "Hamming74") == 0) {
         fec = LIQUID_FEC_HAMMING74;
-        printf("fec = LIQUID_FEC_HAMMING74\n");
+        if (verbose) printf("fec = LIQUID_FEC_HAMMING74\n");
     }
     else if (strcmp(FEC, "Hamming128") == 0) {
         fec = LIQUID_FEC_HAMMING128;
-        printf("fec = LIQUID_FEC_HAMMING128\n");
+        if (verbose) printf("fec = LIQUID_FEC_HAMMING128\n");
     }
     else if (strcmp(FEC, "Golay2412") == 0) {
         fec = LIQUID_FEC_GOLAY2412;
-        printf("fec = LIQUID_FEC_GOLAY2412\n");
+        if (verbose) printf("fec = LIQUID_FEC_GOLAY2412\n");
     }
     else if (strcmp(FEC, "SEC-DED2216") == 0) {
         fec = LIQUID_FEC_SECDED2216;
-        printf("fec = LIQUID_FEC_SECDED2216\n");
+        if (verbose) printf("fec = LIQUID_FEC_SECDED2216\n");
     }
     else if (strcmp(FEC, "SEC-DED3932") == 0) {
         fec = LIQUID_FEC_SECDED3932;
-        printf("fec = LIQUID_FEC_SECDED3932\n");
+        if (verbose) printf("fec = LIQUID_FEC_SECDED3932\n");
     }
     else if (strcmp(FEC, "SEC-DED7264") == 0) {
         fec = LIQUID_FEC_SECDED7264;
-        printf("fec = LIQUID_FEC_SECDED7264\n");
+        if (verbose) printf("fec = LIQUID_FEC_SECDED7264\n");
     }
     else {
         printf("ERROR: unknown FEC\n");
@@ -843,23 +853,23 @@ fec_scheme convertFECScheme(char * FEC)
 } // End convertFECScheme()
 
 // Create Frame generator with CE and Scenario parameters
-ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
+ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc, int verbose) {
 
-    printf("Setting inital ofdmflexframegen options:\n");
+    //printf("Setting inital ofdmflexframegen options:\n");
     // Set Modulation Scheme
     modulation_scheme ms = convertModScheme(ce.modScheme);
 
     // Set Cyclic Redundency Check Scheme
-    crc_scheme check = convertCRCScheme(ce.crcScheme);
+    crc_scheme check = convertCRCScheme(ce.crcScheme, verbose);
 
     // Set inner forward error correction scheme
-    printf("Inner FEC: ");
-    fec_scheme fec0 = convertFECScheme(ce.innerFEC);
+    if (verbose) printf("Inner FEC: ");
+    fec_scheme fec0 = convertFECScheme(ce.innerFEC, verbose);
 
     // Set outer forward error correction scheme
     // TODO: add other liquid-supported FEC schemes
-    printf("Outer FEC: ");
-    fec_scheme fec1 = convertFECScheme(ce.outerFEC);
+    if (verbose) printf("Outer FEC: ");
+    fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
     // Frame generation parameters
     ofdmflexframegenprops_s fgprops;
@@ -870,9 +880,9 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc) {
     fgprops.check           = check;
     fgprops.fec0            = fec0;
     fgprops.fec1            = fec1;
-    printf("About to create fg...\n");
+    //printf("About to create fg...\n");
     ofdmflexframegen fg = ofdmflexframegen_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, &fgprops);
-    printf("fg created\n");
+    //printf("fg created\n");
 
     return fg;
 } // End CreateFG()
@@ -888,6 +898,7 @@ int rxCallback(unsigned char *  _header,
     // 
     //float * frameNumber = (float *) _userdata;
     //*frameNumber = *frameNumber +1;
+    int * verbose_ptr = (int *) _userdata;
 
     // Access header when it contains floats
     float * _header_f = (float*) _header;
@@ -953,13 +964,16 @@ int rxCallback(unsigned char *  _header,
     feedback[5] = headerErrors;
     feedback[6] = payloadErrors;
    
-    for (i=0; i<7; i++)
-    printf("feedback data before transmission: %f\n", feedback[i]);
+    if (*verbose_ptr)
+    {
+        for (i=0; i<7; i++)
+        printf("feedback data before transmission: %f\n", feedback[i]);
+    }
 
     // Receiver sends data to server
     //printf("socket_to_server: %d\n", socket_to_server);
     int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
-    printf("Rx writeStatus: %d\n", writeStatus);
+    //printf("Rx writeStatus: %d\n", writeStatus);
 
     // Receiver closes socket to server
     close(socket_to_server);
@@ -968,10 +982,10 @@ int rxCallback(unsigned char *  _header,
 } // end rxCallback()
 
 // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, float * frameNumber)
+ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, int * verbose)
 {
      ofdmflexframesync fs =
-             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, (void *) frameNumber);
+             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, (void *) verbose);
 
      return fs;
 } // End CreateFS();
@@ -1004,7 +1018,7 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, float 
 // to an array that is accessible to the CE
 void * startTCPServer(void * _read_buffer )
 {
-    printf("(Server thread called.)\n");
+    //printf("(Server thread called.)\n");
     // Buffer for data sent by client. This memory address is also given to CE
     float * read_buffer = (float *) _read_buffer;
     //  Local (server) address
@@ -1051,7 +1065,7 @@ void * startTCPServer(void * _read_buffer )
             printf("Failed to Set Sleeping (listening) Mode\n");
             exit(1);
         }
-        printf("\n(Server is now in listening mode)\n");
+        //printf("\n(Server is now in listening mode)\n");
 
         // Accept a connection from client
         //printf("Server is waiting to accept connection from client\n");
@@ -1062,7 +1076,7 @@ void * startTCPServer(void * _read_buffer )
             printf("Sever Failed to Connect to Client\n");
             exit(1);
         }
-        printf("Server has accepted connection from client\n");
+        //printf("Server has accepted connection from client\n");
         // Transmitter receives data from client (receiver)
             // Zero the read buffer. Then read the data into it.
             bzero(read_buffer, 256);
@@ -1074,20 +1088,23 @@ void * startTCPServer(void * _read_buffer )
     } // End listening While loop
 } // End startTCPServer()
 
-int ceProcessData(struct CognitiveEngine * ce, float * feedback)
+int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
 {
     int i = 0;
-    printf("In ceProcessData():\nfeedback=\n");
-    for (i = 0; i<7;i++) {
-        printf("feedback[%d]= %f\n", i, feedback[i]);
+    if (verbose)
+    {
+        printf("In ceProcessData():\nfeedback=\n");
+        for (i = 0; i<7;i++) {
+            printf("feedback[%d]= %f\n", i, feedback[i]);
+        }
     }
 
     ce->framesReceived = feedback[4];
     ce->validPayloads += feedback[1];
     if (feedback[1] == 1 && feedback[6] == 0)
     {
-        printf("Error Free payload!\n");
         ce->errorFreePayloads++;
+        if (verbose) printf("Error Free payload!\n");
     }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
     ce->BERLastPacket = feedback[6]/ce->payloadLen;
@@ -1097,17 +1114,17 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
     // Copy the data from the server
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
-        printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
+        if (verbose) printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
         ce->latestGoalValue = feedback[1];
     }
     if (strcmp(ce->goal, "X_valid_payloads") == 0)
     {
-        printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
+        if (verbose) printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
         ce->latestGoalValue += feedback[1];
     }
     if(strcmp(ce->goal, "X_errorFreePayloads") == 0)
     {
-        printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->errorFreePayloads);
+        if (verbose) printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->errorFreePayloads);
         ce->latestGoalValue  = ce->errorFreePayloads;
     }
     else
@@ -1119,31 +1136,34 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback)
     return 1;
 } // End ceProcessData()
 
-int ceOptimized(struct CognitiveEngine ce)
+int ceOptimized(struct CognitiveEngine ce, int verbose)
 {
-   printf("Checking if goal value has been reached.\n");
-   printf("ce.latestGoalValue= %f\n", ce.latestGoalValue);
-   printf("ce.threshold= %f\n", ce.threshold);
+   if (verbose) 
+   {
+       printf("Checking if goal value has been reached.\n");
+       printf("ce.latestGoalValue= %f\n", ce.latestGoalValue);
+       printf("ce.threshold= %f\n", ce.threshold);
+   }
    if (ce.latestGoalValue >= ce.threshold)
    {
-       printf("Goal is reached\n");
+       if (verbose) printf("Goal is reached\n");
        return 1;
    }
-   printf("Goal not reached yet.\n");
+   if (verbose) printf("Goal not reached yet.\n");
    return 0;
 } // end ceOptimized()
 
-int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
+int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 {
     int modify = 0;
-    printf("ce->adjustOn = %s\n", ce->adjustOn);
+    if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
         // Check if parameters should be modified
         if(feedback[1]<1)
         {
             modify = 1;
-            printf("lpv. Modifying...\n");
+            if (verbose) printf("lpv. Modifying...\n");
         }
     }
     if(strcmp(ce->adjustOn, "weighted_avg_payload_valid") == 0) {
@@ -1154,35 +1174,35 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
         if (ce->weightedAvg < 0.5)
         {
             modify = 1;
-            printf("wapv. Modifying...\n");
+            if (verbose) printf("wapv. Modifying...\n");
         }
     }
     if(strcmp(ce->adjustOn, "packet_error_rate") == 0) {
         // Check if parameters should be modified
         // TODO: Allow this value to be changed
-        printf("PER = %f\n", ce->PER);
+        if (verbose) printf("PER = %f\n", ce->PER);
         if(ce->PER <0.5)
         {
             modify = 1;
-            printf("per. Modifying...\n" );
+            if (verbose) printf("per. Modifying...\n" );
         }
     }
     if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
         // Check if parameters should be modified
         if(feedback[6]<1){
             modify = 1;
-            printf("lpef. Modifying...\n");
+            if (verbose) printf("lpef. Modifying...\n");
         }
     }
 
     // If so, modify the specified parameter
     if (modify) 
     {
-        printf("Modifying Tx parameters...\n");
+        if (verbose) printf("Modifying Tx parameters...\n");
         // TODO: Implement a similar if statement for each possible option
         // that can be adapted.
 
-        // Doesn't work.
+        // FIXME: Doesn't work.
         if (strcmp(ce->option_to_adapt, "decrease_numSubcarriers") == 0) {
             if (ce->numSubcarriers > 2)
                 ce->numSubcarriers -= 2;
@@ -1209,7 +1229,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
                 printf("New modscheme: 64PSK\n");
             }
         }
-        // TODO: DOens't work. Fix.
+        // FIXME: Doens't work. Fix.
         if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_ASK") == 0) {
             if (strcmp(ce->modScheme, "128ASK") == 0) {
                 strcpy(ce->modScheme, "64ASK");
@@ -1343,80 +1363,80 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback)
     return 1;
 }   // End ceModifyTxParams()
 
-uhd::usrp::multi_usrp::sptr initializeUSRPs()
+//uhd::usrp::multi_usrp::sptr initializeUSRPs()
+//{
+//    //uhd::device_addr_t hint; //an empty hint discovers all devices
+//    //uhd::device_addrs_t dev_addrs = uhd::device::find(hint);
+//    //std::string str = dev_addrs[0].to_string();
+//    //const char * c = str.c_str();
+//    //printf("First UHD Device found: %s\n", c ); 
+//
+//    //std::string str2 = dev_addrs[1].to_string();
+//    //const char * c2 = str2.c_str();
+//    //printf("Second UHD Device found: %s\n", c2 ); 
+//
+//    uhd::device_addr_t dev_addr;
+//    // TODO: Allow setting of USRP Address from command line
+//    dev_addr["addr0"] = "type=usrp1,serial=8b9cadb0";
+//    //uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
+//    //dev_addr["addr0"] = "8b9cadb0";
+//    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
+//
+//    //Lock mboard clocks
+//    //usrp->set_clock_source(ref);
+//
+//    // Set the TX freq (in Hz)
+//    usrp->set_tx_freq(450e6);
+//    printf("TX Freq set to %f MHz\n", (usrp->get_tx_freq()/1e6));
+//    // Wait for USRP to settle at the frequency
+//    while (not usrp->get_tx_sensor("lo_locked").to_bool()){
+//        usleep(1000);
+//        //sleep for a short time 
+//    }
+//    //printf("USRP tuned and ready.\n");
+// 
+//    // Set the rf gain (dB)
+//    // TODO: Allow setting of gain from command line
+//    usrp->set_tx_gain(0.0);
+//    printf("TX Gain set to %f dB\n", usrp->get_tx_gain());
+// 
+//    // Set the rx_rate (Samples/s)
+//    // TODO: Allow setting of tx_rate from command line
+//    usrp->set_tx_rate(1e6);
+//    printf("TX rate set to %f MS/s\n", (usrp->get_tx_rate()/1e6));
+//
+//    // Set the IF BW (in Hz)
+//    usrp->set_tx_bandwidth(500e3);
+//    printf("TX bandwidth set to %f kHz\n", (usrp->get_tx_bandwidth()/1e3));
+//
+//    return usrp;
+//} // end initializeUSRPs()
+
+
+int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int verbose)
 {
-    //uhd::device_addr_t hint; //an empty hint discovers all devices
-    //uhd::device_addrs_t dev_addrs = uhd::device::find(hint);
-    //std::string str = dev_addrs[0].to_string();
-    //const char * c = str.c_str();
-    //printf("First UHD Device found: %s\n", c ); 
-
-    //std::string str2 = dev_addrs[1].to_string();
-    //const char * c2 = str2.c_str();
-    //printf("Second UHD Device found: %s\n", c2 ); 
-
-    uhd::device_addr_t dev_addr;
-    // TODO: Allow setting of USRP Address from command line
-    dev_addr["addr0"] = "type=usrp1,serial=8b9cadb0";
-    //uhd::usrp::multi_usrp::sptr usrp= uhd::usrp::multi_usrp::make(dev_addr);
-    //dev_addr["addr0"] = "8b9cadb0";
-    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
-
-    //Lock mboard clocks
-    //usrp->set_clock_source(ref);
-
-    // Set the TX freq (in Hz)
-    usrp->set_tx_freq(450e6);
-    printf("TX Freq set to %f MHz\n", (usrp->get_tx_freq()/1e6));
-    // Wait for USRP to settle at the frequency
-    while (not usrp->get_tx_sensor("lo_locked").to_bool()){
-        usleep(1000);
-        //sleep for a short time 
-    }
-    //printf("USRP tuned and ready.\n");
- 
-    // Set the rf gain (dB)
-    // TODO: Allow setting of gain from command line
-    usrp->set_tx_gain(0.0);
-    printf("TX Gain set to %f dB\n", usrp->get_tx_gain());
- 
-    // Set the rx_rate (Samples/s)
-    // TODO: Allow setting of tx_rate from command line
-    usrp->set_tx_rate(1e6);
-    printf("TX rate set to %f MS/s\n", (usrp->get_tx_rate()/1e6));
-
-    // Set the IF BW (in Hz)
-    usrp->set_tx_bandwidth(500e3);
-    printf("TX bandwidth set to %f kHz\n", (usrp->get_tx_bandwidth()/1e3));
-
-    return usrp;
-} // end initializeUSRPs()
-
-
-int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int debug)
-{
-    // TODO: Find another way to fix this
+    // FIXME: Find another way to fix this
     usleep(1000000.0);
 
     int DoneTransmitting = 0;
 
     // Process data from rx
-    ceProcessData(cePtr, feedback);
+    ceProcessData(cePtr, feedback, verbose);
     // Modify transmission parameters (in fg and in USRP) accordingly
-    if (!ceOptimized(*cePtr)) 
+    if (!ceOptimized(*cePtr, verbose)) 
     {
-        printf("ceOptimized() returned false\n");
-        ceModifyTxParams(cePtr, feedback);
+        if (verbose) printf("ceOptimized() returned false\n");
+        ceModifyTxParams(cePtr, feedback, verbose);
     }
     else
     {
-        printf("ceOptimized() returned true\n");
+        if (verbose) printf("ceOptimized() returned true\n");
         DoneTransmitting = 1;
         //printf("else: DoneTransmitting= %d\n", DoneTransmitting);
     }
 
     // For debugging
-    if (debug)
+    if (verbose)
     {
         printf("ce.numSubcarriers= %u\n", cePtr->numSubcarriers);
         printf("ce.CPLen= %u\n", cePtr->CPLen);
@@ -1432,9 +1452,8 @@ int main(int argc, char ** argv)
     srand( time(NULL));
 
     // TEMPORARY VARIABLE
-    int usingUSRPs = 1;
+    int usingUSRPs = 0;
 
-    int debug = 1;
     int verbose = 1;
     int dataToStdout = 0;
 
@@ -1484,8 +1503,8 @@ int main(int argc, char ** argv)
     
     //printf("variables declared.\n");
 
-    int NumCE=readCEMasterFile(cogengine_list);  
-    int NumSc=readScMasterFile(scenario_list);  
+    int NumCE=readCEMasterFile(cogengine_list, verbose);  
+    int NumSc=readScMasterFile(scenario_list, verbose);  
     //printf ("\nCalled readScMasterFile function\n");
 
     // Cognitive engine struct used in each test
@@ -1538,7 +1557,8 @@ int main(int argc, char ** argv)
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
-        printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
+        if (verbose) 
+            printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
 
         
         // Run each CE through each scenario
@@ -1546,12 +1566,12 @@ int main(int argc, char ** argv)
         {
             // Initialize current CE
             ce = CreateCognitiveEngine();
-            readCEConfigFile(&ce,cogengine_list[i_CE]);
+            readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
 
-            printf("\n\nStarting Scenario %d\n", i_Sc+1);
+            if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
             // Initialize current Scenario
             sc = CreateScenario();
-            readScConfigFile(&sc,scenario_list[i_Sc]);
+            readScConfigFile(&sc,scenario_list[i_Sc], verbose);
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
             fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
@@ -1559,7 +1579,7 @@ int main(int argc, char ** argv)
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             float frameNum = 0.0;
-            fs = CreateFS(ce, sc, NULL);
+            fs = CreateFS(ce, sc, &verbose);
 
             std::clock_t begin = std::clock();
             // Begin Testing Scenario
@@ -1572,7 +1592,7 @@ int main(int argc, char ** argv)
                     //usrp = initializeUSRPs();    
                     // create transceiver object
                     unsigned char * p = NULL;   // default subcarrier allocation
-                    if (debug) 
+                    if (verbose) 
                         printf("Using ofdmtxrx\n");
                     ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, NULL, NULL);
 
@@ -1589,7 +1609,7 @@ int main(int argc, char ** argv)
                         txcvr.set_tx_gain_uhd(ce.uhd_txgain);
                         txcvr.set_tx_antenna("TX/RX");
 
-                        if (debug) {
+                        if (verbose) {
                             txcvr.debug_enable();
                             printf("Set frequency to %f\n", ce.frequency);
                             printf("Set bandwidth to %f\n", ce.bandwidth);
@@ -1600,14 +1620,14 @@ int main(int argc, char ** argv)
 
                         int i = 0;
                         // Generate data
-                        printf("\n\nGenerating data that will go in frame...\n");
+                        if (verbose) printf("\n\nGenerating data that will go in frame...\n");
                         for (i=0; i<8; i++)
                             header[i] = i & 0xff;
                         for (i=0; i<ce.payloadLen; i++)
                             payload[i] = i & 0xff;
                         // Include frame number in header information
                         * header_f = frameNum;
-                        printf("Frame Num: %f\n", frameNum);
+                        if (verbose) printf("Frame Num: %f\n", frameNum);
 
                         // Set Modulation Scheme
                         modulation_scheme ms = convertModScheme(ce.modScheme);
@@ -1616,17 +1636,17 @@ int main(int argc, char ** argv)
                         //crc_scheme check = convertCRCScheme(ce.crcScheme);
 
                         // Set inner forward error correction scheme
-                        printf("Inner FEC: ");
-                        fec_scheme fec0 = convertFECScheme(ce.innerFEC);
+                        if (verbose) printf("Inner FEC: ");
+                        fec_scheme fec0 = convertFECScheme(ce.innerFEC, verbose);
 
                         // Set outer forward error correction scheme
                         // TODO: add other liquid-supported FEC schemes
-                        printf("Outer FEC: ");
-                        fec_scheme fec1 = convertFECScheme(ce.outerFEC);
+                        if (verbose) printf("Outer FEC: ");
+                        fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
                         txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
 
-                        DoneTransmitting = postTxTasks(&ce, feedback, debug);
+                        DoneTransmitting = postTxTasks(&ce, feedback, verbose);
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
@@ -1640,8 +1660,8 @@ int main(int argc, char ** argv)
                     while(!DoneTransmitting)
                     {
                         // Initialize Transmitter Defaults for current CE and Sc
-                        fg = CreateFG(ce, sc);  // Create ofdmflexframegen object with given parameters
-                        ofdmflexframegen_print(fg);
+                        fg = CreateFG(ce, sc, verbose);  // Create ofdmflexframegen object with given parameters
+                        if (verbose) ofdmflexframegen_print(fg);
 
                         // Generate data to go into frame (packet)
                         //txGeneratePacket(ce, &fg, header, payload);
@@ -1651,7 +1671,7 @@ int main(int argc, char ** argv)
                         //printf("ce.payloadLen= %u", ce.payloadLen);
 
                         // Generate data
-                        printf("\n\nGenerating data that will go in frame...\n");
+                        if (verbose) printf("\n\nGenerating data that will go in frame...\n");
                         for (i=0; i<8; i++)
                             header[i] = i & 0xff;
                         for (i=0; i<ce.payloadLen; i++)
@@ -1673,10 +1693,6 @@ int main(int argc, char ** argv)
 
                             enactScenario(frameSamples, ce, sc, usingUSRPs);
 
-                            // TODO: Create this function
-                            // Store a copy of the packet that was transmitted. For reference.
-                            // txStoreTransmittedPacket();
-                        
                             // Rx Receives packet
                             //rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
                             symbolLen = ce.numSubcarriers + ce.CPLen;
@@ -1684,7 +1700,7 @@ int main(int argc, char ** argv)
                         } // End Transmition For loop
 
                         // posttransmittasks
-                        DoneTransmitting = postTxTasks(&ce, feedback, debug);
+                        DoneTransmitting = postTxTasks(&ce, feedback, verbose);
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
@@ -1703,12 +1719,12 @@ int main(int argc, char ** argv)
             // Reset the goal
             ce.latestGoalValue = 0.0;
             ce.errorFreePayloads = 0.0;
-            printf("Scenario %i completed for CE %i.\n", i_Sc+1, i_CE+1);
+            if (verbose) printf("Scenario %i completed for CE %i.\n", i_Sc+1, i_CE+1);
             fprintf(dataFile, "\n\n");
             
         } // End Scenario For loop
 
-        printf("Tests on Cognitive Engine %i completed.\n", i_CE+1);
+        if (verbose) printf("Tests on Cognitive Engine %i completed.\n", i_CE+1);
 
     } // End CE for loop
 
