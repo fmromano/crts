@@ -30,11 +30,11 @@
 
 
 void usage() {
-    printf("crts -- test cognitive engines\n");
+    printf("crts -- Test cognitive radio engines. Data is logged to a file named 'data_crts' with date and time appended.\n");
     printf("  u,h   :   usage/help\n");
     printf("  q     :   quiet - do not print debug info\n");
-    printf("  v     :   verbose - print debug info to Stdout\n");
-    printf("  d     :   print rx data to Stdout rather than to file (not yet implemented)\n");
+    printf("  v     :   verbose - print debug info to stdout\n");
+    printf("  d     :   print data to stdout rather than to file (not yet implemented)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -1550,9 +1550,15 @@ int main(int argc, char ** argv)
 
     // Allow server time to finish initialization
     usleep(0.1e6);
+
+    // Get current date and time
+    char dataFilename[50];
+    time_t now = time(NULL);
+    struct tm *t  = localtime(&now);
+    strftime(dataFilename, sizeof(dataFilename)-1, "data_crts_%d%b%Y_%T", t);
     
     // Initialize Data File
-    FILE * dataFile = fopen("data", "w");
+    FILE * dataFile = fopen(dataFilename, "w");
 
     // Begin running tests
 
