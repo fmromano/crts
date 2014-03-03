@@ -1274,41 +1274,44 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
         }
         // FEC modifying (change to higher)
         if (strcmp(ce->option_to_adapt, "use_change_higher_fec") == 0) {
-           if (strcmp(ce->outerFEC, "none") == 0) {
-               strcpy(ce->outerFEC, "Hamming74");
+           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED7264");
+           } 
+           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED3932");
+           }
+           if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED2216");
+           }
+           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+               strcpy(ce->outerFEC, "Golay2412");
            }
            if (strcmp(ce->outerFEC, "Hamming74") == 0) {
                strcpy(ce->outerFEC, "Hamming128");
            }
-           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
-               strcpy(ce->outerFEC, "Golay2412");
+           if (strcmp(ce->outerFEC, "none") == 0) {
+               strcpy(ce->outerFEC, "Hamming74");
            }
-           if (strcmp(ce->outerFEC, "Golay2412") == 0) {
-               strcpy(ce->outerFEC, "SEC-DED2216");
-           }
-           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
-               strcpy(ce->outerFEC, "SEC-DED3932");
-           }
-           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
-               strcpy(ce->outerFEC, "SEC-DED7264");
-           } 
         }
         // FEC modifying (change to lower)
         if (strcmp(ce->option_to_adapt, "use_change_lower_fec") == 0) {
-           if (strcmp(ce->outerFEC, "SEC-DED7264") == 0) {
-               strcpy(ce->outerFEC, "SEC-DED3932");
+           if (strcmp(ce->outerFEC, "Hamming74") == 0) {
+               strcpy(ce->outerFEC, "none");
            }
-           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
-               strcpy(ce->outerFEC, "SEC-DED2216");
-           }
-           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
-               strcpy(ce->outerFEC, "Golay2412");
+           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+               strcpy(ce->outerFEC, "Hamming74");
            }
            if (strcmp(ce->outerFEC, "Golay2412") == 0) {
                strcpy(ce->outerFEC, "Hamming128");
            }
-           if (strcmp(ce->outerFEC, "Hamming128") == 0) {
-               strcpy(ce->outerFEC, "Hamming74");
+           if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+               strcpy(ce->outerFEC, "Golay2412");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED2216");
+           }
+           if (strcmp(ce->outerFEC, "SEC-DED7264") == 0) {
+               strcpy(ce->outerFEC, "SEC-DED3932");
            }
         }
 
