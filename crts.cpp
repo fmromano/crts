@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sysexits.h>
 #include <math.h>
 #include <complex>
 #include <liquid/liquid.h>
@@ -152,10 +153,10 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_scenario_file.txt"))
     {
-        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
-        printf("\nCould not find master scenario file. It should be named 'master_scenario_file.txt'\n");
+        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        fprintf(stderr, "\nCould not find master scenario file. It should be named 'master_scenario_file.txt'\n");
         config_destroy(&cfg);
-        return -1;
+        exit(EX_NOINPUT);
     }
     else
         //printf("\nFound master Scenario config file\n")
@@ -167,7 +168,7 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
         //printf("File Type: %s\n", str)
         ;
     else
-        printf("No 'filename' setting in configuration file.\n");
+        fprintf(stderr, "No 'filename' setting in configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -225,10 +226,10 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_cogengine_file.txt"))
     {
-        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
-        printf("\nCould not find master file. It should be named 'master_cogengine_file.txt'\n");
+        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        fprintf(stderr, "\nCould not find master file. It should be named 'master_cogengine_file.txt'\n");
         config_destroy(&cfg);
-        return -1;
+        exit(EX_NOINPUT);
     }
     else
         //printf("Found master Cognitive Engine config file.\n");
@@ -239,7 +240,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
         //printf("File Type: %s\n", str)
         ;
     else
-        printf("No 'filename' setting in master CE configuration file.\n");
+        fprintf(stderr, "No 'filename' setting in master CE configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -292,19 +293,19 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,ceFileLocation))
     {
-        printf("\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
-        return -1;
+        exit(EX_NOINPUT);
     }
 
     // Get the configuration file name. 
-    if (config_lookup_string(&cfg, "filename", &str))
-    {
-        if (verbose)
-            printf("Cognitive Engine Configuration File Name: %s\n", str);
-    }
-    else
-        printf("No 'filename' setting in configuration file.\n");
+    //if (config_lookup_string(&cfg, "filename", &str))
+    //{
+    //    if (verbose)
+    //        printf("Cognitive Engine Configuration File Name: %s\n", str);
+    //}
+    //else
+    //    printf("No 'filename' setting in configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -417,9 +418,9 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg, scFileLocation))
     {
-        printf("%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
-        return -1;
+        exit(EX_NOINPUT);
     }
 
     //// Get the configuration file name. 
@@ -559,16 +560,16 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
 
     // validate input
     if (K < 1.5f) {
-        fprintf(stderr,"error: fading factor K must be greater than 1.5\n");
+        fprintf(stderr, "error: fading factor K must be greater than 1.5\n");
         exit(1);
     } else if (omega < 0.0f) {
-        fprintf(stderr,"error: signal power Omega must be greater than zero\n");
+        fprintf(stderr, "error: signal power Omega must be greater than zero\n");
         exit(1);
     } else if (fd <= 0.0f || fd >= 0.5f) {
-        fprintf(stderr,"error: Doppler frequency must be in (0,0.5)\n");
+        fprintf(stderr, "error: Doppler frequency must be in (0,0.5)\n");
         exit(1);
     } else if (symbol_len== 0) {
-        fprintf(stderr,"error: number of samples must be greater than zero\n");
+        fprintf(stderr, "error: number of samples must be greater than zero\n");
         exit(1);
     }
  
@@ -633,14 +634,14 @@ void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine
        addAWGN(transmit_buffer, ce, sc);
     }
     if (sc.addInterference == 1){
-       //printf("WARNING: There is currently no interference scenario functionality!\n");
+       fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
        // Interference function
     }
     if (sc.addFading == 1){
        addRiceFading(transmit_buffer, ce, sc);
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       //printf("Nothing Added by Scenario!\n");
+       fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
     }
 } // End enactScenario()
 
@@ -674,8 +675,8 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
        *siggen_pid = fork();
        if ( *siggen_pid == -1 )
        {
-           printf( "failed to fork child for uhd_siggen.\n" );
-           _exit( 1 );
+           fprintf(stderr, "ERROR: Failed to fork child for uhd_siggen.\n" );
+           _exit(EX_OSERR);
        }
        // If this is the child process
        if (*siggen_pid == 0)
@@ -697,15 +698,15 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
            while(1) {;}
     }
     if (sc.addInterference == 1){
-       //printf("WARNING: There is currently no USRP interference scenario functionality!\n");
+       fprintf(stderr, "WARNING: There is currently no USRP interference scenario functionality!\n");
        // Interference function
     }
     if (sc.addFading == 1){
        //addRiceFading(transmit_buffer, ce, sc);
-       //printf("WARNING: There is currently no USRP Fading scenario functionality!\n");
+       fprintf(stderr, "WARNING: There is currently no USRP Fading scenario functionality!\n");
     }
     if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       //printf("Nothing Added by Scenario!\n");
+       fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
     }
 } // End enactUSRPScenario()
 
@@ -771,7 +772,7 @@ modulation_scheme convertModScheme(char * modScheme)
         ms = LIQUID_MODEM_ASK128;
     }
     else {
-        printf("ERROR: Unknown Modulation Scheme");
+        fprintf(stderr, "ERROR: Unknown Modulation Scheme");
         //TODO: Skip current test if given an unknown parameter.
     }
 
@@ -806,7 +807,7 @@ crc_scheme convertCRCScheme(char * crcScheme, int verbose)
         if (verbose) printf("check = LIQUID_CRC_32\n");
     }
     else {
-        printf("ERROR: unknown CRC\n");
+        fprintf(stderr, "ERROR: unknown CRC\n");
         //TODO: Skip current test if given an unknown parameter.
     }
 
@@ -846,7 +847,7 @@ fec_scheme convertFECScheme(char * FEC, int verbose)
         if (verbose) printf("fec = LIQUID_FEC_SECDED7264\n");
     }
     else {
-        printf("ERROR: unknown FEC\n");
+        fprintf(stderr, "ERROR: unknown FEC\n");
         //TODO: Skip current test if given an unknown parameter.
     }
     return fec;
@@ -910,8 +911,8 @@ int rxCallback(unsigned char *  _header,
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
-        printf("Receiver Failed to Create Client Socket. error: %s\n", strerror(errno));
-        exit(1);
+        fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }   
     //printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
@@ -927,9 +928,9 @@ int rxCallback(unsigned char *  _header,
     int connect_status;
     if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
     {   
-        printf("Receiver Failed to Connect to server.\n");
-        printf("connect_status = %d\n", connect_status);
-        exit(1);
+        fprintf(stderr, "Receiver Failed to Connect to server.\n");
+        fprintf(stderr, "connect_status = %d\n", connect_status);
+        exit(EXIT_FAILURE);
     }
    
     //framesyncstats_print(&_stats); 
@@ -1034,15 +1035,15 @@ void * startTCPServer(void * _read_buffer )
     int sock_listen;
     if ((sock_listen = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        printf("Transmitter Failed to Create Server Socket.\n");
-        exit(1);
+        fprintf(stderr, "Transmitter Failed to Create Server Socket.\n");
+        exit(EXIT_FAILURE);
     }
 
     // TODO: Allow reuse of a port. See http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
     if (setsockopt(sock_listen, SOL_SOCKET, SO_REUSEPORT, (void*) &reusePortOption, sizeof(reusePortOption)) < 0 )
     {
-        printf(" setsockopt() failed\n");
-        exit(1);
+        fprintf(stderr, " setsockopt() failed\n");
+        exit(EXIT_FAILURE);
     }
 
     // Construct local (server) address structure 
@@ -1053,8 +1054,8 @@ void * startTCPServer(void * _read_buffer )
     // Bind to the local address to a port
     if (bind(sock_listen, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0)
     {
-        printf("bind() error\n");
-        exit(1);
+        fprintf(stderr, "ERROR: bind() error\n");
+        exit(EXIT_FAILURE);
     }
     // Listen and accept connections indefinitely
     while (1)
@@ -1062,8 +1063,8 @@ void * startTCPServer(void * _read_buffer )
         // listen for connections on socket
         if (listen(sock_listen, MAXPENDING) < 0)
         {
-            printf("Failed to Set Sleeping (listening) Mode\n");
-            exit(1);
+            fprintf(stderr, "ERROR: Failed to Set Sleeping (listening) Mode\n");
+            exit(EXIT_FAILURE);
         }
         //printf("\n(Server is now in listening mode)\n");
 
@@ -1073,8 +1074,8 @@ void * startTCPServer(void * _read_buffer )
         //printf("socket_to_client= %d\n", socket_to_client);
         if(socket_to_client< 0)
         {
-            printf("Sever Failed to Connect to Client\n");
-            exit(1);
+            fprintf(stderr, "ERROR: Sever Failed to Connect to Client\n");
+            exit(EXIT_FAILURE);
         }
         //printf("Server has accepted connection from client\n");
         // Transmitter receives data from client (receiver)
@@ -1129,7 +1130,8 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     else
     {
-        printf("ERROR: Unknown Goal!\n");
+        fprintf(stderr, "ERROR: Unknown Goal!\n");
+        exit(EXIT_FAILURE);
     }
     // TODO: implement if statements for other possible goals.
 
@@ -1226,7 +1228,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
             }
             if (strcmp(ce->modScheme, "128PSK") == 0) {
                 strcpy(ce->modScheme, "64PSK");
-                printf("New modscheme: 64PSK\n");
+                //printf("New modscheme: 64PSK\n");
             }
         }
         // FIXME: Doens't work. Fix.
