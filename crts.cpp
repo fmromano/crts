@@ -30,8 +30,8 @@
 
 
 void usage() {
-    printf("crts -- Test cognitive radio engines. Data is logged to a file named 'data_crts' with date and time appended.\n");
-    printf("  -u,-h   :   usage/help\n");
+    printf("crts -- Test cognitive radio engines. Data is logged in the 'data' directory to a file named 'data_crts' with date and time appended.\n");
+    printf("  -u,-h  :   usage/help\n");
     printf("  -q     :   quiet - do not print debug info\n");
     printf("  -v     :   verbose - print debug info to stdout (default)\n");
     printf("  -d     :   print data to stdout rather than to file (implies -q unless -v given)\n");
@@ -1560,7 +1560,8 @@ int main(int argc, char ** argv)
     char dataFilename[50];
     time_t now = time(NULL);
     struct tm *t  = localtime(&now);
-    strftime(dataFilename, sizeof(dataFilename)-1, "data_crts_%d%b%Y_%T", t);
+    strftime(dataFilename, sizeof(dataFilename)-1, "data/data_crts_%d%b%Y_%T", t);
+    // TODO: Make sure data folder exists
     
     // Initialize Data File
     FILE * dataFile;

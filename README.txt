@@ -9,5 +9,7 @@ $ make clean
 All scenario config files should be placed in the scconfigs/ folder.
 All cognitive engine config files should be place in the ceconfigs/ folder.
 
+Data files are logged in the data/ directory with the data and time appended.
+
 
 
