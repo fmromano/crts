@@ -31,10 +31,10 @@
 
 void usage() {
     printf("crts -- Test cognitive radio engines. Data is logged to a file named 'data_crts' with date and time appended.\n");
-    printf("  u,h   :   usage/help\n");
-    printf("  q     :   quiet - do not print debug info\n");
-    printf("  v     :   verbose - print debug info to stdout\n");
-    printf("  d     :   print data to stdout rather than to file (not yet implemented)\n");
+    printf("  -u,-h   :   usage/help\n");
+    printf("  -q     :   quiet - do not print debug info\n");
+    printf("  -v     :   verbose - print debug info to stdout (default)\n");
+    printf("  -d     :   print data to stdout rather than to file (implies -q unless -v given)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -657,7 +657,7 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
     if (sc.addNoise == 1){
        // Center freq of noise
        char freq_opt[40] = "-f";
-       char * freq;
+       char * freq = NULL;
        sprintf(freq, "%f", ce.frequency);
        strcat(freq_opt, freq);
 
@@ -666,7 +666,7 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
 
        // Gain of Output
        char gain_opt[40] = "-g";
-       char * noiseGain_dB;
+       char * noiseGain_dB = NULL;
        sprintf(noiseGain_dB, "%f", 10.0);
        strcat(gain_opt, noiseGain_dB);
 
@@ -973,7 +973,8 @@ int rxCallback(unsigned char *  _header,
 
     // Receiver sends data to server
     //printf("socket_to_server: %d\n", socket_to_server);
-    int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
+    //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
+    write(socket_to_server, feedback, 8*sizeof(float));
     //printf("Rx writeStatus: %d\n", writeStatus);
 
     // Receiver closes socket to server
@@ -1459,6 +1460,7 @@ int main(int argc, char ** argv)
     int usingUSRPs = 0;
 
     int verbose = 1;
+    int verbose_explicit = 0;
     int dataToStdout = 0;
 
     // Check Program options
@@ -1466,14 +1468,15 @@ int main(int argc, char ** argv)
     while ((d = getopt(argc,argv,"uhqvd")) != EOF) {
         switch (d) {
         case 'u':
-        case 'h':   usage();                       return 0;
-        case 'q':   verbose = 0;                      break;
-        case 'v':   verbose = 1;                      break;
-        case 'd':   dataToStdout = 1;                 break;
-        //case 'f':   frequency = atof(optarg);       break;
-        //case 'b':   bandwidth = atof(optarg);       break;
-        //case 'G':   uhd_rxgain = atof(optarg);      break;
-        //case 't':   num_seconds = atof(optarg);     break;
+        case 'h':   usage();                           return 0;
+        case 'q':   verbose = 0;                          break;
+        case 'v':   verbose = 1; verbose_explicit = 1;    break;
+        case 'd':   dataToStdout = 1; 
+                    if (!verbose_explicit) verbose = 0;   break;
+        //case 'f':   frequency = atof(optarg);           break;
+        //case 'b':   bandwidth = atof(optarg);           break;
+        //case 'G':   uhd_rxgain = atof(optarg);          break;
+        //case 't':   num_seconds = atof(optarg);         break;
         default:
             verbose = 1;
         }   
@@ -1484,7 +1487,7 @@ int main(int argc, char ** argv)
     // Threading for using uhd_siggen (for when using USRPs)
     //pthread_t siggenThread;
     //int serverThreadReturn = 0;  // return value of creating TCPServer thread
-    pid_t uhd_siggen_pid;
+    //pid_t uhd_siggen_pid;
 
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
@@ -1560,7 +1563,15 @@ int main(int argc, char ** argv)
     strftime(dataFilename, sizeof(dataFilename)-1, "data_crts_%d%b%Y_%T", t);
     
     // Initialize Data File
-    FILE * dataFile = fopen(dataFilename, "w");
+    FILE * dataFile;
+    if (dataToStdout)
+    {
+        dataFile = stdout;
+    }
+    else
+    {
+        dataFile = fopen(dataFilename, "w");
+    }
 
     // Begin running tests
 
@@ -1617,7 +1628,7 @@ int main(int argc, char ** argv)
                         txcvr.set_tx_rate(ce.bandwidth);
                         txcvr.set_tx_gain_soft(ce.txgain_dB);
                         txcvr.set_tx_gain_uhd(ce.uhd_txgain);
-                        txcvr.set_tx_antenna("TX/RX");
+                        //txcvr.set_tx_antenna("TX/RX");
 
                         if (verbose) {
                             txcvr.debug_enable();
