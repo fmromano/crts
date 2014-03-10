@@ -58,6 +58,7 @@ struct CognitiveEngine {
     float PER;
     float BERLastPacket;
     float BERTotal;
+    float frameNumber;
     float framesReceived;
     float validPayloads;
     float errorFreePayloads;
@@ -621,7 +622,7 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
     // destroy filter object
     firfilt_crcf_destroy(fdoppler);
 
-    // clean up allocated arrays
+    // clean up allocated array
     free(y);
 } // End addRiceFading()
 
@@ -1120,14 +1121,20 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
         if (verbose) printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
         ce->latestGoalValue = feedback[1];
     }
-    if (strcmp(ce->goal, "X_valid_payloads") == 0)
+    else if (strcmp(ce->goal, "X_valid_payloads") == 0)
     {
         if (verbose) printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
         ce->latestGoalValue += ce->validPayloads;
     }
-    if(strcmp(ce->goal, "X_errorFreePayloads") == 0)
+    else if (strcmp(ce->goal, "X_errorFreePayloads") == 0)
     {
         if (verbose) printf("Goal is X_errorFreePayloads. Setting latestGoalValue to %f\n", ce->errorFreePayloads);
+        ce->latestGoalValue  = ce->errorFreePayloads;
+    }
+    else if (strcmp(ce->goal, "X_frames") == 0)
+    {
+        // TODO: Finish this
+        if (verbose) printf("Goal is X_frames. Setting latestGoalValue to %f\n", ce->frameNumber);
         ce->latestGoalValue  = ce->errorFreePayloads;
     }
     else
@@ -1600,7 +1607,7 @@ int main(int argc, char ** argv)
 
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-            float frameNum = 0.0;
+            ce.frameNumber = 0.0;
             fs = CreateFS(ce, sc, &verbose);
 
             std::clock_t begin = std::clock();
@@ -1648,8 +1655,8 @@ int main(int argc, char ** argv)
                         for (i=0; i<ce.payloadLen; i++)
                             payload[i] = i & 0xff;
                         // Include frame number in header information
-                        * header_f = frameNum;
-                        if (verbose) printf("Frame Num: %f\n", frameNum);
+                        * header_f = ce.frameNumber;
+                        if (verbose) printf("Frame Num: %f\n", ce.frameNumber);
 
                         // Set Modulation Scheme
                         modulation_scheme ms = convertModScheme(ce.modScheme);
@@ -1674,7 +1681,7 @@ int main(int argc, char ** argv)
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
 
                         // Increment the frame counter
-                        frameNum++;
+                        ce.frameNumber++;
                     } // End If while loop
                 }
                 else // If not using USRPs
@@ -1699,7 +1706,7 @@ int main(int argc, char ** argv)
                         for (i=0; i<ce.payloadLen; i++)
                             payload[i] = i & 0xff;
                         // Include frame number in header information
-                        * header_f = frameNum;
+                        * header_f = ce.frameNumber;
 
                         // Assemble frame
                         ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
@@ -1728,7 +1735,7 @@ int main(int argc, char ** argv)
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
 
                         // Increment the frame counter
-                        frameNum++;
+                        ce.frameNumber++;
                     } // End else While loop
                 }
 
