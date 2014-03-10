@@ -1133,9 +1133,8 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     else if (strcmp(ce->goal, "X_frames") == 0)
     {
-        // TODO: Finish this
         if (verbose) printf("Goal is X_frames. Setting latestGoalValue to %f\n", ce->frameNumber);
-        ce->latestGoalValue  = ce->errorFreePayloads;
+        ce->latestGoalValue  = ce->frameNumber;
     }
     else
     {
