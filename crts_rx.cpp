@@ -232,7 +232,7 @@ int main(int argc, char ** argv)
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uha:p:")) != EOF) {
+    while ((d = getopt(argc,argv,"uha:p:f:b:G:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
