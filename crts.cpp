@@ -73,6 +73,7 @@ struct CognitiveEngine {
     float bandwidth;
     float txgain_dB;
     float uhd_txgain;
+    float runningTime; // In seconds
     int iterations;
     int payloadLen;
     unsigned int numSubcarriers;
@@ -119,6 +120,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.PER = 0.0;
     ce.BERLastPacket = 0.0;
     ce.BERTotal = 0.0;
+    ce.frameNumber = 0.0;
     ce.framesReceived = 0.0;
     ce.validPayloads = 0.0;
     ce.errorFreePayloads = 0.0;
@@ -126,6 +128,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
     ce.uhd_txgain = 40.0;
+    ce.runningTime = 0.0; // In seconds
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -1171,6 +1174,11 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     {
         if (verbose) printf("Goal is X_frames. Setting latestGoalValue to %f\n", ce->frameNumber);
         ce->latestGoalValue  = ce->frameNumber;
+    }
+    else if (strcmp(ce->goal, "X_seconds") == 0)
+    {
+        if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime);
+        ce->latestGoalValue  = ce->runningTime;
     }
     else
     {
