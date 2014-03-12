@@ -28,6 +28,12 @@
 #define PORT 1400
 #define MAXPENDING 5
 
+// SO_REUSEPORT is defined only defined with linux 3.10+.
+// Makes compatible with earlier kernels.
+#ifndef SO_REUSEPORT
+#define SO_REUSEPORT SO_REUSEADDR
+#endif
+
 
 void usage() {
     printf("crts -- Test cognitive radio engines. Data is logged in the 'data' directory to a file named 'data_crts' with date and time appended.\n");
