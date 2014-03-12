@@ -1,5 +1,4 @@
 
-
 Build with
 $ make
 
@@ -11,5 +10,6 @@ All cognitive engine config files should be place in the ceconfigs/ folder.
 
 Data files are logged in the data/ directory with the data and time appended.
 
-
+Dependencies include:
+libconfig, liquid-dsp, liquid-usrp, uhd
 
