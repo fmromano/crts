@@ -1175,6 +1175,9 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
 
+    // FIXME
+    // FIXME
+    // FIXME: This is wrong. payloadLen is num of bytes. Not bits.
     ce->BERLastPacket = feedback[6]/ce->payloadLen;
 
     ce->weightedAvg += feedback[1];
