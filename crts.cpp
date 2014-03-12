@@ -76,7 +76,10 @@ struct CognitiveEngine {
     double startTime;
     double runningTime; // In seconds
     int iterations;
-    int payloadLen;
+    unsigned int payloadLen;
+    unsigned int payloadLenIncrement;
+    unsigned int payloadLenMax;
+    unsigned int payloadLenMin;
     unsigned int numSubcarriers;
     unsigned int CPLen;
     unsigned int taperLen;
@@ -114,6 +117,11 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
     ce.iterations = 100;                // Number of transmissions made before attemting to receive them.
     ce.payloadLen = 120;                // Length of payload in frame generation
+    ce.payloadLenIncrement = 2;         // How much to increment payload in adaptations
+                                        // Always positive.
+
+    ce.payloadLenMax = 500;             // Max length of payload in bytes
+    ce.payloadLenMin = 20;              // Min length of payload in bytes
     ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
     ce.CPLen = 16;                      // Cyclic Prefix length
     ce.taperLen = 4;                     // Taper length
@@ -350,7 +358,7 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
     setting = config_lookup(&cfg, "params");
     if (setting != NULL)
     {
-        // Read the string
+        // Read the strings
         if (config_setting_lookup_string(setting, "option_to_adapt", &str))
         {
             strcpy(ce->option_to_adapt,str);
@@ -398,6 +406,21 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->payloadLen=tmpI; 
            if (verbose) printf("PayloadLen: %d\n", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "payloadLenIncrement", &tmpI))
+        {
+           ce->payloadLenIncrement=tmpI; 
+           if (verbose) printf("PayloadLenIncrement: %d\n", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "payloadLenMax", &tmpI))
+        {
+           ce->payloadLenMax=tmpI; 
+           if (verbose) printf("PayloadLenMax: %d\n", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "payloadLenMin", &tmpI))
+        {
+           ce->payloadLenMin=tmpI; 
+           if (verbose) printf("PayloadLenMin: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "numSubcarriers", &tmpI))
         {
@@ -1151,7 +1174,9 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
         if (verbose) printf("Error Free payload!\n");
     }
     ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
+
     ce->BERLastPacket = feedback[6]/ce->payloadLen;
+
     ce->weightedAvg += feedback[1];
 
     //printf("ce->goal=%s\n", ce->goal);
@@ -1262,6 +1287,20 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
         //    if (ce->numSubcarriers > 2)
         //        ce->numSubcarriers -= 2;
         //}
+
+        if (strcmp(ce->option_to_adapt, "increase_payload_len") == 0) {
+            if (ce->payloadLen + ce->payloadLenIncrement < ce->payloadLenMax) 
+            {
+                ce->payloadLen += ce->payloadLenIncrement;
+            }
+        }
+
+        if (strcmp(ce->option_to_adapt, "decrease_payload_len") == 0) {
+            if (ce->payloadLen - ce->payloadLenIncrement > ce->payloadLenMin) 
+            {
+                ce->payloadLen += ce->payloadLenIncrement;
+            }
+        }
 
         if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_PSK") == 0) {
             if (strcmp(ce->modScheme, "QPSK") == 0) {
