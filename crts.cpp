@@ -1256,11 +1256,12 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
         // TODO: Implement a similar if statement for each possible option
         // that can be adapted.
 
-        // FIXME: Doesn't work.
-        if (strcmp(ce->option_to_adapt, "decrease_numSubcarriers") == 0) {
-            if (ce->numSubcarriers > 2)
-                ce->numSubcarriers -= 2;
-        }
+        // This can't work because rx can't detect signals with different 
+        // number of subcarriers
+        //if (strcmp(ce->option_to_adapt, "decrease_numSubcarriers") == 0) {
+        //    if (ce->numSubcarriers > 2)
+        //        ce->numSubcarriers -= 2;
+        //}
 
         if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_PSK") == 0) {
             if (strcmp(ce->modScheme, "QPSK") == 0) {
