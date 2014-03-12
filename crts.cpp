@@ -25,7 +25,6 @@
 #include <signal.h>     // for killing child process
 #include <uhd/usrp/multi_usrp.hpp>
 #include <getopt.h>     // For command line options
-#define PORT 1400
 #define MAXPENDING 5
 
 // SO_REUSEPORT is defined only defined with linux 3.10+.
@@ -43,6 +42,7 @@ void usage() {
     printf("  -d     :   print data to stdout rather than to file (implies -q unless -v given)\n");
     printf("  -r     :   real transmissions using USRPs (opposite of -s)\n");
     printf("  -s     :   simulation mode (default)\n");
+    printf("  -p     :   server port (default: 1402)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -957,7 +957,7 @@ int rxCallback(unsigned char *  _header,
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(PORT);
+    servAddr.sin_port = htons(rxCBS_ptr->serverPort);
     servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     // Attempt to connect client socket to server
@@ -1021,10 +1021,10 @@ int rxCallback(unsigned char *  _header,
 
 // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
 // asdf
-ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct rxCBstruct rxCBs)
+ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct rxCBstruct* rxCBs_ptr)
 {
      ofdmflexframesync fs =
-             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, &rxCBs);
+             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, (void *) rxCBs_ptr);
 
      return fs;
 } // End CreateFS();
@@ -1092,7 +1092,7 @@ void * startTCPServer(void * _ss_ptr)
     memset(&servAddr, 0, sizeof(servAddr));       // Zero out structure 
     servAddr.sin_family = AF_INET;                // Internet address family 
     servAddr.sin_addr.s_addr = htonl(INADDR_ANY); // Any incoming interface 
-    servAddr.sin_port = htons(PORT);              // Local port 
+    servAddr.sin_port = htons(ss_ptr->serverPort);              // Local port 
     // Bind to the local address to a port
     if (bind(sock_listen, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0)
     {
@@ -1513,7 +1513,7 @@ int main(int argc, char ** argv)
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uhqvdrs")) != EOF) {
+    while ((d = getopt(argc,argv,"uhqvdrsp:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
@@ -1523,6 +1523,8 @@ int main(int argc, char ** argv)
                     if (!verbose_explicit) verbose = 0;   break;
         case 'r':   usingUSRPs = 1;                       break;
         case 's':   usingUSRPs = 0;                       break;
+        case 'p':   serverPort = atoi(optarg);            break;
+        //case 'p':   serverPort = atol(optarg);            break;
         //case 'f':   frequency = atof(optarg);           break;
         //case 'b':   bandwidth = atof(optarg);           break;
         //case 'G':   uhd_rxgain = atof(optarg);          break;
@@ -1609,7 +1611,6 @@ int main(int argc, char ** argv)
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.serverPort = serverPort;
     rxCBs.verbose = verbose;
-    //rxCBs.
 
     // Allow server time to finish initialization
     usleep(0.1e6);
@@ -1659,7 +1660,7 @@ int main(int argc, char ** argv)
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             ce.frameNumber = 0.0;
-            fs = CreateFS(ce, sc, rxCBs);
+            fs = CreateFS(ce, sc, &rxCBs);
 
             std::clock_t begin = std::clock();
             // Begin Testing Scenario
