@@ -24,6 +24,22 @@
 #define PORT 1400
 #define MAXPENDING 5
 
+// TODO: Send these to their respective functions
+struct rxCBstruct {
+    unsigned int serverPort;
+    float bandwidth;
+};
+
+// Defaults for struct that is sent to rxCallBack()
+struct rxCBstruct CreaterxCBStruct() {
+    struct rxCBstruct rxCB = {};
+
+    rxCB.serverPort = 1402;
+    rxCB.bandwidth = 1.0e6;
+
+    return rxCB;
+} // End CreaterxCBStruct()
+
 int rxCallback(unsigned char *  _header,
                 int              _header_valid,
                 unsigned char *  _payload,
@@ -32,6 +48,8 @@ int rxCallback(unsigned char *  _header,
                 framesyncstats_s _stats,
                 void *           _userdata)
 {
+    struct rxCBstruct * rxCBs_ptr = (struct rxCBstruct*) _userdata;
+
     // Iterator
     int i = 0;
     float feedback[8];
@@ -199,9 +217,11 @@ int main()
     // framesynchronizer object used in each test
     //ofdmflexframesync fs;
 
+    struct rxCBstruct rxCBs = CreaterxCBStruct();
+    rxCBs.bandwidth = bandwidth;
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
-    ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*)&bandwidth);
+    ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBs);
 
 
 

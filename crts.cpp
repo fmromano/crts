@@ -50,7 +50,6 @@ void usage() {
     //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
 }
 
-
 struct CognitiveEngine {
     char modScheme[30];
     char crcScheme[30];
@@ -93,6 +92,17 @@ struct Scenario {
     float fadeK;
     float fadeFd;
     float fadeDPhi;
+};
+
+// TODO: Send these to their respective functions
+struct rxCBstruct {
+    unsigned int serverPort;
+    int verbose;
+};
+
+struct serverThreadStruct {
+    unsigned int serverPort;
+    float * feedback;
 };
 
 // Default parameters for a Cognitive Engine
@@ -143,6 +153,22 @@ struct Scenario CreateScenario() {
     sc.fadeDPhi = 0.001f;
     return sc;
 } // End CreateScenario()
+
+// Defaults for struct that is sent to rxCallBack()
+struct rxCBstruct CreaterxCBStruct() {
+    struct rxCBstruct rxCB = {};
+    rxCB.serverPort = 1402;
+    rxCB.verbose = 1;
+    return rxCB;
+} // End CreaterxCBStruct()
+
+// Defaults for struct that is sent to server thread
+struct serverThreadStruct CreateServerStruct() {
+    struct serverThreadStruct ss = {};
+    ss.serverPort = 1402;
+    ss.feedback = NULL;
+    return ss;
+} // End CreateServerStruct()
 
 int readScMasterFile(char scenario_list[30][60], int verbose )
 {
@@ -905,11 +931,12 @@ int rxCallback(unsigned char *  _header,
                framesyncstats_s _stats,
                void *           _userdata)
 {
+    struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     // 
     //float * frameNumber = (float *) _userdata;
     //*frameNumber = *frameNumber +1;
-    int * verbose_ptr = (int *) _userdata;
-
+    //int * verbose_ptr = (int *) _userdata;
+    int verbose = rxCBS_ptr->verbose;
     // Access header when it contains floats
     float * _header_f = (float*) _header;
 
@@ -974,7 +1001,7 @@ int rxCallback(unsigned char *  _header,
     feedback[5] = headerErrors;
     feedback[6] = payloadErrors;
    
-    if (*verbose_ptr)
+    if (verbose)
     {
         for (i=0; i<7; i++)
         printf("feedback data before transmission: %f\n", feedback[i]);
@@ -993,10 +1020,11 @@ int rxCallback(unsigned char *  _header,
 } // end rxCallback()
 
 // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, int * verbose)
+// asdf
+ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct rxCBstruct rxCBs)
 {
      ofdmflexframesync fs =
-             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, (void *) verbose);
+             ofdmflexframesync_create(ce.numSubcarriers, ce.CPLen, ce.taperLen, NULL, rxCallback, &rxCBs);
 
      return fs;
 } // End CreateFS();
@@ -1027,11 +1055,15 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, int * 
 // Create a TCP socket for the server and bind it to a port
 // Then sit and listen/accept all connections and write the data
 // to an array that is accessible to the CE
-void * startTCPServer(void * _read_buffer )
+void * startTCPServer(void * _ss_ptr)
 {
     //printf("(Server thread called.)\n");
+
+    struct serverThreadStruct * ss_ptr = (struct serverThreadStruct*) _ss_ptr;
+
     // Buffer for data sent by client. This memory address is also given to CE
-    float * read_buffer = (float *) _read_buffer;
+    //float * read_buffer = (float *) _read_buffer;
+    float * read_buffer = ss_ptr->feedback;
     //  Local (server) address
     struct sockaddr_in servAddr;   
     // Parameters of client connection
@@ -1477,6 +1509,8 @@ int main(int argc, char ** argv)
     int verbose_explicit = 0;
     int dataToStdout = 0;
 
+    unsigned int serverPort = 1402;
+
     // Check Program options
     int d;
     while ((d = getopt(argc,argv,"uhqvdrs")) != EOF) {
@@ -1567,7 +1601,15 @@ int main(int argc, char ** argv)
 
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
-    pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+    struct serverThreadStruct ss = CreateServerStruct();
+    ss.serverPort = serverPort;
+    ss.feedback = feedback;
+    pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
+
+    struct rxCBstruct rxCBs = CreaterxCBStruct();
+    rxCBs.serverPort = serverPort;
+    rxCBs.verbose = verbose;
+    //rxCBs.
 
     // Allow server time to finish initialization
     usleep(0.1e6);
@@ -1617,7 +1659,7 @@ int main(int argc, char ** argv)
             // Initialize Receiver Defaults for current CE and Sc
             // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             ce.frameNumber = 0.0;
-            fs = CreateFS(ce, sc, &verbose);
+            fs = CreateFS(ce, sc, rxCBs);
 
             std::clock_t begin = std::clock();
             // Begin Testing Scenario
