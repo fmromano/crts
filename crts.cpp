@@ -94,7 +94,6 @@ struct Scenario {
     float fadeDPhi;
 };
 
-// TODO: Send these to their respective functions
 struct rxCBstruct {
     unsigned int serverPort;
     int verbose;
@@ -953,7 +952,6 @@ int rxCallback(unsigned char *  _header,
     //printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
     // Parameters for connecting to server
-    // TODO: Allow selection of IP address and port in command line parameters.
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
@@ -1019,8 +1017,6 @@ int rxCallback(unsigned char *  _header,
 
 } // end rxCallback()
 
-// TODO: Once we are using USRPs, move to an rx.c file that will run independently.
-// asdf
 ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct rxCBstruct* rxCBs_ptr)
 {
      ofdmflexframesync fs =
@@ -1081,7 +1077,7 @@ void * startTCPServer(void * _ss_ptr)
         exit(EXIT_FAILURE);
     }
 
-    // TODO: Allow reuse of a port. See http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
+    // Allow reuse of a port. See http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
     if (setsockopt(sock_listen, SOL_SOCKET, SO_REUSEPORT, (void*) &reusePortOption, sizeof(reusePortOption)) < 0 )
     {
         fprintf(stderr, " setsockopt() failed\n");
@@ -1576,7 +1572,6 @@ int main(int argc, char ** argv)
     ofdmflexframegen fg;
 
     // framesynchronizer object used in each test
-    // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
     ofdmflexframesync fs;
 
     //printf("frame objects declared\n");
@@ -1658,7 +1653,6 @@ int main(int argc, char ** argv)
             fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
 
             // Initialize Receiver Defaults for current CE and Sc
-            // TODO: Once we are using USRPs, move to an rx.c file that will run independently.
             ce.frameNumber = 0.0;
             fs = CreateFS(ce, sc, &rxCBs);
 
@@ -1721,7 +1715,6 @@ int main(int argc, char ** argv)
                         fec_scheme fec0 = convertFECScheme(ce.innerFEC, verbose);
 
                         // Set outer forward error correction scheme
-                        // TODO: add other liquid-supported FEC schemes
                         if (verbose) printf("Outer FEC: ");
                         fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 

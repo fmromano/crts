@@ -41,7 +41,6 @@ void usage() {
     //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
 }
 
-// TODO: Send these to their respective functions
 struct rxCBstruct {
     unsigned int serverPort;
     float bandwidth;
@@ -85,8 +84,6 @@ int rxCallback(unsigned char *  _header,
     printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
     // Parameters for connecting to server
-    // TODO: Allow selection of IP address and port in command line parameters.
-    // TODO: Set to choose any local port
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
@@ -137,7 +134,7 @@ int rxCallback(unsigned char *  _header,
     {
         feedback[4] = -1;
     }
-    //feedback[4] = 0.0; // TODO: Find a way to let crts_rx count frames received but start over with each scenario
+    //feedback[4] = 0.0; 
     feedback[5] = headerErrors;
     feedback[6] = payloadErrors;
    
@@ -156,7 +153,6 @@ int rxCallback(unsigned char *  _header,
 } // end rxCallback()
 
 /*
-// TODO: Once we are using USRPs, move to an rx.c file that will run independently.
 ofdmflexframesync CreateFS(unsigned int numSubcarriers, unsigned int CPLen, unsigned int taperLen)
 {
      ofdmflexframesync fs =
@@ -362,10 +358,6 @@ int main(int argc, char ** argv)
         // TODO: Add error capabilities. 
         // See http://code.ettus.com/redmine/ettus/projects/uhd/repository/revisions/master/entry/host/examples/rx_samples_to_file.cpp
         // lines 85-113
-
-        // TODO: Create this function
-        // Store a copy of the packet that was transmitted. For reference.
-        // txStoreTransmittedPacket();
 
     } // End while
 
