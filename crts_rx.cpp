@@ -34,9 +34,9 @@ void usage() {
     //printf("  -s     :   simulation mode (default)\n");
     printf("  -a     :   server IP address (default: 127.0.0.1)\n");
     printf("  -p     :   server port (default: 1402)\n");
-    //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
-    //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
-    //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
+    printf("  -f     :   center frequency [Hz], (default: 450 MHz)\n");
+    printf("  -b     :   bandwidth [Hz], (default: 1.0 MHz)\n");
+    printf("  -G     :   uhd rx gain [dB] (default: 20dB)\n");
     //printf("  t     :   run time [seconds]\n");
     //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
 }
@@ -225,7 +225,6 @@ int main(int argc, char ** argv)
     unsigned int CPLen = 16;                      // Cyclic Prefix length
     unsigned int taperLen = 4;                     // Taper length
 
-    // TODO: Make these adjustable from command line
     //float bandwidth = 500.0e3;  // Hz
     float bandwidth = 1.0e6;  // Hz
     float frequency = 450.0e6;  // Hz
@@ -245,9 +244,9 @@ int main(int argc, char ** argv)
         //case 's':   usingUSRPs = 0;                       break;
         case 'a':   serverAddr = optarg;               break;
         case 'p':   serverPort = atoi(optarg);            break;
-        //case 'f':   frequency = atof(optarg);           break;
-        //case 'b':   bandwidth = atof(optarg);           break;
-        //case 'G':   uhd_rxgain = atof(optarg);          break;
+        case 'f':   frequency = atof(optarg);           break;
+        case 'b':   bandwidth = atof(optarg);           break;
+        case 'G':   uhd_rxgain = atof(optarg);          break;
         //case 't':   num_seconds = atof(optarg);         break;
         default:;
             //verbose = 1;
