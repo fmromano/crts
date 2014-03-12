@@ -37,6 +37,10 @@ void usage() {
     printf("  -f     :   center frequency [Hz], (default: 450 MHz)\n");
     printf("  -b     :   bandwidth [Hz], (default: 1.0 MHz)\n");
     printf("  -G     :   uhd rx gain [dB] (default: 20dB)\n");
+    printf("  -M     :   number of subcarriers (default: 64)\n");
+    printf("  -C     :   cyclic prefix length (default: 16)\n");
+    printf("  -T     :   taper length (default: 4)\n");
+
     //printf("  t     :   run time [seconds]\n");
     //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
 }
@@ -220,7 +224,6 @@ int main(int argc, char ** argv)
     char * serverAddr = (char*) "127.0.0.1";
 
     // Frame Synchronizer parameters
-    // TODO: Make these adjustable from command line
     unsigned int numSubcarriers = 64;             // Number of subcarriers for OFDM
     unsigned int CPLen = 16;                      // Cyclic Prefix length
     unsigned int taperLen = 4;                     // Taper length
@@ -232,7 +235,7 @@ int main(int argc, char ** argv)
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uha:p:f:b:G:")) != EOF) {
+    while ((d = getopt(argc,argv,"uha:p:f:b:G:M:C:T:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
@@ -242,11 +245,15 @@ int main(int argc, char ** argv)
                     //if (!verbose_explicit) verbose = 0;   break;
         //case 'r':   usingUSRPs = 1;                       break;
         //case 's':   usingUSRPs = 0;                       break;
-        case 'a':   serverAddr = optarg;               break;
-        case 'p':   serverPort = atoi(optarg);            break;
+        case 'a':   serverAddr = optarg;                break;
+        case 'p':   serverPort = atoi(optarg);          break;
         case 'f':   frequency = atof(optarg);           break;
         case 'b':   bandwidth = atof(optarg);           break;
         case 'G':   uhd_rxgain = atof(optarg);          break;
+        case 'M':   numSubcarriers = atoi(optarg);      break;
+        case 'C':   CPLen = atoi(optarg);               break;
+        case 'T':   taperLen = atoi(optarg);            break;
+
         //case 't':   num_seconds = atof(optarg);         break;
         default:;
             //verbose = 1;
