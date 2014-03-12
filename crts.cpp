@@ -1008,7 +1008,7 @@ int rxCallback(unsigned char *  _header,
         }
     }
 
-    for (i=0; i<(signed int)_payload_len; i++)
+    for (i=0; (unsigned int) i<_payload_len; i++)
     {
         if (!(_payload[i] == (i & 0xff))) {
             payloadErrors++;
@@ -1752,7 +1752,7 @@ int main(int argc, char ** argv)
                         if (verbose) printf("\n\nGenerating data that will go in frame...\n");
                         for (i=0; i<8; i++)
                             header[i] = i & 0xff;
-                        for (i=0; i<(signed int) ce.payloadLen; i++)
+                        for (i=0; (unsigned int)i< ce.payloadLen; i++)
                             payload[i] = i & 0xff;
                         // Include frame number in header information
                         * header_f = ce.frameNumber;
