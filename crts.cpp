@@ -73,7 +73,8 @@ struct CognitiveEngine {
     float bandwidth;
     float txgain_dB;
     float uhd_txgain;
-    float runningTime; // In seconds
+    double startTime;
+    double runningTime; // In seconds
     int iterations;
     int payloadLen;
     unsigned int numSubcarriers;
@@ -128,6 +129,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
     ce.uhd_txgain = 40.0;
+    ce.startTime = 0.0;
     ce.runningTime = 0.0; // In seconds
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
@@ -1665,6 +1667,7 @@ int main(int argc, char ** argv)
             fs = CreateFS(ce, sc, &rxCBs);
 
             std::clock_t begin = std::clock();
+            std::clock_t now;
             // Begin Testing Scenario
             DoneTransmitting = 0;
 
@@ -1735,6 +1738,9 @@ int main(int argc, char ** argv)
 
                         // Increment the frame counter
                         ce.frameNumber++;
+                        // Update the clock
+                        now = std::clock();
+                        ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
                     } // End If while loop
                 }
                 else // If not using USRPs
@@ -1789,6 +1795,10 @@ int main(int argc, char ** argv)
 
                         // Increment the frame counter
                         ce.frameNumber++;
+
+                        // Update the clock
+                        now = std::clock();
+                        ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
                     } // End else While loop
                 }
 
