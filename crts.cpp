@@ -41,6 +41,8 @@ void usage() {
     printf("  -q     :   quiet - do not print debug info\n");
     printf("  -v     :   verbose - print debug info to stdout (default)\n");
     printf("  -d     :   print data to stdout rather than to file (implies -q unless -v given)\n");
+    printf("  -r     :   real transmissions using USRPs (opposite of -s)\n");
+    printf("  -s     :   simulation mode (default)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -1477,7 +1479,7 @@ int main(int argc, char ** argv)
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uhqvd")) != EOF) {
+    while ((d = getopt(argc,argv,"uhqvdrs")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
@@ -1485,6 +1487,8 @@ int main(int argc, char ** argv)
         case 'v':   verbose = 1; verbose_explicit = 1;    break;
         case 'd':   dataToStdout = 1; 
                     if (!verbose_explicit) verbose = 0;   break;
+        case 'r':   usingUSRPs = 1;                       break;
+        case 's':   usingUSRPs = 0;                       break;
         //case 'f':   frequency = atof(optarg);           break;
         //case 'b':   bandwidth = atof(optarg);           break;
         //case 'G':   uhd_rxgain = atof(optarg);          break;
