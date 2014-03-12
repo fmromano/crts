@@ -25,13 +25,14 @@
 
 
 void usage() {
-    printf("crts_rx -- Rx component for crts when using USRP's.");
+    printf("crts_rx -- Rx component for crts when using USRP's.\n");
     printf("  -u,-h  :   usage/help\n");
     //printf("  -q     :   quiet - do not print debug info\n");
     //printf("  -v     :   verbose - print debug info to stdout (default)\n");
     //printf("  -d     :   print data to stdout rather than to file (implies -q unless -v given)\n");
     //printf("  -r     :   real transmissions using USRPs (opposite of -s)\n");
     //printf("  -s     :   simulation mode (default)\n");
+    printf("  -a     :   server IP address (default: 127.0.0.1)\n");
     printf("  -p     :   server port (default: 1402)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
@@ -44,6 +45,7 @@ void usage() {
 struct rxCBstruct {
     unsigned int serverPort;
     float bandwidth;
+    char * serverAddr;
 };
 
 // Defaults for struct that is sent to rxCallBack()
@@ -52,6 +54,7 @@ struct rxCBstruct CreaterxCBStruct() {
 
     rxCB.serverPort = 1402;
     rxCB.bandwidth = 1.0e6;
+    rxCB.serverAddr = (char*) "127.0.0.1";
 
     return rxCB;
 } // End CreaterxCBStruct()
@@ -88,7 +91,7 @@ int rxCallback(unsigned char *  _header,
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
     servAddr.sin_port = htons(rxCBs_ptr->serverPort);
-    servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servAddr.sin_addr.s_addr = inet_addr(rxCBs_ptr->serverAddr);
 
     // Attempt to connect client socket to server
     int connect_status;
@@ -218,6 +221,7 @@ int main(int argc, char ** argv)
 {
     int debug_enabled = 1;
     unsigned int serverPort = 1402;
+    char * serverAddr = (char*) "127.0.0.1";
 
     // Frame Synchronizer parameters
     // TODO: Make these adjustable from command line
@@ -233,7 +237,7 @@ int main(int argc, char ** argv)
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uhp:")) != EOF) {
+    while ((d = getopt(argc,argv,"uha:p:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
@@ -243,6 +247,7 @@ int main(int argc, char ** argv)
                     //if (!verbose_explicit) verbose = 0;   break;
         //case 'r':   usingUSRPs = 1;                       break;
         //case 's':   usingUSRPs = 0;                       break;
+        case 'a':   serverAddr = optarg;               break;
         case 'p':   serverPort = atoi(optarg);            break;
         //case 'f':   frequency = atof(optarg);           break;
         //case 'b':   bandwidth = atof(optarg);           break;
@@ -259,6 +264,7 @@ int main(int argc, char ** argv)
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
     rxCBs.serverPort = serverPort;
+    rxCBs.serverAddr = serverAddr;
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
     ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBs);
