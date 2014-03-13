@@ -940,6 +940,7 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc, int ver
 
     //printf("Setting inital ofdmflexframegen options:\n");
     // Set Modulation Scheme
+    if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
     modulation_scheme ms = convertModScheme(ce.modScheme);
 
     // Set Cyclic Redundency Check Scheme
@@ -1779,6 +1780,7 @@ int main(int argc, char ** argv)
                         if (verbose) printf("Frame Num: %f\n", ce.frameNumber);
 
                         // Set Modulation Scheme
+                        if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
                         modulation_scheme ms = convertModScheme(ce.modScheme);
 
                         // Set Cyclic Redundency Check Scheme
