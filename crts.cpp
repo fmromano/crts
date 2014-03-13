@@ -66,6 +66,7 @@ struct CognitiveEngine {
     float BERLastPacket;
     float BERTotal;
     float frameNumber;
+    float lastReceivedFrame;
     float framesReceived;
     float validPayloads;
     float errorFreePayloads;
@@ -130,6 +131,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.BERLastPacket = 0.0;
     ce.BERTotal = 0.0;
     ce.frameNumber = 0.0;
+    ce.lastReceivedFrame = 0.0;
     ce.framesReceived = 0.0;
     ce.validPayloads = 0.0;
     ce.errorFreePayloads = 0.0;
@@ -1187,14 +1189,16 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
         }
     }
 
-    ce->framesReceived = feedback[4];
     ce->validPayloads += feedback[1];
-    if (feedback[1] == 1 && feedback[6] == 0)
+
+    if (feedback[1] == 1 && feedback[6] == 0 && feedback[4]>ce->lastReceivedFrame)
     {
         ce->errorFreePayloads++;
         if (verbose) printf("Error Free payload!\n");
     }
-    ce->PER = (ce->errorFreePayloads)/(ce->framesReceived);
+
+    ce->PER = (ce->errorFreePayloads)/(ce->frameNumber);
+    ce->lastReceivedFrame = feedback[4];
 
     // FIXME
     // FIXME
@@ -1727,7 +1731,7 @@ int main(int argc, char ** argv)
             fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
 
             // Initialize Receiver Defaults for current CE and Sc
-            ce.frameNumber = 0.0;
+            ce.frameNumber = 1.0;
             fs = CreateFS(ce, sc, &rxCBs);
 
             std::clock_t begin = std::clock();
