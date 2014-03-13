@@ -72,7 +72,7 @@ struct CognitiveEngine {
     float frequency;
     float bandwidth;
     float txgain_dB;
-    float uhd_txgain;
+    float uhd_txgain_dB;
     double startTime;
     double runningTime; // In seconds
     int iterations;
@@ -136,7 +136,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.frequency = 450.0e6;
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
-    ce.uhd_txgain = 40.0;
+    ce.uhd_txgain_dB = 40.0;
     ce.startTime = 0.0;
     ce.runningTime = 0.0; // In seconds
     strcpy(ce.modScheme, "QPSK");
@@ -452,6 +452,26 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->threshold=tmpD; 
            if (verbose) printf("Threshold: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "frequency", &tmpD))
+        {
+           ce->frequency=tmpD; 
+           if (verbose) printf("frequency: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "txgain_dB", &tmpD))
+        {
+           ce->txgain_dB=tmpD; 
+           if (verbose) printf("txgain_dB: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "bandwidth", &tmpD))
+        {
+           ce->bandwidth=tmpD; 
+           if (verbose) printf("bandwidth: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "uhd_txgain_dB", &tmpD))
+        {
+           ce->uhd_txgain_dB=tmpD; 
+           if (verbose) printf("uhd_txgain_dB: %f\n", tmpD);
         }
      }
     config_destroy(&cfg);
@@ -1735,7 +1755,7 @@ int main(int argc, char ** argv)
                         txcvr.set_tx_freq(ce.frequency);
                         txcvr.set_tx_rate(ce.bandwidth);
                         txcvr.set_tx_gain_soft(ce.txgain_dB);
-                        txcvr.set_tx_gain_uhd(ce.uhd_txgain);
+                        txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
                         //txcvr.set_tx_antenna("TX/RX");
 
                         if (verbose) {
@@ -1743,7 +1763,7 @@ int main(int argc, char ** argv)
                             printf("Set frequency to %f\n", ce.frequency);
                             printf("Set bandwidth to %f\n", ce.bandwidth);
                             printf("Set txgain_dB to %f\n", ce.txgain_dB);
-                            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain);
+                            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain_dB);
                             printf("Set Tx antenna to %s\n", "TX/RX");
                         }
 
