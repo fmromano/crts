@@ -1729,6 +1729,7 @@ int main(int argc, char ** argv)
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
             fprintf(dataFile, "frameNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
+            fflush(dataFile);
 
             // Initialize Receiver Defaults for current CE and Sc
             ce.frameNumber = 1.0;
@@ -1804,6 +1805,7 @@ int main(int argc, char ** argv)
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                        fflush(dataFile);
 
                         // Increment the frame counter
                         ce.frameNumber++;
@@ -1861,6 +1863,7 @@ int main(int argc, char ** argv)
                         // Record the feedback data received
                         fprintf(dataFile, "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
                                 feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                        fflush(dataFile);
 
                         // Increment the frame counter
                         ce.frameNumber++;
@@ -1876,12 +1879,14 @@ int main(int argc, char ** argv)
             clock_t end = clock();
             double time = double(end-begin)/CLOCKS_PER_SEC;
             fprintf(dataFile, "Elasped Time: %f (s)", time);
+            fflush(dataFile);
 
             // Reset the goal
             ce.latestGoalValue = 0.0;
             ce.errorFreePayloads = 0.0;
             if (verbose) printf("Scenario %i completed for CE %i.\n", i_Sc+1, i_CE+1);
             fprintf(dataFile, "\n\n");
+            fflush(dataFile);
             
         } // End Scenario For loop
 
