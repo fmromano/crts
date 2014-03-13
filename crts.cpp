@@ -75,6 +75,8 @@ struct CognitiveEngine {
     float txgain_dB;
     float uhd_txgain_dB;
     float delay_us;
+    float weighted_avg_payload_valid_threshold;
+    float PER_threshold;
     double startTime;
     double runningTime; // In seconds
     int iterations;
@@ -143,6 +145,8 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.startTime = 0.0;
     ce.runningTime = 0.0; // In seconds
     ce.delay_us = 1000000.0; // In useconds
+    ce.weighted_avg_payload_valid_threshold = 0.5;
+    ce.PER_threshold = 0.5;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -481,6 +485,16 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->delay_us=tmpD; 
            if (verbose) printf("delay_us: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "weighted_avg_payload_valid_threshold", &tmpD))
+        {
+           ce->weighted_avg_payload_valid_threshold=tmpD; 
+           if (verbose) printf("weighted_avg_payload_valid_threshold: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "PER_threshold", &tmpD))
+        {
+           ce->PER_threshold=tmpD; 
+           if (verbose) printf("PER_threshold: %f\n", tmpD);
         }
     }
     config_destroy(&cfg);
@@ -1290,8 +1304,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     if(strcmp(ce->adjustOn, "weighted_avg_payload_valid") == 0) {
         // Check if parameters should be modified
-        // TODO: Allow this value to be changed
-        if (ce->weightedAvg < 0.5)
+        if (ce->weightedAvg < ce->weighted_avg_payload_valid_threshold)
         {
             modify = 1;
             if (verbose) printf("wapv. Modifying...\n");
@@ -1299,9 +1312,8 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     if(strcmp(ce->adjustOn, "packet_error_rate") == 0) {
         // Check if parameters should be modified
-        // TODO: Allow this value to be changed
         if (verbose) printf("PER = %f\n", ce->PER);
-        if(ce->PER <0.5)
+        if(ce->PER <ce->PER_threshold)
         {
             modify = 1;
             if (verbose) printf("per. Modifying...\n" );
