@@ -277,7 +277,6 @@ int main(int argc, char ** argv)
 
     //// TODO: Move this into initializeUSRPs()
     //    // Set the rx_rate
-    //    // TODO: Allow setting of bandwidth from command line
     //    float bandwidth = 500.0e3; // Hz
     //    float rx_rate = 2.0f*bandwidth;
     //    usrp->set_rx_rate(rx_rate);

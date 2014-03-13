@@ -864,7 +864,9 @@ modulation_scheme convertModScheme(char * modScheme)
     }
     else {
         fprintf(stderr, "ERROR: Unknown Modulation Scheme");
-        //TODO: Skip current test if given an unknown parameter.
+        exit(EXIT_FAILURE);
+        //TODO: Rather than halt execution,
+        // Skip current test if given an unknown parameter.
     }
 
     return ms;
@@ -899,7 +901,9 @@ crc_scheme convertCRCScheme(char * crcScheme, int verbose)
     }
     else {
         fprintf(stderr, "ERROR: unknown CRC\n");
-        //TODO: Skip current test if given an unknown parameter.
+        exit(EXIT_FAILURE);
+        //TODO: Rather than halt execution,
+        // Skip current test if given an unknown parameter.
     }
 
     return check;
@@ -939,7 +943,9 @@ fec_scheme convertFECScheme(char * FEC, int verbose)
     }
     else {
         fprintf(stderr, "ERROR: unknown FEC\n");
-        //TODO: Skip current test if given an unknown parameter.
+        exit(EXIT_FAILURE);
+        //TODO: Rather than halt execution,
+        // Skip current test if given an unknown parameter.
     }
     return fec;
 } // End convertFECScheme()
