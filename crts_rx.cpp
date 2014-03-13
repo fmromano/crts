@@ -319,7 +319,8 @@ int main(int argc, char ** argv)
         printf("Set Rx freq to %f\n", frequency);
         printf("Set Rx rate to %f\n", bandwidth);
         printf("Set uhd Rx gain to %f\n", uhd_rxgain);
-        printf("Set Rx antenna to %s\n", "RX2");
+        //TODO: add ability to set antenna. Need to modify liquid-usrp for this.
+        //printf("Set Rx antenna to %s\n", "RX2");
     }
 
     // run conditions
