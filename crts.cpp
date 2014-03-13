@@ -1302,21 +1302,38 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
             if (verbose) printf("lpv. Modifying...\n");
         }
     }
-    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid") == 0) {
+    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid<X") == 0) {
         // Check if parameters should be modified
         if (ce->weightedAvg < ce->weighted_avg_payload_valid_threshold)
         {
             modify = 1;
-            if (verbose) printf("wapv. Modifying...\n");
+            if (verbose) printf("wapv<X. Modifying...\n");
         }
     }
-    if(strcmp(ce->adjustOn, "packet_error_rate") == 0) {
+    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid>X") == 0) {
         // Check if parameters should be modified
-        if (verbose) printf("PER = %f\n", ce->PER);
-        if(ce->PER <ce->PER_threshold)
+        if (ce->weightedAvg > ce->weighted_avg_payload_valid_threshold)
         {
             modify = 1;
-            if (verbose) printf("per. Modifying...\n" );
+            if (verbose) printf("wapv>X. Modifying...\n");
+        }
+    }
+    if(strcmp(ce->adjustOn, "PER<X") == 0) {
+        // Check if parameters should be modified
+        if (verbose) printf("PER = %f\n", ce->PER);
+        if(ce->PER < ce->PER_threshold)
+        {
+            modify = 1;
+            if (verbose) printf("per<x. Modifying...\n" );
+        }
+    }
+    if(strcmp(ce->adjustOn, "PER>X") == 0) {
+        // Check if parameters should be modified
+        if (verbose) printf("PER = %f\n", ce->PER);
+        if(ce->PER > ce->PER_threshold)
+        {
+            modify = 1;
+            if (verbose) printf("per>x. Modifying...\n" );
         }
     }
     if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
