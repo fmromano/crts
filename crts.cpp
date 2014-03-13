@@ -74,6 +74,7 @@ struct CognitiveEngine {
     float bandwidth;
     float txgain_dB;
     float uhd_txgain_dB;
+    float delay_us;
     double startTime;
     double runningTime; // In seconds
     int iterations;
@@ -141,6 +142,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.uhd_txgain_dB = 40.0;
     ce.startTime = 0.0;
     ce.runningTime = 0.0; // In seconds
+    ce.delay_us = 1000000.0; // In useconds
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -475,9 +477,14 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
            ce->uhd_txgain_dB=tmpD; 
            if (verbose) printf("uhd_txgain_dB: %f\n", tmpD);
         }
-     }
+        if (config_setting_lookup_float(setting, "delay_us", &tmpD))
+        {
+           ce->delay_us=tmpD; 
+           if (verbose) printf("delay_us: %f\n", tmpD);
+        }
+    }
     config_destroy(&cfg);
-     return 1;
+    return 1;
 } // End readCEConfigFile()
 
 int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verbose)
@@ -1541,7 +1548,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int verbose)
 {
     // FIXME: Find another way to fix this
-    usleep(1000000.0);
+    usleep(cePtr->delay_us);
 
     int DoneTransmitting = 0;
 
