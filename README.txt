@@ -21,7 +21,7 @@ All cognitive engine config files should be place in the ceconfigs/ folder.
 Data files are logged in the data/ directory with the date and time appended.
 
 Dependencies include:
-libconfig, liquid-dsp, liquid-usrp, uhd
+libconfig>=1.4, liquid-dsp, liquid-usrp, uhd
 
 Recommended:
 linux>=3.10
