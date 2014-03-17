@@ -77,6 +77,7 @@ struct CognitiveEngine {
     float delay_us;
     float weighted_avg_payload_valid_threshold;
     float PER_threshold;
+    float PER_FECswitch;
     double startTime;
     double runningTime; // In seconds
     int iterations;
@@ -147,12 +148,13 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.delay_us = 1000000.0; // In useconds
     ce.weighted_avg_payload_valid_threshold = 0.5;
     ce.PER_threshold = 0.5;
+    ce.PER_FECswitch = 0.5;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
     strcpy(ce.crcScheme, "none");
     strcpy(ce.innerFEC, "none");
-    strcpy(ce.outerFEC, "none");
+    strcpy(ce.outerFEC, "Hamming74");
     //strcpy(ce.adjustOn, "weighted_avg_payload_valid"); 
     strcpy(ce.adjustOn, "packet_error_rate"); 
     return ce;
@@ -1292,6 +1294,10 @@ int ceOptimized(struct CognitiveEngine ce, int verbose)
 int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 {
     int modify = 0;
+    int FEC_switch = 0;
+    char cogenegine_list [30][60];
+    readCEConfigFile(ce,cogenegine_list[1],verbose);
+    fec_scheme CEFEC = convertFECScheme(ce->outerFEC, verbose);
     if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
@@ -1343,7 +1349,21 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
             if (verbose) printf("lpef. Modifying...\n");
         }
     }
-
+    if(strcmp(ce->adjustOn, "FEC On/Off") == 0) {
+	// Check if parameters should be modified
+	if (verbose) printf("PER = %f\n", ce->PER);
+	if (ce->PER > ce->PER_FECswitch)
+	{
+	    modify = 1;
+	    FEC_switch = 0;
+	    if (verbose) printf("per>x. FEC on. Using pre-set FEC. Modifying...\n");
+	}
+	else {
+	    modify = 1;
+ 	    FEC_switch = 1;
+	    if (verbose) printf("per<x. FEC off. Not using FEC. Modifying...\n");
+	}
+    }	    
     // If so, modify the specified parameter
     if (modify) 
     {
@@ -1406,7 +1426,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
             }
             if (strcmp(ce->modScheme, "32ASK") == 0) {
                 strcpy(ce->modScheme, "16ASK");
-            }
+	    }
             if (strcmp(ce->modScheme, "64ASK") == 0) {
                 strcpy(ce->modScheme, "32ASK");
             }
@@ -1414,6 +1434,51 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
                 strcpy(ce->modScheme, "64ASK");
             }
         }
+	// FEC on/off
+	if (strcmp(ce->option_to_adapt, "FEC On/Off") == 0){
+	   // FEC off
+	   if (FEC_switch == 1) {
+		if (strcmp(ce->outerFEC, "none") == 0) {
+	            strcpy(ce->outerFEC, "none");
+	        }
+                if (strcmp(ce->outerFEC, "Hamming74") == 0) {
+                    strcpy(ce->outerFEC, "none");
+                }
+                if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+                    strcpy(ce->outerFEC, "none");
+                }
+                if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+                    strcpy(ce->outerFEC, "none");
+                }
+                if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+                    strcpy(ce->outerFEC, "none");
+                }
+                if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+                    strcpy(ce->outerFEC, "none");
+                }
+	   }
+	   // FEC on
+	   if (FEC_switch == 0) {
+		if (strcmp(ce->outerFEC, "none") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+		if (strcmp(ce->outerFEC, "Hamming74") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+		if (strcmp(ce->outerFEC, "Hamming128") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+		if (strcmp(ce->outerFEC, "Golay2412") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+		if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+		if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
+		    strcpy(ce->outerFEC, CEFEC);
+		}
+	    }
+	} 
         // Not use FEC
         if (strcmp(ce->option_to_adapt, "no_fec") == 0) {
            if (strcmp(ce->outerFEC, "none") == 0) {
