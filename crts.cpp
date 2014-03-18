@@ -797,9 +797,11 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
            // Then wait to be killed.
            while (1) {;}
        }
+       // Give uhd_siggen time to initialize 
+       sleep(8);
+
        //printf("WARNING: There is currently no USRP AWGN scenario functionality!\n");
        // FIXME: This is just test code. Remove when done.
-           sleep(8);
            printf("siggen_pid= %d\n", *siggen_pid);
            kill(*siggen_pid, SIGKILL);
            //printf("ERROR: %s\n", strerror(errno));
