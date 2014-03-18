@@ -1422,19 +1422,20 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
             }
         }
 	// Turn outer FEC on/off
-   	 if (strcmp(ce->option_to_adapt, "Outer FEC On/Off") == 0){
-   	     // Turn FEC off
-   	     if (ce->FECswitch == 1) {
-   	         strcpy(ce->outerFEC_prev, ce->outerFEC);
-   	         strcpy(ce->outerFEC, "none");
-   	         ce->FECswitch = 0;
-   	     }
-   	     // Turn FEC on
-   	     if (ce->FECswitch == 0) {
-   	         strcpy(ce->outerFEC, ce->outerFEC_prev);
-   	         ce->FECswitch = 1;
-   	     }
-   	 } 
+   	if (strcmp(ce->option_to_adapt, "Outer FEC On/Off") == 0){
+        if (verbose) printf("Adapt option: outer fec on/off. adapting...\n");
+   	    // Turn FEC off
+   	    if (ce->FECswitch == 1) {
+   	        strcpy(ce->outerFEC_prev, ce->outerFEC);
+   	        strcpy(ce->outerFEC, "none");
+   	        ce->FECswitch = 0;
+   	    }
+   	    // Turn FEC on
+   	    else {
+   	        strcpy(ce->outerFEC, ce->outerFEC_prev);
+   	        ce->FECswitch = 1;
+   	    }
+   	} 
         // Not use FEC
         if (strcmp(ce->option_to_adapt, "no_fec") == 0) {
            if (strcmp(ce->outerFEC, "none") == 0) {
