@@ -148,7 +148,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.delay_us = 1000000.0; // In useconds
     ce.weighted_avg_payload_valid_threshold = 0.5;
     ce.PER_threshold = 0.5;
-    ce.PER_FECswitch = 0.5;
+    ce.PER_FECswitch = 1.2;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -1295,9 +1295,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 {
     int modify = 0;
     int FEC_switch = 0;
-    char cogenegine_list [30][60];
-    readCEConfigFile(ce,cogenegine_list[1],verbose);
-    fec_scheme CEFEC = convertFECScheme(ce->outerFEC, verbose);
+    int FEC_type;
     if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
@@ -1440,42 +1438,56 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 	   if (FEC_switch == 1) {
 		if (strcmp(ce->outerFEC, "none") == 0) {
 	            strcpy(ce->outerFEC, "none");
+		    FEC_type = 1;
 	        }
                 if (strcmp(ce->outerFEC, "Hamming74") == 0) {
                     strcpy(ce->outerFEC, "none");
+		    FEC_type = 2;
                 }
                 if (strcmp(ce->outerFEC, "Hamming128") == 0) {
                     strcpy(ce->outerFEC, "none");
+		    FEC_type = 3;
                 }
                 if (strcmp(ce->outerFEC, "Golay2412") == 0) {
                     strcpy(ce->outerFEC, "none");
+		    FEC_type = 4;
                 }
                 if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
                     strcpy(ce->outerFEC, "none");
+		    FEC_type = 5;
                 }
                 if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
                     strcpy(ce->outerFEC, "none");
+		    FEC_type = 6;
                 }
 	   }
 	   // FEC on
 	   if (FEC_switch == 0) {
 		if (strcmp(ce->outerFEC, "none") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
-		}
-		if (strcmp(ce->outerFEC, "Hamming74") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
-		}
-		if (strcmp(ce->outerFEC, "Hamming128") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
-		}
-		if (strcmp(ce->outerFEC, "Golay2412") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
-		}
-		if (strcmp(ce->outerFEC, "SEC-DED2216") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
-		}
-		if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
-		    strcpy(ce->outerFEC, CEFEC);
+		    if (FEC_type == 1) {
+			strcpy(ce->outerFEC, "none");
+			FEC_type = 0;
+		    }
+		    if (FEC_type == 2) {
+			strcpy(ce->outerFEC, "Hamming74");
+			FEC_type = 0;
+		    }
+		    if (FEC_type == 3) {
+			strcpy(ce->outerFEC, "Hamming128");
+			FEC_type = 0;
+		    }
+		    if (FEC_type == 4) {
+			strcpy(ce->outerFEC, "Golay2412");
+			FEC_type = 0;
+		    }
+		    if (FEC_type == 5) {
+			strcpy(ce->outerFEC, "SEC-DED2216");
+			FEC_type = 0;
+		    }
+		    if (FEC_type == 6) {
+			strcpy(ce->outerFEC, "SEc-DED3932");
+			FEC_type = 0;
+		    }
 		}
 	    }
 	} 
