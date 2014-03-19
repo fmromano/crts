@@ -1054,24 +1054,42 @@ int rxCallback(unsigned char *  _header,
     //framesyncstats_print(&_stats); 
 
     // Check number of bit errors in packet 
-    float headerErrors = 0.0;
-    float payloadErrors = 0.0;
-
-    for (i=0; i<8; i++) 
+    float headerByteErrors = 0.0;
+    float payloadByteErrors = 0.0;
+    float headerbitErrors = 0.0;
+    float payloadbitErrors = 0.0;
+    int   header_check = 0;
+    int   _header_temp = 0;
+    int   payload_check = 0;
+    int   _payload_temp = 0;
+    int j,m;
+    for (m=0; m<8; m++) 
     {
-        if (!(_header[i] == (i & 0xff))) {
-            headerErrors++;
+        if (!(_header[m] == (m & 0xff))) {
+           headerByteErrors++;
+           header_check = _header[m] ^ (m & 0xff);
+           for (j=0; j<8; j++)
+          {
+             _header_temp = header_check >> j;
+             if ((_header_temp % 2) == 1)
+                 headerbitErrors++;
+          }
         }
     }
 
-    for (i=0; (unsigned int) i<_payload_len; i++)
-    {
-        if (!(_payload[i] == (i & 0xff))) {
-            payloadErrors++;
-        }
-    }
-          
-    // Data that will be sent to server
+    for (m=0; m<(signed int)_payload_len; m++){
+        if (!(_payload[m] == (m & 0xff))) {
+          payloadByteErrors++;
+          for (j=0; j<8; j++)
+             {   payload_check = _payload[m] ^ (m & 0xff);
+                _payload_temp = payload_check >> j;
+                if ((_payload_temp % 2) == 1)
+                   payloadbitErrors++;
+             }      
+        }           
+    }               
+                    
+    // Data that wil//l be sent to server
     // TODO: Send other useful data through feedback array
     float feedback[8];
     feedback[0] = (float) _header_valid;
@@ -1080,12 +1098,13 @@ int rxCallback(unsigned char *  _header,
     feedback[3] = (float) _stats.rssi;   
     //feedback[4] = *frameNumber;
     feedback[4] = *_header_f;
-    feedback[5] = headerErrors;
-    feedback[6] = payloadErrors;
+    feedback[5] = headerByteErrors;
+    feedback[6] = payloadByteErrors;
+    feedback[7] = payloadbitErrors;
    
     if (verbose)
     {
-        for (i=0; i<7; i++)
+        for (i=0; i<8; i++)
         printf("feedback data before transmission: %f\n", feedback[i]);
     }
 
@@ -1217,7 +1236,7 @@ int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
     if (verbose)
     {
         printf("In ceProcessData():\nfeedback=\n");
-        for (i = 0; i<7;i++) {
+        for (i = 0; i<8;i++) {
             printf("feedback[%d]= %f\n", i, feedback[i]);
         }
     }
