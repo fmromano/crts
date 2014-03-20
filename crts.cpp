@@ -67,9 +67,11 @@ struct CognitiveEngine {
     float BERLastPacket;
     float BERTotal;
     float frameNumber;
+    //TODO: make unsigned int. Not float
     float lastReceivedFrame;
     float framesReceived;
     float validPayloads;
+    // TODO: make unsigned int. Not float
     float errorFreePayloads;
     float frequency;
     float bandwidth;
@@ -108,11 +110,29 @@ struct Scenario {
 struct rxCBstruct {
     unsigned int serverPort;
     int verbose;
+    float bandwidth;
+    char * serverAddr;
+};
+
+struct feedbackStruct {
+    int             header_valid;
+    int             payload_valid;
+    unsigned int    payload_len;
+    //unsigned int    headerByteErrors;
+    unsigned int    payloadByteErrors;
+    //unsigned int    headerBitErrors;
+    unsigned int    payloadBitErrors;
+    // TODO: make unsigned int instead of float
+    float           frameNum;
+    float           evm;
+    float           rssi;
+    float           cfo;
 };
 
 struct serverThreadStruct {
     unsigned int serverPort;
-    float * feedback;
+    float * feedback; // Deprecated
+    struct feedbackStruct * fb_ptr;
 };
 
 // Default parameters for a Cognitive Engine
@@ -190,7 +210,8 @@ struct rxCBstruct CreaterxCBStruct() {
 struct serverThreadStruct CreateServerStruct() {
     struct serverThreadStruct ss = {};
     ss.serverPort = 1402;
-    ss.feedback = NULL;
+    ss.feedback = NULL; // Deprecated
+    ss.fb_ptr = NULL;
     return ss;
 } // End CreateServerStruct()
 
@@ -449,6 +470,11 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
            ce->taperLen=tmpI; 
            if (verbose) printf("taperLen: %d\n", tmpI);
         }
+        if (config_setting_lookup_int(setting, "delay_us", &tmpI))
+        {
+           ce->delay_us=tmpI; 
+           if (verbose) printf("delay_us: %d\n", tmpI);
+        }
         // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
         {
@@ -484,11 +510,6 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->uhd_txgain_dB=tmpD; 
            if (verbose) printf("uhd_txgain_dB: %f\n", tmpD);
-        }
-        if (config_setting_lookup_float(setting, "delay_us", &tmpD))
-        {
-           ce->delay_us=tmpD; 
-           if (verbose) printf("delay_us: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "weighted_avg_payload_valid_threshold", &tmpD))
         {
@@ -1015,16 +1036,10 @@ int rxCallback(unsigned char *  _header,
                void *           _userdata)
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
-    // 
-    //float * frameNumber = (float *) _userdata;
-    //*frameNumber = *frameNumber +1;
-    //int * verbose_ptr = (int *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-    // Access header when it contains floats
-    float * _header_f = (float*) _header;
 
     // Iterator
-    int i = 0;
+    //int i = 0;
 
     // Create a client TCP socket
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
@@ -1053,65 +1068,59 @@ int rxCallback(unsigned char *  _header,
    
     //framesyncstats_print(&_stats); 
 
-    // Check number of bit errors in packet 
-    float headerByteErrors = 0.0;
-    float payloadByteErrors = 0.0;
-    float headerbitErrors = 0.0;
-    float payloadbitErrors = 0.0;
-    int   header_check = 0;
-    int   _header_temp = 0;
+    // Variables for checking number of errors 
+    unsigned int payloadByteErrors  =   0;
+    unsigned int payloadBitErrors   =   0;
+    //int   header_check = 0;
+    //int   _header_temp = 0;
     int   payload_check = 0;
     int   _payload_temp = 0;
     int j,m;
-    for (m=0; m<8; m++) 
-    {
-        if (!(_header[m] == (m & 0xff))) {
-           headerByteErrors++;
-           header_check = _header[m] ^ (m & 0xff);
-           for (j=0; j<8; j++)
-          {
-             _header_temp = header_check >> j;
-             if ((_header_temp % 2) == 1)
-                 headerbitErrors++;
-          }
-        }
-    }
 
-    for (m=0; m<(signed int)_payload_len; m++){
-        if (!(_payload[m] == (m & 0xff))) {
-          payloadByteErrors++;
-          for (j=0; j<8; j++)
-             {   payload_check = _payload[m] ^ (m & 0xff);
+
+    // Calculate byte error rate and bit error rate for payload
+    for (m=0; m<(signed int)_payload_len; m++)
+    {
+        if (!(_payload[m] == (m & 0xff))) 
+        {
+            payloadByteErrors++;
+            payload_check = _payload[m] ^ (m & 0xff);
+            for (j=0; j<8; j++)
+            {
                 _payload_temp = payload_check >> j;
                 if ((_payload_temp % 2) == 1)
-                   payloadbitErrors++;
-             }      
+                   payloadBitErrors++;
+            }      
         }           
     }               
                     
-    // Data that wil//l be sent to server
+    // Data that will be sent to server
     // TODO: Send other useful data through feedback array
-    float feedback[8];
-    feedback[0] = (float) _header_valid;
-    feedback[1] = (float) _payload_valid;
-    feedback[2] = (float) _stats.evm;
-    feedback[3] = (float) _stats.rssi;   
-    //feedback[4] = *frameNumber;
-    feedback[4] = *_header_f;
-    feedback[5] = headerByteErrors;
-    feedback[6] = payloadByteErrors;
-    feedback[7] = payloadbitErrors;
-   
+
+    struct feedbackStruct fb = {};
+    fb.header_valid         =   _header_valid;
+    fb.payload_valid        =   _payload_valid;
+    fb.payload_len          =   _payload_len;
+    fb.payloadByteErrors    =   payloadByteErrors;
+    fb.payloadBitErrors     =   payloadBitErrors;
+    fb.evm                  =   _stats.evm;
+    fb.rssi                 =   _stats.rssi;
+    fb.cfo                  =   _stats.cfo;
+    // TODO: Make unsigned int rather than float
+    fb.frameNum             =   *((float*)_header);
+
     if (verbose)
     {
-        for (i=0; i<8; i++)
-        printf("feedback data before transmission: %f\n", feedback[i]);
+        // TODO: Create corresponding print statement for fb struct
+        //for (i=0; i<10; i++)
+        //printf("feedback data before transmission: %f\n", feedback[i]);
     }
 
     // Receiver sends data to server
     //printf("socket_to_server: %d\n", socket_to_server);
     //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
-    write(socket_to_server, feedback, 8*sizeof(float));
+    //write(socket_to_server, feedback, 8*sizeof(float));
+    write(socket_to_server, (void*)&fb, sizeof(fb));
     //printf("Rx writeStatus: %d\n", writeStatus);
 
     // Receiver closes socket to server
@@ -1156,13 +1165,19 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct
 // to an array that is accessible to the CE
 void * startTCPServer(void * _ss_ptr)
 {
+    // TODO: Implement blocking of feedback data so that it is not read
+    //  while being written to
+
     //printf("(Server thread called.)\n");
 
     struct serverThreadStruct * ss_ptr = (struct serverThreadStruct*) _ss_ptr;
 
     // Buffer for data sent by client. This memory address is also given to CE
     //float * read_buffer = (float *) _read_buffer;
-    float * read_buffer = ss_ptr->feedback;
+
+    //float * read_buffer = ss_ptr->feedback;
+    struct feedbackStruct * read_buffer = ss_ptr->fb_ptr;
+
     //  Local (server) address
     struct sockaddr_in servAddr;   
     // Parameters of client connection
@@ -1221,56 +1236,55 @@ void * startTCPServer(void * _ss_ptr)
         //printf("Server has accepted connection from client\n");
         // Transmitter receives data from client (receiver)
             // Zero the read buffer. Then read the data into it.
-            bzero(read_buffer, 256);
+            bzero(read_buffer, sizeof(*read_buffer));
             //int read_status = -1;   // indicates success/failure of read operation.
             //read_status = read(socket_to_client, read_buffer, 255);
-            read(socket_to_client, read_buffer, 255);
+            read(socket_to_client, read_buffer, sizeof(*read_buffer));
         close(socket_to_client);
 
     } // End listening While loop
 } // End startTCPServer()
 
-int ceProcessData(struct CognitiveEngine * ce, float * feedback, int verbose)
+int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, int verbose)
 {
-    int i = 0;
-    if (verbose)
-    {
-        printf("In ceProcessData():\nfeedback=\n");
-        for (i = 0; i<8;i++) {
-            printf("feedback[%d]= %f\n", i, feedback[i]);
-        }
-    }
+    // TODO: Create corresponding print statement for fb struct
+    //int i = 0;
+    //if (verbose)
+    //{
+    //    printf("In ceProcessData():\nfeedback=\n");
+    //    for (i = 0; i<8;i++) {
+    //        printf("feedback[%d]= %f\n", i, feedback[i]);
+    //    }
+    //}
 
-    ce->validPayloads += feedback[1];
+    ce->validPayloads += fbPtr->payload_valid;
 
-    if (feedback[1] == 1 && feedback[6] == 0 && feedback[4]>ce->lastReceivedFrame)
+    //if (feedback[1] == 1 && feedback[6] == 0 && feedback[4]>ce->lastReceivedFrame)
+    if (fbPtr->payload_valid && (!(fbPtr->payloadBitErrors)) && fbPtr->frameNum>ce->lastReceivedFrame)
     {
         ce->errorFreePayloads++;
         if (verbose) printf("Error Free payload!\n");
     }
 
-    ce->PER = (ce->errorFreePayloads)/(ce->frameNumber);
-    ce->lastReceivedFrame = feedback[4];
+    ce->PER = ((float)ce->frameNumber-(float)ce->errorFreePayloads)/((float)ce->frameNumber);
+    ce->lastReceivedFrame = fbPtr->frameNum;
 
-    // FIXME
-    // FIXME
-    // FIXME: This is wrong. payloadLen is num of bytes. Not bits.
-    ce->BERLastPacket = feedback[6]/ce->payloadLen;
+    ce->BERLastPacket = ((float)fbPtr->payloadBitErrors)/((float)(ce->payloadLen*8));
 
-    ce->weightedAvg += feedback[1];
+    ce->weightedAvg += (float) fbPtr->payload_valid;
 
     //printf("ce->goal=%s\n", ce->goal);
 
     // Update goal value
     if (strcmp(ce->goal, "payload_valid") == 0)
     {
-        if (verbose) printf("Goal is payload_valid. Setting latestGoalValue to %f\n", feedback[1]);
-        ce->latestGoalValue = feedback[1];
+        if (verbose) printf("Goal is payload_valid. Setting latestGoalValue to %d\n", fbPtr->payload_valid);
+        ce->latestGoalValue = fbPtr->payload_valid;
     }
     else if (strcmp(ce->goal, "X_valid_payloads") == 0)
     {
-        if (verbose) printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->latestGoalValue+feedback[1]);
-        ce->latestGoalValue += ce->validPayloads;
+        if (verbose) printf("Goal is X_valid_payloads. Setting latestGoalValue to %f\n", ce->validPayloads);
+        ce->latestGoalValue = ce->validPayloads;
     }
     else if (strcmp(ce->goal, "X_errorFreePayloads") == 0)
     {
@@ -1314,7 +1328,7 @@ int ceOptimized(struct CognitiveEngine ce, int verbose)
    return 0;
 } // end ceOptimized()
 
-int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
+int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, int verbose)
 {
     int modify = 0;
 
@@ -1322,7 +1336,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
         // Check if parameters should be modified
-        if(feedback[1]<1)
+        if(fbPtr->payload_valid<1)
         {
             modify = 1;
             if (verbose) printf("lpv. Modifying...\n");
@@ -1364,7 +1378,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
     }
     if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
         // Check if parameters should be modified
-        if(feedback[6]<1){
+        if(!(fbPtr->payloadBitErrors)){
             modify = 1;
             if (verbose) printf("lpef. Modifying...\n");
         }
@@ -1621,7 +1635,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, float * feedback, int verbose)
 //} // end initializeUSRPs()
 
 
-int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int verbose)
+int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int verbose)
 {
     // FIXME: Find another way to fix this
     usleep(cePtr->delay_us);
@@ -1629,12 +1643,12 @@ int postTxTasks(struct CognitiveEngine * cePtr, float * feedback, int verbose)
     int DoneTransmitting = 0;
 
     // Process data from rx
-    ceProcessData(cePtr, feedback, verbose);
+    ceProcessData(cePtr, fb_ptr, verbose);
     // Modify transmission parameters (in fg and in USRP) accordingly
     if (!ceOptimized(*cePtr, verbose)) 
     {
         if (verbose) printf("ceOptimized() returned false\n");
-        ceModifyTxParams(cePtr, feedback, verbose);
+        ceModifyTxParams(cePtr, fb_ptr, verbose);
     }
     else
     {
@@ -1701,6 +1715,7 @@ int main(int argc, char ** argv)
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
     float feedback[100];
+    struct feedbackStruct fb = {};
 
     // For creating appropriate symbol length from 
     // number of subcarriers and CP Length
@@ -1761,7 +1776,8 @@ int main(int argc, char ** argv)
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
     struct serverThreadStruct ss = CreateServerStruct();
     ss.serverPort = serverPort;
-    ss.feedback = feedback;
+    ss.feedback = feedback; // Deprecated
+    ss.fb_ptr = &fb;
     pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
@@ -1811,7 +1827,7 @@ int main(int argc, char ** argv)
             readScConfigFile(&sc,scenario_list[i_Sc], verbose);
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
-            fprintf(dataFile, "linetype\tframeNum\theader_valid\tpayload_valid\tevm\trssi\tPER\theaderBitErrors\tpayloadBitErrors\tBER:LastPacket\n");
+            fprintf(dataFile, "linetype\tframeNum\theader_valid\tpayload_valid\tevm\trssi\tPER\tpayloadByteErrors\tBER:LastPacket\tpayloadBitErrors\n");
             fflush(dataFile);
 
             // Initialize Receiver Defaults for current CE and Sc
@@ -1884,10 +1900,15 @@ int main(int argc, char ** argv)
 
                         txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
 
-                        DoneTransmitting = postTxTasks(&ce, feedback, verbose);
+                        //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
+                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                         // Record the feedback data received
-                        fprintf(dataFile, "crtsdata:\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
-                                feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                        //TODO: include fb.cfo
+                        // TODO: Finish this
+                        fprintf(dataFile, "crtsdata:\t%f\t%d\t%d\t%f\t%f\t%f\t%u\t%f\t%u\n", fb.frameNum, fb.header_valid, 
+                                fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors, ce.BERLastPacket, fb.payloadBitErrors);
+                        //fprintf(dataFile, "crtsdata:\t%u\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", fb.frameNum, feedback[0], 
+                        //        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
                         fflush(dataFile);
 
                         // Increment the frame counter
@@ -1942,10 +1963,13 @@ int main(int argc, char ** argv)
                         } // End Transmition For loop
 
                         // posttransmittasks
-                        DoneTransmitting = postTxTasks(&ce, feedback, verbose);
+                        //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
+                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                         // Record the feedback data received
-                        fprintf(dataFile, "crtsdata:\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
-                                feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+                        fprintf(dataFile, "crtsdata:\t%f\t%d\t%d\t%f\t%f\t%f\t%u\t%f\t%u\n", fb.frameNum, fb.header_valid, 
+                                fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors, ce.BERLastPacket, fb.payloadBitErrors);
+                        //fprintf(dataFile, "crtsdata:\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
+                        //        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
                         fflush(dataFile);
 
                         // Increment the frame counter

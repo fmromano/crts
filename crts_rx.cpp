@@ -47,8 +47,23 @@ void usage() {
 
 struct rxCBstruct {
     unsigned int serverPort;
+    int verbose;
     float bandwidth;
     char * serverAddr;
+};
+struct feedbackStruct {
+    int             header_valid;
+    int             payload_valid;
+    unsigned int    payload_len;
+    //unsigned int    headerByteErrors;
+    unsigned int    payloadByteErrors;
+    //unsigned int    headerBitErrors;
+    unsigned int    payloadBitErrors;
+    // TODO: make unsigned int instead of float
+    float           frameNum;
+    float           evm;
+    float           rssi;
+    float           cfo;
 };
 
 // Defaults for struct that is sent to rxCallBack()
@@ -63,27 +78,25 @@ struct rxCBstruct CreaterxCBStruct() {
 } // End CreaterxCBStruct()
 
 int rxCallback(unsigned char *  _header,
-                int              _header_valid,
-                unsigned char *  _payload,
-                unsigned int     _payload_len,
-                int              _payload_valid,
-                framesyncstats_s _stats,
-                void *           _userdata)
+               int              _header_valid,
+               unsigned char *  _payload,
+               unsigned int     _payload_len,
+               int              _payload_valid,
+               framesyncstats_s _stats,
+               void *           _userdata)
 {
-    struct rxCBstruct * rxCBs_ptr = (struct rxCBstruct*) _userdata;
+    struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
+    //int verbose = rxCBS_ptr->verbose;
 
     // Iterator
-    int i = 0;
-    float feedback[8];
-
-    // Data that will be sent to server
+    //int i = 0;
 
     // Create a client TCP socket
     int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
-        printf("Receiver Failed to Create Client Socket\n");
-        exit(1);
+        fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }   
     printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
 
@@ -91,64 +104,74 @@ int rxCallback(unsigned char *  _header,
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(rxCBs_ptr->serverPort);
-    servAddr.sin_addr.s_addr = inet_addr(rxCBs_ptr->serverAddr);
+    servAddr.sin_port = htons(rxCBS_ptr->serverPort);
+    servAddr.sin_addr.s_addr = inet_addr(rxCBS_ptr->serverAddr);
 
     // Attempt to connect client socket to server
     int connect_status;
     if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
     {   
-        printf("Receive Failed to Connect to server.\n");
-        printf("connect_status = %d\n", connect_status);
-        exit(1);
+        fprintf(stderr, "Receiver Failed to Connect to server.\n");
+        fprintf(stderr, "connect_status = %d\n", connect_status);
+        exit(EXIT_FAILURE);
     }
    
     framesyncstats_print(&_stats); 
 
-    // Check number of bit errors in packet 
-    float headerErrors = 0.0; 
-    float payloadErrors = 0.0; 
-
-    for (i=0; i<8; i++) 
-    {    
-        if (!(_header[i] == (i & 0xff))) {
-        headerErrors++;
-        }
-    }    
+    // Variables for checking number of errors 
+    unsigned int payloadByteErrors  =   0;
+    unsigned int payloadBitErrors   =   0;
+    //int   header_check = 0;
+    //int   _header_temp = 0;
+    int   payload_check = 0;
+    int   _payload_temp = 0;
+    int j,m;
 
 
-    for (i=0; i<(signed int)_payload_len; i++) 
-    {    
-        if (!(_payload[i] == (i & 0xff))) {
-        payloadErrors++;
-        }
-    }    
-
-
+    // Calculate byte error rate and bit error rate for payload
+    for (m=0; m<(signed int)_payload_len; m++)
+    {
+        if (!(_payload[m] == (m & 0xff))) 
+        {
+            payloadByteErrors++;
+            payload_check = _payload[m] ^ (m & 0xff);
+            for (j=0; j<8; j++)
+            {
+                _payload_temp = payload_check >> j;
+                if ((_payload_temp % 2) == 1)
+                   payloadBitErrors++;
+            }      
+        }           
+    }               
+                    
+    // Data that will be sent to server
     // TODO: Send other useful data through feedback array
-    feedback[0] = (float) _header_valid;
-    feedback[1] = (float) _payload_valid;
-    feedback[2] = (float) _stats.evm;
-    feedback[3] = (float) _stats.rssi;   
-    if (_header_valid)
-    {
-        feedback[4] = * (float *) _header;
-    }
-    else
-    {
-        feedback[4] = -1;
-    }
-    //feedback[4] = 0.0; 
-    feedback[5] = headerErrors;
-    feedback[6] = payloadErrors;
-   
-    for (i=0; i<7; i++)
-    printf("feedback data before transmission: %f\n", feedback[i]);
+
+    struct feedbackStruct fb = {};
+    fb.header_valid         =   _header_valid;
+    fb.payload_valid        =   _payload_valid;
+    fb.payload_len          =   _payload_len;
+    fb.payloadByteErrors    =   payloadByteErrors;
+    fb.payloadBitErrors     =   payloadBitErrors;
+    fb.evm                  =   _stats.evm;
+    fb.rssi                 =   _stats.rssi;
+    fb.cfo                  =   _stats.cfo;
+    // TODO: Make unsigned int rather than float
+    fb.frameNum             =   *((float*)_header);
+
+    //if (verbose)
+    //{
+    //    // TODO: Create corresponding print statement for fb struct
+    //    //for (i=0; i<10; i++)
+    //    //printf("feedback data before transmission: %f\n", feedback[i]);
+    //}
 
     // Receiver sends data to server
     //printf("socket_to_server: %d\n", socket_to_server);
-    int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
-    printf("Rx writeStatus: %d\n", writeStatus);
+    //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
+    //write(socket_to_server, feedback, 8*sizeof(float));
+    write(socket_to_server, (void*)&fb, sizeof(fb));
+    //printf("Rx writeStatus: %d\n", writeStatus);
 
     // Receiver closes socket to server
     close(socket_to_server);
@@ -263,13 +286,13 @@ int main(int argc, char ** argv)
     // framesynchronizer object used in each test
     //ofdmflexframesync fs;
 
-    struct rxCBstruct rxCBs = CreaterxCBStruct();
-    rxCBs.bandwidth = bandwidth;
-    rxCBs.serverPort = serverPort;
-    rxCBs.serverAddr = serverAddr;
+    struct rxCBstruct rxCBS = CreaterxCBStruct();
+    rxCBS.bandwidth = bandwidth;
+    rxCBS.serverPort = serverPort;
+    rxCBS.serverAddr = serverAddr;
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
-    ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBs);
+    ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBS);
 
 
 
