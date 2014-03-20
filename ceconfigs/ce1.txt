@@ -10,6 +10,7 @@ params =
     threshold=1000.0;
     modScheme="128PSK";
     option_to_adapt="decrease_mod_scheme_PSK";
-    adjustOn="PER<X";
+    adjustOn="PER>X";
     PER_threshold=0.5;
+    delay_us=1000000;
 };
