@@ -75,6 +75,7 @@ struct CognitiveEngine {
     float delay_us;
     float weighted_avg_payload_valid_threshold;
     float PER_threshold;
+    float BER_threshold;
     float FECswitch;
     double startTime;
     double runningTime; // In seconds
@@ -164,6 +165,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.delay_us = 1000000.0; // In useconds
     ce.weighted_avg_payload_valid_threshold = 0.5;
     ce.PER_threshold = 0.5;
+    ce.BER_threshold = 0.5;
     ce.FECswitch = 1;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
@@ -515,6 +517,11 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->PER_threshold=tmpD; 
            if (verbose) printf("PER_threshold: %f\n", tmpD);
+        }
+        if (config_setting_lookup_float(setting, "BER_threshold", &tmpD))
+        {
+           ce->BER_threshold=tmpD; 
+           if (verbose) printf("BER_threshold: %f\n", tmpD);
         }
     }
     config_destroy(&cfg);
@@ -1326,6 +1333,8 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 {
     int modify = 0;
 
+    //TODO: Add 'user input' adaptation
+
     if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
@@ -1368,6 +1377,24 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
         {
             modify = 1;
             if (verbose) printf("per>x. Modifying...\n" );
+        }
+    }
+    if(strcmp(ce->adjustOn, "BER_lastPacket<X") == 0) {
+        // Check if parameters should be modified
+        if (verbose) printf("BER = %f\n", ce->BERLastPacket);
+        if(ce->BERLastPacket < ce->BER_threshold)
+        {
+            modify = 1;
+            if (verbose) printf("Ber_lastpacket<x. Modifying...\n" );
+        }
+    }
+    if(strcmp(ce->adjustOn, "BER_lastPacket>X") == 0) {
+        // Check if parameters should be modified
+        if (verbose) printf("BER = %f\n", ce->BERLastPacket);
+        if(ce->BERLastPacket > ce->BER_threshold)
+        {
+            modify = 1;
+            if (verbose) printf("Ber_lastpacket>x. Modifying...\n" );
         }
     }
     if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
