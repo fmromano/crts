@@ -240,12 +240,12 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
         ;
 
   
-    // Get the configuration file name. 
-    if (config_lookup_string(&cfg, "filename", &str))
-        //printf("File Type: %s\n", str)
-        ;
-    else
-        fprintf(stderr, "No 'filename' setting in configuration file.\n");
+    //// Get the configuration file name. 
+    //if (config_lookup_string(&cfg, "filename", &str))
+    //    //printf("File Type: %s\n", str)
+    //    ;
+    //else
+    //    fprintf(stderr, "No 'filename' setting in configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
@@ -312,12 +312,12 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
         //printf("Found master Cognitive Engine config file.\n");
         ;
   
-    // Get the configuration file name. 
-    if (config_lookup_string(&cfg, "filename", &str))
-        //printf("File Type: %s\n", str)
-        ;
-    else
-        fprintf(stderr, "No 'filename' setting in master CE configuration file.\n");
+    //// Get the configuration file name. 
+    //if (config_lookup_string(&cfg, "filename", &str))
+    //    //printf("File Type: %s\n", str)
+    //    ;
+    //else
+    //    fprintf(stderr, "No 'filename' setting in master CE configuration file.\n");
 
     // Read the parameter group
     setting = config_lookup(&cfg, "params");
