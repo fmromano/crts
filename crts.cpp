@@ -1333,9 +1333,16 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 {
     int modify = 0;
 
-    //TODO: Add 'user input' adaptation
 
     if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
+
+    //TODO: Add 'user input' adaptation
+    if(strcmp(ce->adjustOn, "user_specified") == 0) {
+        // Check if parameters should be modified
+        modify = 1;
+        if (verbose) printf("user specified adaptation mode. Modifying...\n");
+    }
+
     // Check what values determine if parameters should be modified
     if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
         // Check if parameters should be modified
@@ -1418,6 +1425,12 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
         //    if (ce->numSubcarriers > 2)
         //        ce->numSubcarriers -= 2;
         //}
+
+        if(strcmp(ce->adjustOn, "user_specified") == 0) {
+            // Check if parameters should be modified
+            if (verbose) printf("Reading user specified adaptations from user ce file: 'userEngine.txt'\n");
+            readCEConfigFile(ce, "userEngine.txt", verbose);
+        }
 
         if (strcmp(ce->option_to_adapt, "increase_payload_len") == 0) {
             if (ce->payloadLen + ce->payloadLenIncrement < ce->payloadLenMax) 
