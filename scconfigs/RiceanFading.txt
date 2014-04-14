@@ -5,9 +5,10 @@ filename = "RiceFading1";
 //Parameters for Rice-K Fading
 params = 
 {
+    // Enable Fading Scenario
+    addFading = 1;
     // K factor for Ricean Fading
     fadeK = 1.6;
-
     // Maximum Doppler Frequency  (relative to center frequency)
     fadeFd = 0.1;
 };
