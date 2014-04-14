@@ -1,0 +1,13 @@
+//RiceFading1.txt
+//Basic Information:
+filename = "RiceFading1";
+
+//Parameters for Rice-K Fading
+params = 
+{
+    // K factor for Ricean Fading
+    fadeK = 1.6f;
+
+    // Maximum Doppler Frequency  (relative to center frequency)
+    fadeFd = 0.1f
+};
