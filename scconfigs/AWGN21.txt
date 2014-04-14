@@ -1,9 +1,0 @@
-//AWGN21.txt
-//Basic Information:
-filename = "AWGN21";
-
-//Parameters for White Gaussian Noise
-params = 
-{
-noiseSNR = 0.5
-};

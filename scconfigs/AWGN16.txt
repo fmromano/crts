@@ -1,9 +1,0 @@
-//AWGN16.txt
-//Basic Information:
-filename = "AWGN16";
-
-//Parameters for White Gaussian Noise
-params = 
-{
-noiseSNR = 3.0
-};

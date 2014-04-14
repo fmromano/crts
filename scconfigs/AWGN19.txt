@@ -1,9 +1,0 @@
-//AWGN19.txt
-//Basic Information:
-filename = "AWGN19";
-
-//Parameters for White Gaussian Noise
-params = 
-{
-noiseSNR = 1.5
-};
