@@ -17,6 +17,9 @@ params =
     // Specifies the condition under which the CE will
     // perform the adaptation specified in
     // the 'option_to_adapt' option.
+    // Possible options are: "last_payload_invalid", "PER<X", "PER>X", 
+    // "BER_lastPacket<X", "BER_lastPacket>X", "last_packet_error_free"
+    // "weighted_avg_payload_valid<X", "weighted_avg_payload_valid>X"
     adjustOn            =   "BER_lastPacket>X";
 
     // Specifies what adaption will be made when 
@@ -24,6 +27,9 @@ params =
     // option is met.
     // Does not apply when using the "user_specified"
     // 'adjustOn' option.
+    // Possible options are: "increase_payload_len", "decrease_payload_len",
+    //  "decrease_mod_scheme_PSK", "decrease_mod_scheme_ASK",
+    //  "Outer FEC On/Off", "no_fec", "increase_fec", "decrease_fec" 
     option_to_adapt     =   "decrease_mod_scheme_PSK";
 
     // For CE's that adapt based on the PER Rate.
@@ -33,6 +39,10 @@ params =
     // For CE's that adapt based on the BER Rate.
     // Threshold for deciding whether to make an adaptation.
     BER_threshold       =   0.05;
+
+    // For CE's that adapt based on the weighted avg of the payload valid values.
+    // Threshold for deciding whether to make an adaptation.
+    weighted_avg_payload_valid_threshold =   0.05;
 
     // Delay between sending of each frame.
     // In microseconds. Must be an int.
