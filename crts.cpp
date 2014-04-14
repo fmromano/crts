@@ -156,7 +156,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.lastReceivedFrame = 0;
     ce.validPayloads = 0;
     ce.errorFreePayloads = 0;
-    ce.frequency = 450.0e6;
+    ce.frequency = 460.0e6;
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
     ce.uhd_txgain_dB = 40.0;
