@@ -1344,12 +1344,12 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
     }
 
     // Check what values determine if parameters should be modified
-    if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
+    if(strcmp(ce->adjustOn, "last_payload_invalid") == 0) {
         // Check if parameters should be modified
         if(fbPtr->payload_valid<1)
         {
             modify = 1;
-            if (verbose) printf("lpv. Modifying...\n");
+            if (verbose) printf("lpi. Modifying...\n");
         }
     }
     if(strcmp(ce->adjustOn, "weighted_avg_payload_valid<X") == 0) {
