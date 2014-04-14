@@ -1442,7 +1442,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
         if (strcmp(ce->option_to_adapt, "decrease_payload_len") == 0) {
             if (ce->payloadLen - ce->payloadLenIncrement > ce->payloadLenMin) 
             {
-                ce->payloadLen += ce->payloadLenIncrement;
+                ce->payloadLen -= ce->payloadLenIncrement;
             }
         }
 
