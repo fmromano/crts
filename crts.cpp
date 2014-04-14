@@ -1525,7 +1525,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to higher)
-        if (strcmp(ce->option_to_adapt, "use_change_higher_fec") == 0) {
+        if (strcmp(ce->option_to_adapt, "increase_fec") == 0) {
            if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
                strcpy(ce->outerFEC, "SEC-DED7264");
            } 
@@ -1546,7 +1546,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to lower)
-        if (strcmp(ce->option_to_adapt, "use_change_lower_fec") == 0) {
+        if (strcmp(ce->option_to_adapt, "decrease_fec") == 0) {
            if (strcmp(ce->outerFEC, "Hamming74") == 0) {
                strcpy(ce->outerFEC, "none");
            }
