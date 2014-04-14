@@ -6,8 +6,8 @@ filename = "RiceFading1";
 params = 
 {
     // K factor for Ricean Fading
-    fadeK = 1.6f;
+    fadeK = 1.6;
 
     // Maximum Doppler Frequency  (relative to center frequency)
-    fadeFd = 0.1f
+    fadeFd = 0.1;
 };
