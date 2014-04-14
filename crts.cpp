@@ -1344,12 +1344,12 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
     }
 
     // Check what values determine if parameters should be modified
-    if(strcmp(ce->adjustOn, "last_payload_valid") == 0) {
+    if(strcmp(ce->adjustOn, "last_payload_invalid") == 0) {
         // Check if parameters should be modified
         if(fbPtr->payload_valid<1)
         {
             modify = 1;
-            if (verbose) printf("lpv. Modifying...\n");
+            if (verbose) printf("lpi. Modifying...\n");
         }
     }
     if(strcmp(ce->adjustOn, "weighted_avg_payload_valid<X") == 0) {
@@ -1525,7 +1525,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to higher)
-        if (strcmp(ce->option_to_adapt, "use_change_higher_fec") == 0) {
+        if (strcmp(ce->option_to_adapt, "increase_fec") == 0) {
            if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
                strcpy(ce->outerFEC, "SEC-DED7264");
            } 
@@ -1546,7 +1546,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to lower)
-        if (strcmp(ce->option_to_adapt, "use_change_lower_fec") == 0) {
+        if (strcmp(ce->option_to_adapt, "decrease_fec") == 0) {
            if (strcmp(ce->outerFEC, "Hamming74") == 0) {
                strcpy(ce->outerFEC, "none");
            }
