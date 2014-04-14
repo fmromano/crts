@@ -34,7 +34,7 @@ void usage() {
     //printf("  -s     :   simulation mode (default)\n");
     printf("  -a     :   server IP address (default: 127.0.0.1)\n");
     printf("  -p     :   server port (default: 1402)\n");
-    printf("  -f     :   center frequency [Hz], (default: 450 MHz)\n");
+    printf("  -f     :   center frequency [Hz], (default: 460 MHz)\n");
     printf("  -b     :   bandwidth [Hz], (default: 1.0 MHz)\n");
     printf("  -G     :   uhd rx gain [dB] (default: 20dB)\n");
     printf("  -M     :   number of subcarriers (default: 64)\n");
@@ -221,7 +221,7 @@ uhd::usrp::multi_usrp::sptr initializeUSRPs()
 
     // Set Rx Frequency
     // TODO: Allow setting of center frequency from command line
-    usrp->set_rx_freq(450e6);
+    usrp->set_rx_freq(460e6);
     printf("RX Freq set to %f MHz\n", (usrp->get_rx_freq()/1e6));
     // Wait for USRP to settle at the frequency
     while (not usrp->get_rx_sensor("lo_locked").to_bool()){
@@ -253,7 +253,7 @@ int main(int argc, char ** argv)
 
     //float bandwidth = 500.0e3;  // Hz
     float bandwidth = 1.0e6;  // Hz
-    float frequency = 450.0e6;  // Hz
+    float frequency = 460.0e6;  // Hz
     float uhd_rxgain = 20.0;    // dB
 
     // Check Program options
