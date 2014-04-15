@@ -35,7 +35,7 @@ params =
 
     // Specifies the condition under which the CE will
     // perform the adaptation specified in
-    // the 'option_to_adapt' option.
+    // the 'adaptation' option.
     adaptationCondition =   "BER_lastPacket>X";
 
     // Specifies what adaption will be made when 
@@ -43,7 +43,7 @@ params =
     // option is met.
     // Does not apply when using the "user_specified"
     // 'adaptationCondition' option.
-    option_to_adapt     =   "decrease_mod_scheme_PSK";
+    adaptation  =   "decrease_mod_scheme_PSK";
 
     // For CE's that adapt based on the PER Rate.
     // Threshold for deciding whether to make an adaptation.

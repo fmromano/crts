@@ -58,7 +58,7 @@ struct CognitiveEngine {
     char outerFEC_prev[30];
     char adaptationCondition[30];
     float default_tx_power;
-    char option_to_adapt[30];
+    char adaptation[30];
     char goal[30];
     float threshold;
     // TODO: For latestGoalValue, Use different type of variable depending on
@@ -168,7 +168,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.BER_threshold = 0.5;
     ce.FECswitch = 1;
     strcpy(ce.modScheme, "QPSK");
-    strcpy(ce.option_to_adapt, "mod_scheme->BPSK");
+    strcpy(ce.adaptation, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
     strcpy(ce.crcScheme, "none");
     strcpy(ce.innerFEC, "none");
@@ -389,9 +389,9 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
     if (setting != NULL)
     {
         // Read the strings
-        if (config_setting_lookup_string(setting, "option_to_adapt", &str))
+        if (config_setting_lookup_string(setting, "adaptation", &str))
         {
-            strcpy(ce->option_to_adapt,str);
+            strcpy(ce->adaptation,str);
             if (verbose) printf("Option to adapt: %s\n",str);
         }
        
@@ -1421,7 +1421,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 
         // This can't work because rx can't detect signals with different 
         // number of subcarriers
-        //if (strcmp(ce->option_to_adapt, "decrease_numSubcarriers") == 0) {
+        //if (strcmp(ce->adaptation, "decrease_numSubcarriers") == 0) {
         //    if (ce->numSubcarriers > 2)
         //        ce->numSubcarriers -= 2;
         //}
@@ -1432,21 +1432,21 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             readCEConfigFile(ce, "userEngine.txt", verbose);
         }
 
-        if (strcmp(ce->option_to_adapt, "increase_payload_len") == 0) {
+        if (strcmp(ce->adaptation, "increase_payload_len") == 0) {
             if (ce->payloadLen + ce->payloadLenIncrement < ce->payloadLenMax) 
             {
                 ce->payloadLen += ce->payloadLenIncrement;
             }
         }
 
-        if (strcmp(ce->option_to_adapt, "decrease_payload_len") == 0) {
+        if (strcmp(ce->adaptation, "decrease_payload_len") == 0) {
             if (ce->payloadLen - ce->payloadLenIncrement > ce->payloadLenMin) 
             {
                 ce->payloadLen -= ce->payloadLenIncrement;
             }
         }
 
-        if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_PSK") == 0) {
+        if (strcmp(ce->adaptation, "decrease_mod_scheme_PSK") == 0) {
             if (strcmp(ce->modScheme, "QPSK") == 0) {
                 strcpy(ce->modScheme, "BPSK");
             }
@@ -1468,7 +1468,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             }
         }
         // Decrease ASK Modulations
-        if (strcmp(ce->option_to_adapt, "decrease_mod_scheme_ASK") == 0) {
+        if (strcmp(ce->adaptation, "decrease_mod_scheme_ASK") == 0) {
             if (strcmp(ce->modScheme, "4ASK") == 0) {
                 strcpy(ce->modScheme, "BASK");
             }
@@ -1489,7 +1489,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             }
         }
 	// Turn outer FEC on/off
-   	if (strcmp(ce->option_to_adapt, "Outer FEC On/Off") == 0){
+   	if (strcmp(ce->adaptation, "Outer FEC On/Off") == 0){
         if (verbose) printf("Adapt option: outer fec on/off. adapting...\n");
    	    // Turn FEC off
    	    if (ce->FECswitch == 1) {
@@ -1504,7 +1504,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
    	    }
    	} 
         // Not use FEC
-        if (strcmp(ce->option_to_adapt, "no_fec") == 0) {
+        if (strcmp(ce->adaptation, "no_fec") == 0) {
            if (strcmp(ce->outerFEC, "none") == 0) {
                strcpy(ce->outerFEC, "none");
            }
@@ -1525,7 +1525,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to higher)
-        if (strcmp(ce->option_to_adapt, "increase_fec") == 0) {
+        if (strcmp(ce->adaptation, "increase_fec") == 0) {
            if (strcmp(ce->outerFEC, "SEC-DED3932") == 0) {
                strcpy(ce->outerFEC, "SEC-DED7264");
            } 
@@ -1546,7 +1546,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
         // FEC modifying (change to lower)
-        if (strcmp(ce->option_to_adapt, "decrease_fec") == 0) {
+        if (strcmp(ce->adaptation, "decrease_fec") == 0) {
            if (strcmp(ce->outerFEC, "Hamming74") == 0) {
                strcpy(ce->outerFEC, "none");
            }
@@ -1567,52 +1567,52 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
            }
         }
 
-        if (strcmp(ce->option_to_adapt, "mod_scheme->BPSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->BPSK") == 0) {
             strcpy(ce->modScheme, "BPSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->QPSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->QPSK") == 0) {
             strcpy(ce->modScheme, "QPSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->8PSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->8PSK") == 0) {
             strcpy(ce->modScheme, "8PSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->16PSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->16PSK") == 0) {
             strcpy(ce->modScheme, "16PSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->328PSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->328PSK") == 0) {
             strcpy(ce->modScheme, "32PSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->64PSK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->64PSK") == 0) {
             strcpy(ce->modScheme, "64PSK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->8QAM") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->8QAM") == 0) {
             strcpy(ce->modScheme, "8QAM");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->16QAM") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->16QAM") == 0) {
             strcpy(ce->modScheme, "16QAM");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->32QAM") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->32QAM") == 0) {
             strcpy(ce->modScheme, "32QAM");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->64QAM") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->64QAM") == 0) {
             strcpy(ce->modScheme, "64QAM");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->OOK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->OOK") == 0) {
             strcpy(ce->modScheme, "OOK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->4ASK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->4ASK") == 0) {
             strcpy(ce->modScheme, "4ASK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->8ASK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->8ASK") == 0) {
             strcpy(ce->modScheme, "8ASK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->16ASK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->16ASK") == 0) {
             strcpy(ce->modScheme, "16ASK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->32ASK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->32ASK") == 0) {
             strcpy(ce->modScheme, "32ASK");
         }
-        if (strcmp(ce->option_to_adapt, "mod_scheme->64ASK") == 0) {
+        if (strcmp(ce->adaptation, "mod_scheme->64ASK") == 0) {
             strcpy(ce->modScheme, "64ASK");
         }
     }
