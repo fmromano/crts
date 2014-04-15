@@ -18,7 +18,7 @@ Running CRTS:
        The crts binary will simulate both a transmitter and a receiver, perform the cognitive functions, and record experiment data.
 
     To run CRTS using USRPs, use both
-            $./crts
+            $./crts -r
         and
             $./crts_rx
         They can be run on separate machines, but they must be networked. Check the command line options for specifying IP addresses and ports. 
