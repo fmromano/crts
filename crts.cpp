@@ -182,7 +182,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
     struct Scenario sc = {};
-    sc.addNoise = 1,
+    sc.addNoise = 0,
     sc.noiseSNR = 7.0f, // in dB
     sc.noiseDPhi = 0.001f,
 
