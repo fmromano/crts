@@ -56,7 +56,7 @@ struct CognitiveEngine {
     char innerFEC[30];
     char outerFEC[30];
     char outerFEC_prev[30];
-    char adjustOn[30];
+    char adaptationCondition[30];
     float default_tx_power;
     char option_to_adapt[30];
     char goal[30];
@@ -174,8 +174,8 @@ struct CognitiveEngine CreateCognitiveEngine() {
     strcpy(ce.innerFEC, "none");
     strcpy(ce.outerFEC, "Hamming74");
     strcpy(ce.outerFEC_prev, "Hamming74");
-    //strcpy(ce.adjustOn, "weighted_avg_payload_valid"); 
-    strcpy(ce.adjustOn, "packet_error_rate"); 
+    //strcpy(ce.adaptationCondition, "weighted_avg_payload_valid"); 
+    strcpy(ce.adaptationCondition, "packet_error_rate"); 
     return ce;
 } // End CreateCognitiveEngine()
 
@@ -400,10 +400,10 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
             strcpy(ce->goal,str);
             if (verbose) printf("Goal: %s\n",str);
         }
-        if (config_setting_lookup_string(setting, "adjustOn", &str))
+        if (config_setting_lookup_string(setting, "adaptationCondition", &str))
         {
-            strcpy(ce->adjustOn,str);
-            if (verbose) printf("adjustOn: %s\n",str);
+            strcpy(ce->adaptationCondition,str);
+            if (verbose) printf("adaptationCondition: %s\n",str);
         }
         if (config_setting_lookup_string(setting, "modScheme", &str))
         {
@@ -1334,17 +1334,17 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
     int modify = 0;
 
 
-    if (verbose) printf("ce->adjustOn = %s\n", ce->adjustOn);
+    if (verbose) printf("ce->adaptationCondition= %s\n", ce->adaptationCondition);
 
     //TODO: Add 'user input' adaptation
-    if(strcmp(ce->adjustOn, "user_specified") == 0) {
+    if(strcmp(ce->adaptationCondition, "user_specified") == 0) {
         // Check if parameters should be modified
         modify = 1;
         if (verbose) printf("user specified adaptation mode. Modifying...\n");
     }
 
     // Check what values determine if parameters should be modified
-    if(strcmp(ce->adjustOn, "last_payload_invalid") == 0) {
+    if(strcmp(ce->adaptationCondition, "last_payload_invalid") == 0) {
         // Check if parameters should be modified
         if(fbPtr->payload_valid<1)
         {
@@ -1352,7 +1352,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("lpi. Modifying...\n");
         }
     }
-    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid<X") == 0) {
+    if(strcmp(ce->adaptationCondition, "weighted_avg_payload_valid<X") == 0) {
         // Check if parameters should be modified
         if (ce->weightedAvg < ce->weighted_avg_payload_valid_threshold)
         {
@@ -1360,7 +1360,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("wapv<X. Modifying...\n");
         }
     }
-    if(strcmp(ce->adjustOn, "weighted_avg_payload_valid>X") == 0) {
+    if(strcmp(ce->adaptationCondition, "weighted_avg_payload_valid>X") == 0) {
         // Check if parameters should be modified
         if (ce->weightedAvg > ce->weighted_avg_payload_valid_threshold)
         {
@@ -1368,7 +1368,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("wapv>X. Modifying...\n");
         }
     }
-    if(strcmp(ce->adjustOn, "PER<X") == 0) {
+    if(strcmp(ce->adaptationCondition, "PER<X") == 0) {
         // Check if parameters should be modified
         if (verbose) printf("PER = %f\n", ce->PER);
         if(ce->PER < ce->PER_threshold)
@@ -1377,7 +1377,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("per<x. Modifying...\n" );
         }
     }
-    if(strcmp(ce->adjustOn, "PER>X") == 0) {
+    if(strcmp(ce->adaptationCondition, "PER>X") == 0) {
         // Check if parameters should be modified
         if (verbose) printf("PER = %f\n", ce->PER);
         if(ce->PER > ce->PER_threshold)
@@ -1386,7 +1386,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("per>x. Modifying...\n" );
         }
     }
-    if(strcmp(ce->adjustOn, "BER_lastPacket<X") == 0) {
+    if(strcmp(ce->adaptationCondition, "BER_lastPacket<X") == 0) {
         // Check if parameters should be modified
         if (verbose) printf("BER = %f\n", ce->BERLastPacket);
         if(ce->BERLastPacket < ce->BER_threshold)
@@ -1395,7 +1395,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("Ber_lastpacket<x. Modifying...\n" );
         }
     }
-    if(strcmp(ce->adjustOn, "BER_lastPacket>X") == 0) {
+    if(strcmp(ce->adaptationCondition, "BER_lastPacket>X") == 0) {
         // Check if parameters should be modified
         if (verbose) printf("BER = %f\n", ce->BERLastPacket);
         if(ce->BERLastPacket > ce->BER_threshold)
@@ -1404,7 +1404,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
             if (verbose) printf("Ber_lastpacket>x. Modifying...\n" );
         }
     }
-    if(strcmp(ce->adjustOn, "last_packet_error_free") == 0) {
+    if(strcmp(ce->adaptationCondition, "last_packet_error_free") == 0) {
         // Check if parameters should be modified
         if(!(fbPtr->payloadBitErrors)){
             modify = 1;
@@ -1426,7 +1426,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
         //        ce->numSubcarriers -= 2;
         //}
 
-        if(strcmp(ce->adjustOn, "user_specified") == 0) {
+        if(strcmp(ce->adaptationCondition, "user_specified") == 0) {
             // Check if parameters should be modified
             if (verbose) printf("Reading user specified adaptations from user ce file: 'userEngine.txt'\n");
             readCEConfigFile(ce, "userEngine.txt", verbose);

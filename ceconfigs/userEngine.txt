@@ -6,7 +6,7 @@ description = "This cognitive engine is designed to be updated by a user or prog
 // than one of the the internal CRTS engines.
 
 // This cognitive engine is designed to be updated by a user or program while CRTS is running.
-// If the 'adjustOn' option is set to "user_specified", CRTS will read the CE config file with
+// If the 'adaptationCondition' option is set to "user_specified", CRTS will read the CE config file with
 // the name "userEngine.txt" every cognition cycle, and it will update every option that is listed in the file.
 
 // To change an option, simply replace the current setting with a different one and CRTS will
@@ -17,7 +17,7 @@ description = "This cognitive engine is designed to be updated by a user or prog
 // with
 //     modScheme           =   "16PSK";
 
-// NOTE: It is very important not to ever change the 'adjustOn' option. It must remain
+// NOTE: It is very important not to ever change the 'adaptationCondition' option. It must remain
 // set to "user_specified" for CRTS to continue reading this file, rather than revert to
 // an internal CE.
 
@@ -36,13 +36,13 @@ params =
     // Specifies the condition under which the CE will
     // perform the adaptation specified in
     // the 'option_to_adapt' option.
-    adjustOn            =   "BER_lastPacket>X";
+    adaptationCondition =   "BER_lastPacket>X";
 
     // Specifies what adaption will be made when 
-    // the condition specified by the 'adjustOn'
+    // the condition specified by the 'adaptationCondition'
     // option is met.
     // Does not apply when using the "user_specified"
-    // 'adjustOn' option.
+    // 'adaptationCondition' option.
     option_to_adapt     =   "decrease_mod_scheme_PSK";
 
     // For CE's that adapt based on the PER Rate.

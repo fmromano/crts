@@ -20,13 +20,13 @@ params =
     // Possible options are: "last_payload_invalid", "PER<X", "PER>X", 
     // "BER_lastPacket<X", "BER_lastPacket>X", "last_packet_error_free"
     // "weighted_avg_payload_valid<X", "weighted_avg_payload_valid>X"
-    adjustOn            =   "BER_lastPacket>X";
+    adaptationCondition =   "BER_lastPacket>X";
 
     // Specifies what adaption will be made when 
-    // the condition specified by the 'adjustOn'
+    // the condition specified by the 'adaptationCondition'
     // option is met.
     // Does not apply when using the "user_specified"
-    // 'adjustOn' option.
+    // 'adaptationCondition' option.
     // Possible options are: "increase_payload_len", "decrease_payload_len",
     //  "decrease_mod_scheme_PSK", "decrease_mod_scheme_ASK",
     //  "Outer FEC On/Off", "no_fec", "increase_fec", "decrease_fec" 
