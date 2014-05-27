@@ -50,17 +50,20 @@ struct rxCBstruct {
     int verbose;
     float bandwidth;
     char * serverAddr;
+	msequence * rx_ms_ptr;
+	int ce_num;
+	int sc_num;
+	int frameNum;
 };
 struct feedbackStruct {
     int             header_valid;
     int             payload_valid;
     unsigned int    payload_len;
-    //unsigned int    headerByteErrors;
     unsigned int    payloadByteErrors;
-    //unsigned int    headerBitErrors;
     unsigned int    payloadBitErrors;
-    // TODO: make unsigned int instead of float
-    float           frameNum;
+    unsigned int    frameNum;
+	int				ce_num;
+	int				sc_num;
     float           evm;
     float           rssi;
     float           cfo;
@@ -87,6 +90,7 @@ int rxCallback(unsigned char *  _header,
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     //int verbose = rxCBS_ptr->verbose;
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Iterator
     //int i = 0;
@@ -123,25 +127,26 @@ int rxCallback(unsigned char *  _header,
     unsigned int payloadBitErrors   =   0;
     //int   header_check = 0;
     //int   _header_temp = 0;
-    int   payload_check = 0;
-    int   _payload_temp = 0;
+    //int   payload_check = 0;
+    //int   _payload_temp = 0;
     int j,m;
-
+	unsigned int tx_byte;
 
     // Calculate byte error rate and bit error rate for payload
     for (m=0; m<(signed int)_payload_len; m++)
     {
-        if (!(_payload[m] == (m & 0xff))) 
+		tx_byte = msequence_generate_symbol(rx_ms,8);
+		//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
+        if (((int)_payload[m] != tx_byte))
         {
             payloadByteErrors++;
-            payload_check = _payload[m] ^ (m & 0xff);
             for (j=0; j<8; j++)
             {
-                _payload_temp = payload_check >> j;
-                if ((_payload_temp % 2) == 1)
+                //printf( "%1c %1c\n", (_payload[m]&(1<<j)) , (tx_byte&(1<<j)));
+				if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
                    payloadBitErrors++;
             }      
-        }           
+        }
     }               
                     
     // Data that will be sent to server
@@ -156,9 +161,12 @@ int rxCallback(unsigned char *  _header,
     fb.evm                  =   _stats.evm;
     fb.rssi                 =   _stats.rssi;
     fb.cfo                  =   _stats.cfo;
-    // TODO: Make unsigned int rather than float
-    fb.frameNum             =   *((float*)_header);
+    fb.ce_num				=	_header[0];
+	fb.sc_num				=	_header[1];
+	fb.frameNum				=	0;
 
+	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
+	printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
     //if (verbose)
     //{
     //    // TODO: Create corresponding print statement for fb struct
@@ -286,10 +294,13 @@ int main(int argc, char ** argv)
     // framesynchronizer object used in each test
     //ofdmflexframesync fs;
 
+	msequence rx_ms = msequence_create_default(9u);
+
     struct rxCBstruct rxCBS = CreaterxCBStruct();
     rxCBS.bandwidth = bandwidth;
     rxCBS.serverPort = serverPort;
     rxCBS.serverAddr = serverAddr;
+	rxCBS.rx_ms_ptr = &rx_ms;
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
     ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBS);

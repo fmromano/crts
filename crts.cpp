@@ -79,7 +79,7 @@ struct CognitiveEngine {
     float FECswitch;
     double startTime;
     double runningTime; // In seconds
-    int iterations;
+    int iteration;
     unsigned int validPayloads;
     unsigned int errorFreePayloads;
     unsigned int frameNumber;
@@ -112,6 +112,7 @@ struct rxCBstruct {
     int verbose;
     float bandwidth;
     char * serverAddr;
+	msequence * rx_ms_ptr;
 };
 
 struct feedbackStruct {
@@ -121,6 +122,8 @@ struct feedbackStruct {
     unsigned int    payloadByteErrors;
     unsigned int    payloadBitErrors;
     unsigned int    frameNum;
+	int				ce_num;
+	int				sc_num;
     float           evm;
     float           rssi;
     float           cfo;
@@ -138,7 +141,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.default_tx_power = 10.0;
     ce.threshold = 1.0;                 // Desired value for goal
     ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
-    ce.iterations = 100;                // Number of transmissions made before attemting to receive them.
+    ce.iteration = 1;                 // Count of total simulations.
     ce.payloadLen = 120;                // Length of payload in frame generation
     ce.payloadLenIncrement = 2;         // How much to increment payload in adaptations
                                         // Always positive.
@@ -429,7 +432,7 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         // Read the integers
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
-           ce->iterations=tmpI;
+           //ce->iteration=tmpI;
            if (verbose) printf("Iterations: %d\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLen", &tmpI))
@@ -1039,6 +1042,7 @@ int rxCallback(unsigned char *  _header,
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Iterator
     //int i = 0;
@@ -1075,22 +1079,23 @@ int rxCallback(unsigned char *  _header,
     unsigned int payloadBitErrors   =   0;
     //int   header_check = 0;
     //int   _header_temp = 0;
-    int   payload_check = 0;
-    int   _payload_temp = 0;
+    //int   payload_check = 0;
+    //int   _payload_temp = 0;
     int j,m;
-
+	unsigned int tx_byte;
 
     // Calculate byte error rate and bit error rate for payload
     for (m=0; m<(signed int)_payload_len; m++)
     {
-        if (!(_payload[m] == (m & 0xff))) 
+		tx_byte = msequence_generate_symbol(rx_ms,8);
+		//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
+        if (((int)_payload[m] != tx_byte))
         {
             payloadByteErrors++;
-            payload_check = _payload[m] ^ (m & 0xff);
             for (j=0; j<8; j++)
             {
-                _payload_temp = payload_check >> j;
-                if ((_payload_temp % 2) == 1)
+                //printf( "%1c %1c\n", (_payload[m]&(1<<j)) , (tx_byte&(1<<j)));
+				if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
                    payloadBitErrors++;
             }      
         }           
@@ -1107,8 +1112,13 @@ int rxCallback(unsigned char *  _header,
     fb.payloadBitErrors     =   payloadBitErrors;
     fb.evm                  =   _stats.evm;
     fb.rssi                 =   _stats.rssi;
-    fb.cfo                  =   _stats.cfo;
-    fb.frameNum             =   *((unsigned int*)_header);
+    fb.cfo                  =   _stats.cfo;	
+	fb.ce_num				=	_header[0];
+	fb.sc_num				=	_header[1];
+	fb.frameNum				=	0;
+
+	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
+	//printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
 
     if (verbose)
     {
@@ -1298,16 +1308,17 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
         ce->latestGoalValue  = (float) ce->frameNumber;
     }
     else if (strcmp(ce->goal, "X_seconds") == 0)
-    {
-        if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime);
-        ce->latestGoalValue  = ce->runningTime;
+    {       
+		if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime + ce->iteration*ce->delay_us/1.0e6);
+        ce->latestGoalValue = ce->runningTime + ce->iteration*ce->delay_us/1.0e6;
+		//printf("Iteration: %i Delay: %f\n", ce->iteration, ce->delay_us);
     }
     else
     {
         fprintf(stderr, "ERROR: Unknown Goal!\n");
         exit(EXIT_FAILURE);
     }
-    // TODO: implement if statements for other possible goals.
+    // TODO: implement if statements for other possible goals
 
     return 1;
 } // End ceProcessData()
@@ -1669,10 +1680,24 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 //} // end initializeUSRPs()
 
 
-int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int verbose)
+int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int current_ce_num, int current_sc_num, int verbose)
 {
-    // FIXME: Find another way to fix this
+    // FIXME: Find another way to fix this:: FIXED?
     usleep(cePtr->delay_us);
+	std::clock_t timeout_start = std::clock();
+	while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
+		usleep(10.0e5);
+		printf("Waiting for feedback\n");
+		printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
+			"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
+			"FB Frame Number:", fb_ptr->frameNum);
+		std::clock_t timeout_now = std::clock();
+		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
+	}
+	//printf("Feedback detected\n");
+	//printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
+		//"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
+		//"FB Frame Number:", fb_ptr->frameNum);
 
     int DoneTransmitting = 0;
 
@@ -1784,6 +1809,10 @@ int main(int argc, char ** argv)
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
 
+	// identical pseudo random sequence generators for tx and rx
+	msequence tx_ms = msequence_create_default(9u);
+	msequence rx_ms = msequence_create_default(9u);
+
     //printf("frame objects declared\n");
 
     // Buffers for packet/frame data
@@ -1792,7 +1821,7 @@ int main(int argc, char ** argv)
                                                    // the CE wants to use.
 
     // pointer for accessing header array when it has float values
-    unsigned int * header_u = (unsigned int *) header;
+    //unsigned int * header_u = (unsigned int *) header;
 
     std::complex<float> frameSamples[10000];      // Buffer of frame samples for each symbol.
                                                    // Large enough to accomodate any (reasonable) payload that 
@@ -1801,10 +1830,32 @@ int main(int argc, char ** argv)
     uhd::tx_metadata_t metaData;
     uhd::usrp::multi_usrp::sptr usrp;
     uhd::tx_streamer::sptr txStream;
+
+	// Metric Summary Variables for each scenario and each cognitive engine
+	int SC_total_frames[60][60];
+	int SC_valid_headers[60][60];
+	int SC_valid_payloads[60][60];
+	float SC_EVM[60][60];
+	float SC_RSSI[60][60];
+	float SC_BER[60][60];
+	float SC_PER[60][60];
+	memset(SC_total_frames,0,60*60*sizeof(int));
+	memset(SC_valid_headers,0,60*60*sizeof(int));
+	memset(SC_valid_payloads,0,60*60*sizeof(int));
+	memset(SC_EVM,0,60*60*sizeof(float));
+	memset(SC_RSSI,0,60*60*sizeof(float));
+	memset(SC_BER,0,60*60*sizeof(float));
+	memset(SC_PER,0,60*60*sizeof(float));
+
+	int CE_total_frames[60] = {0};
+	int CE_valid_headers[60] = {0};
+	int CE_valid_payloads[60] = {0};
+	float CE_EVM[60] = {0};
+	float CE_RSSI[60] = {0};
+	float CE_BER[60] = {0};
+	float CE_PER[60] = {0};
                                                    
-    ////////////////////// End variable initializations.
-
-
+    ////////////////////// End variable initializations.///////////////////////
 
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
@@ -1817,6 +1868,10 @@ int main(int argc, char ** argv)
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.serverPort = serverPort;
     rxCBs.verbose = verbose;
+	rxCBs.rx_ms_ptr = &rx_ms;
+	//rxCBs.ce_num = 1;
+	//rxCBs.sc_num = 1;
+	//rxCBs.frameNum = 1;
 
     // Allow server time to finish initialization
     usleep(0.1e6);
@@ -1844,14 +1899,17 @@ int main(int argc, char ** argv)
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
-        if (verbose) 
-            printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
+        //rxCBs.ce_num = i_CE+1;
 
+		if (verbose) 
+            printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
         
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
-            // Initialize current CE
+            //rxCBs.sc_num = i_Sc+1;
+
+			// Initialize current CE
             ce = CreateCognitiveEngine();
             readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
 
@@ -1861,7 +1919,12 @@ int main(int argc, char ** argv)
             readScConfigFile(&sc,scenario_list[i_Sc], verbose);
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
-            fprintf(dataFile, "linetype\tframeNum\theader_valid\tpayload_valid\tevm\trssi\tPER\tpayloadByteErrors\tBER:LastPacket\tpayloadBitErrors\n");
+			//All metrics
+            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
+				"linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");*/
+			//Useful metrics
+			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-10s %-16s \n",
+				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER");
             fflush(dataFile);
 
             // Initialize Receiver Defaults for current CE and Sc
@@ -1889,7 +1952,6 @@ int main(int argc, char ** argv)
 
                     while(!DoneTransmitting)
                     {
-
                         // set properties
                         txcvr.set_tx_freq(ce.frequency);
                         txcvr.set_tx_rate(ce.bandwidth);
@@ -1909,12 +1971,17 @@ int main(int argc, char ** argv)
                         int i = 0;
                         // Generate data
                         if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-                        for (i=0; i<8; i++)
-                            header[i] = i & 0xff;
-                        for (i=0; (unsigned int)i< ce.payloadLen; i++)
-                            payload[i] = i & 0xff;
+						header[0] = i_CE+1;
+						header[1] = i_Sc+1;
+                        for (i=0; i<4; i++)
+                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+						header[6] = 0;
+						header[7] = 0;
+                        for (i=0; i<(signed int)ce.payloadLen; i++)
+                            payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+
                         // Include frame number in header information
-                        * header_u = ce.frameNumber;
+                        //* header_u = ce.frameNumber;
                         if (verbose) printf("Frame Num: %u\n", ce.frameNumber);
 
                         // Set Modulation Scheme
@@ -1935,17 +2002,26 @@ int main(int argc, char ** argv)
                         txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
 
                         //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
-                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
+                        DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
                         // Record the feedback data received
                         //TODO: include fb.cfo
-                        fprintf(dataFile, "crtsdata:\t%u\t%d\t%d\t%f\t%f\t%f\t%u\t%f\t%u\n", fb.frameNum, fb.header_valid, 
-                                fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors, ce.BERLastPacket, fb.payloadBitErrors);
+
+						//All metrics
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", 
+							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+							ce.BERLastPacket, fb.payloadBitErrors);*/
+						//Useful metrics
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-10.2f %-16.2f \n", 
+							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
+							ce.BERLastPacket);
+
                         //fprintf(dataFile, "crtsdata:\t%u\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", fb.frameNum, feedback[0], 
                         //        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
                         fflush(dataFile);
 
                         // Increment the frame counter
                         ce.frameNumber++;
+						ce.iteration++;
                         // Update the clock
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
@@ -1968,12 +2044,19 @@ int main(int argc, char ** argv)
 
                         // Generate data
                         if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-                        for (i=0; i<8; i++)
-                            header[i] = i & 0xff;
+                        header[0] = i_CE+1;
+						header[1] = i_Sc+1;
+                        for (i=0; i<4; i++)
+                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+						header[6] = 0;
+						header[7] = 0;
                         for (i=0; i<(signed int)ce.payloadLen; i++)
-                            payload[i] = i & 0xff;
+                            payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+
+						//printf("Header: %i %i %i %i %i %i %i %i\n", header[0], header[1], header[2], header[3], header[4], header[5], header[6], header[7]);
+
                         // Include frame number in header information
-                        * header_u = ce.frameNumber;
+                        //* header_u = ce.frameNumber;
 
                         // Assemble frame
                         ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
@@ -1997,28 +2080,45 @@ int main(int argc, char ** argv)
 
                         // posttransmittasks
                         //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
-                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
+                        DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
                         // Record the feedback data received
-                        fprintf(dataFile, "crtsdata:\t%u\t%d\t%d\t%f\t%f\t%f\t%u\t%f\t%u\n", fb.frameNum, fb.header_valid, 
-                                fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors, ce.BERLastPacket, fb.payloadBitErrors);
-                        //fprintf(dataFile, "crtsdata:\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", feedback[4], feedback[0], 
-                        //        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
-                        fflush(dataFile);
+						//for (i=0; i<(signed int)ce.payloadLen; i++){
+						//	fprintf(dataFile, "%-4f", payload[i]);
+						//}
+						fflush(dataFile);
 
-                        // Increment the frame counter
+                        //All metrics
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", 
+							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+							ce.BERLastPacket, fb.payloadBitErrors);*/
+						//Useful metrics
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-10.2f %-16.2f \n", 
+							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
+							ce.BERLastPacket);
+
+                        // Increment the frame counters and iteration counter
                         ce.frameNumber++;
-
+						//rxCBs.frameNum++;
+						ce.iteration++;
                         // Update the clock
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
-                    } // End else While loop
+
+						// Store the sum of frame metrics for the scenario
+						SC_valid_headers[i_CE][i_Sc] += fb.header_valid;
+						SC_valid_payloads[i_CE][i_Sc] += fb.payload_valid;
+						SC_EVM[i_CE][i_Sc] += fb.evm;
+						SC_RSSI[i_CE][i_Sc] += fb.rssi;
+						SC_BER[i_CE][i_Sc] += ce.BERLastPacket;
+                    } // End else While loop					
                 }
 
 
             //} // End Test While loop
             clock_t end = clock();
-            double time = double(end-begin)/CLOCKS_PER_SEC;
-            fprintf(dataFile, "Elasped Time: %f (s)", time);
+            double time = (end-begin)/(double)CLOCKS_PER_SEC + ce.iteration*ce.delay_us/1.0e6;
+            //fprintf(dataFile, "Elapsed Time: %f (s)", time);
+			fprintf(dataFile, "Begin: %li End: %li Clock/s: %li Time: %f", begin, end, CLOCKS_PER_SEC, time);
             fflush(dataFile);
 
             // Reset the goal
@@ -2027,12 +2127,52 @@ int main(int argc, char ** argv)
             if (verbose) printf("Scenario %i completed for CE %i.\n", i_Sc+1, i_CE+1);
             fprintf(dataFile, "\n\n");
             fflush(dataFile);
+
+			// Decrement frameNumber once
+			ce.frameNumber--;
+			// Store metrics for scenario
+			SC_total_frames[i_CE][i_Sc] = ce.frameNumber;
+			SC_EVM[i_CE][i_Sc] = SC_EVM[i_CE][i_Sc]/ce.frameNumber;
+			SC_RSSI[i_CE][i_Sc] = SC_RSSI[i_CE][i_Sc]/ce.frameNumber;
+			SC_BER[i_CE][i_Sc] = SC_BER[i_CE][i_Sc]/ce.frameNumber;
+			SC_PER[i_CE][i_Sc] = ce.PER;
+
+			// Display the scenario summary
+			printf("Cognitive Engine %i Scenario %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
+				"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, i_Sc+1, SC_total_frames[i_CE][i_Sc],
+				(float)SC_valid_headers[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc], (float)SC_valid_payloads[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc],
+				SC_EVM[i_CE][i_Sc], SC_RSSI[i_CE][i_Sc], SC_BER[i_CE][i_Sc], SC_PER[i_CE][i_Sc]);
+
+			// Store the sum of scenario metrics for the cognitive engine
+			CE_total_frames[i_CE] += SC_total_frames[i_CE][i_Sc];
+			CE_valid_headers[i_CE] += SC_valid_headers[i_CE][i_Sc];
+			CE_valid_payloads[i_CE] += SC_valid_payloads[i_CE][i_Sc];
+			CE_EVM[i_CE] += SC_EVM[i_CE][i_Sc];
+			CE_RSSI[i_CE] += SC_RSSI[i_CE][i_Sc];
+			CE_BER[i_CE] += SC_BER[i_CE][i_Sc];
+			CE_PER[i_CE] += SC_PER[i_CE][i_Sc];
+
+
+			// Reset frame number
+			ce.frameNumber = 0;
             
         } // End Scenario For loop
 
         if (verbose) printf("Tests on Cognitive Engine %i completed.\n", i_CE+1);
 
+		// Divide the sum of each metric by the number of scenarios run to get the final metric
+		CE_EVM[i_CE] = CE_EVM[i_CE]/i_Sc;
+		CE_RSSI[i_CE] = CE_RSSI[i_CE]/i_Sc;
+		CE_BER[i_CE] = CE_BER[i_CE]/i_Sc;
+		CE_PER[i_CE] = CE_PER[i_CE]/i_Sc;
+
+		printf("Cognitive Engine %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
+			"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, CE_total_frames[i_CE], (float)CE_valid_headers[i_CE]/(float)CE_total_frames[i_CE],
+			(float)CE_valid_payloads[i_CE]/(float)CE_total_frames[i_CE], CE_EVM[i_CE], CE_RSSI[i_CE], CE_BER[i_CE], CE_PER[i_CE]);
+
     } // End CE for loop
+	msequence_destroy(tx_ms);
+	msequence_destroy(rx_ms);
 
     return 0;
 }
