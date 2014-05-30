@@ -54,6 +54,7 @@ struct rxCBstruct {
 	int ce_num;
 	int sc_num;
 	int frameNum;
+	int lastValidFrameNum;
 };
 struct feedbackStruct {
     int             header_valid;
@@ -88,7 +89,9 @@ int rxCallback(unsigned char *  _header,
                framesyncstats_s _stats,
                void *           _userdata)
 {
-    struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
+	printf("\nEntered callback function\n");    
+
+	struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     //int verbose = rxCBS_ptr->verbose;
 	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
@@ -119,7 +122,7 @@ int rxCallback(unsigned char *  _header,
         fprintf(stderr, "connect_status = %d\n", connect_status);
         exit(EXIT_FAILURE);
     }
-   
+
     framesyncstats_print(&_stats); 
 
     // Variables for checking number of errors 
@@ -132,17 +135,29 @@ int rxCallback(unsigned char *  _header,
     int j,m;
 	unsigned int tx_byte;
 
+	// Read the framenumber from the header
+	int fn = 0;
+	for(int i=0; i<4; i++)	fn += _header[i+2]<<(8*(3-i));
+
+	// Iterate the PN sequence generator to catch it up with the transmitter if frames were missed
+	if(_header_valid){
+		printf("\nReceived fn: %i\nLast fn: %i\n", fn, rxCBS_ptr->lastValidFrameNum);
+		printf("Iterating the ms for %i frames\n\n", fn-rxCBS_ptr->lastValidFrameNum-1); 
+		if(fn>rxCBS_ptr->lastValidFrameNum+1){
+			for(int i=0; i<_payload_len*(fn-rxCBS_ptr->lastValidFrameNum-1); i++) msequence_generate_symbol(rx_ms,8);
+		}
+		rxCBS_ptr->lastValidFrameNum = fn;
+	}
+	printf("Calculating BER\n");
     // Calculate byte error rate and bit error rate for payload
     for (m=0; m<(signed int)_payload_len; m++)
     {
 		tx_byte = msequence_generate_symbol(rx_ms,8);
-		//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
         if (((int)_payload[m] != tx_byte))
         {
             payloadByteErrors++;
             for (j=0; j<8; j++)
             {
-                //printf( "%1c %1c\n", (_payload[m]&(1<<j)) , (tx_byte&(1<<j)));
 				if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
                    payloadBitErrors++;
             }      
@@ -163,9 +178,8 @@ int rxCallback(unsigned char *  _header,
     fb.cfo                  =   _stats.cfo;
     fb.ce_num				=	_header[0];
 	fb.sc_num				=	_header[1];
-	fb.frameNum				=	0;
+	fb.frameNum				=	fn;
 
-	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
 	printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
     //if (verbose)
     //{
@@ -301,6 +315,7 @@ int main(int argc, char ** argv)
     rxCBS.serverPort = serverPort;
     rxCBS.serverAddr = serverAddr;
 	rxCBS.rx_ms_ptr = &rx_ms;
+	rxCBS.lastValidFrameNum = 0;
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
     ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBS);
@@ -361,7 +376,6 @@ int main(int argc, char ** argv)
 
     // Start Receiver
     txcvr.start_rx();
-
 
     while (continue_running)
     {

@@ -80,6 +80,7 @@ struct CognitiveEngine {
     double startTime;
     double runningTime; // In seconds
     int iteration;
+	unsigned int bitsPerSym;
     unsigned int validPayloads;
     unsigned int errorFreePayloads;
     unsigned int frameNumber;
@@ -155,6 +156,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.PER = 0.0;
     ce.BERLastPacket = 0.0;
     ce.BERTotal = 0.0;
+	ce.bitsPerSym = 1;
     ce.frameNumber = 0;
     ce.lastReceivedFrame = 0;
     ce.validPayloads = 0;
@@ -847,66 +849,85 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
     }
 } // End enactUSRPScenario()
 
-modulation_scheme convertModScheme(char * modScheme)
+modulation_scheme convertModScheme(char * modScheme, unsigned int * bps)
 {
     modulation_scheme ms;
     // TODO: add other liquid-supported mod schemes
     if (strcmp(modScheme, "QPSK") == 0) {
         ms = LIQUID_MODEM_QPSK;
+		*bps = 2;
     }
     else if ( strcmp(modScheme, "BPSK") ==0) {
         ms = LIQUID_MODEM_BPSK;
+		*bps = 1;
     }
     else if ( strcmp(modScheme, "OOK") ==0) {
         ms = LIQUID_MODEM_OOK;
+		*bps = 1;
     }
     else if ( strcmp(modScheme, "8PSK") ==0) {
         ms = LIQUID_MODEM_PSK8;
+		*bps = 3;
     }
     else if ( strcmp(modScheme, "16PSK") ==0) {
         ms = LIQUID_MODEM_PSK16;
+		*bps = 4;
     }
     else if ( strcmp(modScheme, "32PSK") ==0) {
         ms = LIQUID_MODEM_PSK32;
+		*bps = 5;
     }
     else if ( strcmp(modScheme, "64PSK") ==0) {
         ms = LIQUID_MODEM_PSK64;
+		*bps = 6;
     }
     else if ( strcmp(modScheme, "128PSK") ==0) {
         ms = LIQUID_MODEM_PSK128;
+		*bps = 7;
     }
     else if ( strcmp(modScheme, "8QAM") ==0) {
         ms = LIQUID_MODEM_QAM8;
+		*bps = 3;
     }
     else if ( strcmp(modScheme, "16QAM") ==0) {
         ms = LIQUID_MODEM_QAM16;
+		*bps = 4;
     }
     else if ( strcmp(modScheme, "32QAM") ==0) {
         ms = LIQUID_MODEM_QAM32;
+		*bps = 5;
     }
     else if ( strcmp(modScheme, "64QAM") ==0) {
         ms = LIQUID_MODEM_QAM64;
+		*bps = 6;
     }
     else if ( strcmp(modScheme, "BASK") ==0) {
         ms = LIQUID_MODEM_ASK2;
+		*bps = 1;
     }
     else if ( strcmp(modScheme, "4ASK") ==0) {
         ms = LIQUID_MODEM_ASK4;
+		*bps = 2;
     }
     else if ( strcmp(modScheme, "8ASK") ==0) {
         ms = LIQUID_MODEM_ASK8;
+		*bps = 3;
     }
     else if ( strcmp(modScheme, "16ASK") ==0) {
         ms = LIQUID_MODEM_ASK16;
+		*bps = 4;
     }
     else if ( strcmp(modScheme, "32ASK") ==0) {
         ms = LIQUID_MODEM_ASK32;
+		*bps = 5;
     }
     else if ( strcmp(modScheme, "64ASK") ==0) {
         ms = LIQUID_MODEM_ASK64;
+		*bps = 6;
     }
     else if ( strcmp(modScheme, "128ASK") ==0) {
         ms = LIQUID_MODEM_ASK128;
+		*bps = 7;
     }
     else {
         fprintf(stderr, "ERROR: Unknown Modulation Scheme");
@@ -1002,7 +1023,7 @@ ofdmflexframegen CreateFG(struct CognitiveEngine ce, struct Scenario sc, int ver
     //printf("Setting inital ofdmflexframegen options:\n");
     // Set Modulation Scheme
     if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
-    modulation_scheme ms = convertModScheme(ce.modScheme);
+    modulation_scheme ms = convertModScheme(ce.modScheme, &ce.bitsPerSym);
 
     // Set Cyclic Redundency Check Scheme
     crc_scheme check = convertCRCScheme(ce.crcScheme, verbose);
@@ -1094,7 +1115,6 @@ int rxCallback(unsigned char *  _header,
             payloadByteErrors++;
             for (j=0; j<8; j++)
             {
-                //printf( "%1c %1c\n", (_payload[m]&(1<<j)) , (tx_byte&(1<<j)));
 				if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
                    payloadBitErrors++;
             }      
@@ -1686,11 +1706,11 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     usleep(cePtr->delay_us);
 	std::clock_t timeout_start = std::clock();
 	while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
-		usleep(10.0e5);
+		/*usleep(10.0e5);
 		printf("Waiting for feedback\n");
 		printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
 			"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
-			"FB Frame Number:", fb_ptr->frameNum);
+			"FB Frame Number:", fb_ptr->frameNum);*/
 		std::clock_t timeout_now = std::clock();
 		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
 	}
@@ -1805,6 +1825,7 @@ int main(int argc, char ** argv)
     //printf("structs declared\n");
     // framegenerator object used in each test
     ofdmflexframegen fg;
+	ofdmflexframegenprops_s fgprops;
 
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
@@ -1821,7 +1842,7 @@ int main(int argc, char ** argv)
                                                    // the CE wants to use.
 
     // pointer for accessing header array when it has float values
-    //unsigned int * header_u = (unsigned int *) header;
+    unsigned int * header_u = (unsigned int *) header;
 
     std::complex<float> frameSamples[10000];      // Buffer of frame samples for each symbol.
                                                    // Large enough to accomodate any (reasonable) payload that 
@@ -1831,28 +1852,36 @@ int main(int argc, char ** argv)
     uhd::usrp::multi_usrp::sptr usrp;
     uhd::tx_streamer::sptr txStream;
 
+	float throughput = 0;
+	float efficiency = 0;
+	float total_symbols;
+	float payload_symbols;
+
 	// Metric Summary Variables for each scenario and each cognitive engine
 	int SC_total_frames[60][60];
 	int SC_valid_headers[60][60];
 	int SC_valid_payloads[60][60];
+	int SC_total_bits[60][60];
+	int SC_bit_errors[60][60];
 	float SC_EVM[60][60];
 	float SC_RSSI[60][60];
-	float SC_BER[60][60];
 	float SC_PER[60][60];
 	memset(SC_total_frames,0,60*60*sizeof(int));
 	memset(SC_valid_headers,0,60*60*sizeof(int));
 	memset(SC_valid_payloads,0,60*60*sizeof(int));
+	memset(SC_total_bits,0,60*60*sizeof(int));
+	memset(SC_total_bits,0,60*60*sizeof(int));
 	memset(SC_EVM,0,60*60*sizeof(float));
 	memset(SC_RSSI,0,60*60*sizeof(float));
-	memset(SC_BER,0,60*60*sizeof(float));
 	memset(SC_PER,0,60*60*sizeof(float));
 
 	int CE_total_frames[60] = {0};
 	int CE_valid_headers[60] = {0};
 	int CE_valid_payloads[60] = {0};
+	int CE_total_bits[60] = {0};
+	int CE_bit_errors[60] = {0};
 	float CE_EVM[60] = {0};
 	float CE_RSSI[60] = {0};
-	float CE_BER[60] = {0};
 	float CE_PER[60] = {0};
                                                    
     ////////////////////// End variable initializations.///////////////////////
@@ -1920,11 +1949,12 @@ int main(int argc, char ** argv)
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
 			//All metrics
-            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
-				"linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");*/
+            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-8s %-19s %-16s %-18s %-12s %-19s\n",
+				"linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors",
+				"BER:LastPacket","payloadBitErrors", "Throughput", "Spectral Efficiency");*/
 			//Useful metrics
-			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-10s %-16s \n",
-				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER");
+			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-19s\n",
+				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency");
             fflush(dataFile);
 
             // Initialize Receiver Defaults for current CE and Sc
@@ -1986,7 +2016,7 @@ int main(int argc, char ** argv)
 
                         // Set Modulation Scheme
                         if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
-                        modulation_scheme ms = convertModScheme(ce.modScheme);
+                        modulation_scheme ms = convertModScheme(ce.modScheme, &ce.bitsPerSym);
 
                         // Set Cyclic Redundency Check Scheme
                         //crc_scheme check = convertCRCScheme(ce.crcScheme);
@@ -2006,6 +2036,10 @@ int main(int argc, char ** argv)
                         // Record the feedback data received
                         //TODO: include fb.cfo
 
+						//float throughput = BPS*ce.bandwidth*ce.payloadLen/
+
+						printf("\n\n******* BITS PER SYMBOL: %i *******\n\n", ce.bitsPerSym);
+
 						//All metrics
                         /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", 
 							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
@@ -2022,9 +2056,18 @@ int main(int argc, char ** argv)
                         // Increment the frame counter
                         ce.frameNumber++;
 						ce.iteration++;
+
                         // Update the clock
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
+
+						// Store the sum of frame metrics for the scenario
+						SC_valid_headers[i_CE][i_Sc] += fb.header_valid;
+						SC_valid_payloads[i_CE][i_Sc] += fb.payload_valid;
+						SC_EVM[i_CE][i_Sc] += fb.evm;
+						SC_RSSI[i_CE][i_Sc] += fb.rssi;
+						SC_total_bits[i_CE][i_Sc] += ce.payloadLen;
+						SC_bit_errors[i_CE][i_Sc] += fb.payloadBitErrors;
                     } // End If while loop
                 }
                 else // If not using USRPs
@@ -2058,9 +2101,11 @@ int main(int argc, char ** argv)
                         // Include frame number in header information
                         //* header_u = ce.frameNumber;
 
+						// Called just to update bits per symbol field
+						convertModScheme(ce.modScheme, &ce.bitsPerSym);
+
                         // Assemble frame
                         ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
-
                         //printf("DoneTransmitting= %d\n", DoneTransmitting);
 
                         // i.e. Need to transmit each symbol in frame.
@@ -2069,7 +2114,6 @@ int main(int argc, char ** argv)
                         {
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
-
                             enactScenario(frameSamples, ce, sc, usingUSRPs);
 
                             // Rx Receives packet
@@ -2077,24 +2121,33 @@ int main(int argc, char ** argv)
                             symbolLen = ce.numSubcarriers + ce.CPLen;
                             ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
-
+						
                         // posttransmittasks
                         //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
                         DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
+						
                         // Record the feedback data received
 						//for (i=0; i<(signed int)ce.payloadLen; i++){
 						//	fprintf(dataFile, "%-4f", payload[i]);
 						//}
 						fflush(dataFile);
 
+						// Compute throughput and spectral efficiency
+						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+						total_symbols = (float)ofdmflexframegen_getframelen(fg);
+						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
+						/*printf("\n\nThroughput/Spectral Efficiency Calculations\nPayload Symbols: %f\nTotal Symbols: %f\nBandwidth: %f\nBits Per Symbol: %u\n", 
+							payload_symbols, total_symbols, ce.bandwidth, ce.bitsPerSym);
+						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
+
                         //All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", 
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors);*/
+							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth);*/
 						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-10.2f %-16.2f \n", 
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket);
+							ce.BERLastPacket, throughput, throughput/ce.bandwidth);
 
                         // Increment the frame counters and iteration counter
                         ce.frameNumber++;
@@ -2109,7 +2162,8 @@ int main(int argc, char ** argv)
 						SC_valid_payloads[i_CE][i_Sc] += fb.payload_valid;
 						SC_EVM[i_CE][i_Sc] += fb.evm;
 						SC_RSSI[i_CE][i_Sc] += fb.rssi;
-						SC_BER[i_CE][i_Sc] += ce.BERLastPacket;
+						SC_total_bits[i_CE][i_Sc] += ce.payloadLen;
+						SC_bit_errors[i_CE][i_Sc] += fb.payloadBitErrors;
                     } // End else While loop					
                 }
 
@@ -2134,14 +2188,13 @@ int main(int argc, char ** argv)
 			SC_total_frames[i_CE][i_Sc] = ce.frameNumber;
 			SC_EVM[i_CE][i_Sc] = SC_EVM[i_CE][i_Sc]/ce.frameNumber;
 			SC_RSSI[i_CE][i_Sc] = SC_RSSI[i_CE][i_Sc]/ce.frameNumber;
-			SC_BER[i_CE][i_Sc] = SC_BER[i_CE][i_Sc]/ce.frameNumber;
 			SC_PER[i_CE][i_Sc] = ce.PER;
 
 			// Display the scenario summary
 			printf("Cognitive Engine %i Scenario %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
 				"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, i_Sc+1, SC_total_frames[i_CE][i_Sc],
 				(float)SC_valid_headers[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc], (float)SC_valid_payloads[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc],
-				SC_EVM[i_CE][i_Sc], SC_RSSI[i_CE][i_Sc], SC_BER[i_CE][i_Sc], SC_PER[i_CE][i_Sc]);
+				SC_EVM[i_CE][i_Sc], SC_RSSI[i_CE][i_Sc], (float)SC_bit_errors[i_CE][i_Sc]/(float)SC_total_bits[i_CE][i_Sc], SC_PER[i_CE][i_Sc]);
 
 			// Store the sum of scenario metrics for the cognitive engine
 			CE_total_frames[i_CE] += SC_total_frames[i_CE][i_Sc];
@@ -2149,7 +2202,8 @@ int main(int argc, char ** argv)
 			CE_valid_payloads[i_CE] += SC_valid_payloads[i_CE][i_Sc];
 			CE_EVM[i_CE] += SC_EVM[i_CE][i_Sc];
 			CE_RSSI[i_CE] += SC_RSSI[i_CE][i_Sc];
-			CE_BER[i_CE] += SC_BER[i_CE][i_Sc];
+			CE_total_bits[i_CE] += SC_total_bits[i_CE][i_Sc];
+			CE_bit_errors[i_CE] += SC_bit_errors[i_CE][i_Sc];
 			CE_PER[i_CE] += SC_PER[i_CE][i_Sc];
 
 
@@ -2163,12 +2217,11 @@ int main(int argc, char ** argv)
 		// Divide the sum of each metric by the number of scenarios run to get the final metric
 		CE_EVM[i_CE] = CE_EVM[i_CE]/i_Sc;
 		CE_RSSI[i_CE] = CE_RSSI[i_CE]/i_Sc;
-		CE_BER[i_CE] = CE_BER[i_CE]/i_Sc;
 		CE_PER[i_CE] = CE_PER[i_CE]/i_Sc;
 
 		printf("Cognitive Engine %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
 			"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, CE_total_frames[i_CE], (float)CE_valid_headers[i_CE]/(float)CE_total_frames[i_CE],
-			(float)CE_valid_payloads[i_CE]/(float)CE_total_frames[i_CE], CE_EVM[i_CE], CE_RSSI[i_CE], CE_BER[i_CE], CE_PER[i_CE]);
+			(float)CE_valid_payloads[i_CE]/(float)CE_total_frames[i_CE], CE_EVM[i_CE], CE_RSSI[i_CE], (float)CE_bit_errors[i_CE]/(float)CE_total_bits[i_CE], CE_PER[i_CE]);
 
     } // End CE for loop
 	msequence_destroy(tx_ms);
