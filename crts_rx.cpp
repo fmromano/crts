@@ -55,6 +55,7 @@ struct rxCBstruct {
 	int sc_num;
 	int frameNum;
 	int lastValidFrameNum;
+	int client;
 };
 struct feedbackStruct {
     int             header_valid;
@@ -99,7 +100,7 @@ int rxCallback(unsigned char *  _header,
     //int i = 0;
 
     // Create a client TCP socket
-    int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
+    /*int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
         fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
@@ -121,7 +122,7 @@ int rxCallback(unsigned char *  _header,
         fprintf(stderr, "Receiver Failed to Connect to server.\n");
         fprintf(stderr, "connect_status = %d\n", connect_status);
         exit(EXIT_FAILURE);
-    }
+    }*/
 
     framesyncstats_print(&_stats); 
 
@@ -141,7 +142,7 @@ int rxCallback(unsigned char *  _header,
 
 	// Iterate the PN sequence generator to catch it up with the transmitter if frames were missed
 	if(_header_valid){
-		printf("\nReceived fn: %i\nLast fn: %i\n", fn, rxCBS_ptr->lastValidFrameNum);
+		printf("\nReceived frame number: %i\nLast frame number: %i\n", fn, rxCBS_ptr->lastValidFrameNum);
 		printf("Iterating the ms for %i frames\n\n", fn-rxCBS_ptr->lastValidFrameNum-1); 
 		if(fn>rxCBS_ptr->lastValidFrameNum+1){
 			for(int i=0; i<_payload_len*(fn-rxCBS_ptr->lastValidFrameNum-1); i++) msequence_generate_symbol(rx_ms,8);
@@ -192,11 +193,11 @@ int rxCallback(unsigned char *  _header,
     //printf("socket_to_server: %d\n", socket_to_server);
     //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
     //write(socket_to_server, feedback, 8*sizeof(float));
-    write(socket_to_server, (void*)&fb, sizeof(fb));
-    //printf("Rx writeStatus: %d\n", writeStatus);
+    int writeStatus = write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
+    printf("Rx writeStatus: %d\n", writeStatus);
 
     // Receiver closes socket to server
-    close(socket_to_server);
+    //close(socket_to_server);
     return 0;
 
 } // end rxCallback()
@@ -310,12 +311,41 @@ int main(int argc, char ** argv)
 
 	msequence rx_ms = msequence_create_default(9u);
 
-    struct rxCBstruct rxCBS = CreaterxCBStruct();
+	struct rxCBstruct rxCBS = CreaterxCBStruct();
     rxCBS.bandwidth = bandwidth;
     rxCBS.serverPort = serverPort;
     rxCBS.serverAddr = serverAddr;
 	rxCBS.rx_ms_ptr = &rx_ms;
 	rxCBS.lastValidFrameNum = 0;
+
+	// Create a client TCP socket
+	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
+	if( socket_to_server < 0)
+	{   
+	    fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
+	    exit(EXIT_FAILURE);
+	}   
+	//printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
+
+	// Parameters for connecting to server
+	struct sockaddr_in servAddr;
+	memset(&servAddr, 0, sizeof(servAddr));
+	servAddr.sin_family = AF_INET;
+	servAddr.sin_port = htons(serverPort);
+	servAddr.sin_addr.s_addr = inet_addr("192.168.1.23");
+
+	// Attempt to connect client socket to server
+	int connect_status;
+	if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
+	{   
+	    fprintf(stderr, "Receiver Failed to Connect to server.\n");
+	    fprintf(stderr, "connect_status = %d\n", connect_status);
+	    exit(EXIT_FAILURE);
+	}
+	else { printf("Succesfully connected to the server.\n\n"); }
+
+	rxCBS.client = socket_to_server;
+
     // Initialize Connection to USRP                                     
     unsigned char * p = NULL;   // default subcarrier allocation
     ofdmtxrx txcvr(numSubcarriers, CPLen, taperLen, p, rxCallback, (void*) &rxCBS);
@@ -414,6 +444,8 @@ int main(int argc, char ** argv)
         // lines 85-113
 
     } // End while
+	close(socket_to_server);
+	msequence_destroy(rx_ms);
 
     return 0;
 } // End main()

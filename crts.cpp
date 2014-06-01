@@ -114,6 +114,7 @@ struct rxCBstruct {
     float bandwidth;
     char * serverAddr;
 	msequence * rx_ms_ptr;
+	int client;
 };
 
 struct feedbackStruct {
@@ -132,8 +133,12 @@ struct feedbackStruct {
 
 struct serverThreadStruct {
     unsigned int serverPort;
-    float * feedback; // Deprecated
     struct feedbackStruct * fb_ptr;
+};
+
+struct serveClientStruct {
+	int client;
+	struct feedbackStruct * fb_ptr;
 };
 
 // Default parameters for a Cognitive Engine
@@ -212,10 +217,17 @@ struct rxCBstruct CreaterxCBStruct() {
 struct serverThreadStruct CreateServerStruct() {
     struct serverThreadStruct ss = {};
     ss.serverPort = 1402;
-    ss.feedback = NULL; // Deprecated
     ss.fb_ptr = NULL;
     return ss;
 } // End CreateServerStruct()
+
+//Defaults for struct that is sent to client threads
+struct serveClientStruct CreateServeClientStruct() {
+	struct serveClientStruct sc = {};
+	sc.client = 0;
+	sc.fb_ptr = NULL;
+	return sc;
+}; // End CreateServeClientStruct
 
 int readScMasterFile(char scenario_list[30][60], int verbose )
 {
@@ -1069,7 +1081,7 @@ int rxCallback(unsigned char *  _header,
     //int i = 0;
 
     // Create a client TCP socket
-    int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
+    /*int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
     if( socket_to_server < 0)
     {   
         fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
@@ -1091,7 +1103,7 @@ int rxCallback(unsigned char *  _header,
         fprintf(stderr, "Receiver Failed to Connect to server.\n");
         fprintf(stderr, "connect_status = %d\n", connect_status);
         exit(EXIT_FAILURE);
-    }
+    }*/
    
     //framesyncstats_print(&_stats); 
 
@@ -1151,11 +1163,11 @@ int rxCallback(unsigned char *  _header,
     //printf("socket_to_server: %d\n", socket_to_server);
     //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
     //write(socket_to_server, feedback, 8*sizeof(float));
-    write(socket_to_server, (void*)&fb, sizeof(fb));
-    //printf("Rx writeStatus: %d\n", writeStatus);
+	//if(rxCBS_ptr->client)printf("TEST\n");
+    write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
 
     // Receiver closes socket to server
-    close(socket_to_server);
+    //close(socket_to_server);
     return 0;
 
 } // end rxCallback()
@@ -1191,6 +1203,17 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct
 //    return 1;
 //} // End rxReceivePacket()
 
+void * serveTCPclient(void * _sc_ptr){
+	struct serveClientStruct * sc_ptr = (struct serveClientStruct*) _sc_ptr;
+	struct feedbackStruct read_buffer;
+	struct feedbackStruct *fb_ptr = sc_ptr->fb_ptr;
+	while(1){
+        bzero(&read_buffer, sizeof(read_buffer));
+        read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
+		if (read_buffer.evm) *fb_ptr = read_buffer;
+    }
+}
+
 // Create a TCP socket for the server and bind it to a port
 // Then sit and listen/accept all connections and write the data
 // to an array that is accessible to the CE
@@ -1207,7 +1230,6 @@ void * startTCPServer(void * _ss_ptr)
     //float * read_buffer = (float *) _read_buffer;
 
     //float * read_buffer = ss_ptr->feedback;
-    struct feedbackStruct * read_buffer = ss_ptr->fb_ptr;
 
     //  Local (server) address
     struct sockaddr_in servAddr;   
@@ -1215,8 +1237,10 @@ void * startTCPServer(void * _ss_ptr)
     struct sockaddr_in clientAddr;              // Client address 
     socklen_t client_addr_size;  // Client address size
     int socket_to_client = -1;
-
     int reusePortOption = 1;
+
+	pthread_t TCPServeClientThread[5]; // Threads for clients
+	int client = 0; // Client counter
         
     // Create socket for incoming connections 
     int sock_listen;
@@ -1244,6 +1268,7 @@ void * startTCPServer(void * _ss_ptr)
         fprintf(stderr, "ERROR: bind() error\n");
         exit(EXIT_FAILURE);
     }
+
     // Listen and accept connections indefinitely
     while (1)
     {
@@ -1264,16 +1289,19 @@ void * startTCPServer(void * _ss_ptr)
             fprintf(stderr, "ERROR: Sever Failed to Connect to Client\n");
             exit(EXIT_FAILURE);
         }
+		// Create separate thread for each client as they are accepted.
+		else {
+			struct serveClientStruct sc = CreateServeClientStruct();
+			sc.client = socket_to_client;
+			sc.fb_ptr = ss_ptr->fb_ptr;
+			pthread_create( &TCPServeClientThread[client], NULL, serveTCPclient, (void*) &sc);
+			client++;
+		}
         //printf("Server has accepted connection from client\n");
         // Transmitter receives data from client (receiver)
-            // Zero the read buffer. Then read the data into it.
-            bzero(read_buffer, sizeof(*read_buffer));
-            //int read_status = -1;   // indicates success/failure of read operation.
-            //read_status = read(socket_to_client, read_buffer, 255);
-            read(socket_to_client, read_buffer, sizeof(*read_buffer));
-        close(socket_to_client);
-
-    } // End listening While loop
+        // Zero the read buffer. Then read the data into it.
+	}// End While loop
+	
 } // End startTCPServer()
 
 int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, int verbose)
@@ -1793,7 +1821,6 @@ int main(int argc, char ** argv)
 
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
-    float feedback[100];
     struct feedbackStruct fb = {};
 
     // For creating appropriate symbol length from 
@@ -1825,7 +1852,6 @@ int main(int argc, char ** argv)
     //printf("structs declared\n");
     // framegenerator object used in each test
     ofdmflexframegen fg;
-	ofdmflexframegenprops_s fgprops;
 
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
@@ -1842,7 +1868,7 @@ int main(int argc, char ** argv)
                                                    // the CE wants to use.
 
     // pointer for accessing header array when it has float values
-    unsigned int * header_u = (unsigned int *) header;
+    //unsigned int * header_u = (unsigned int *) header;
 
     std::complex<float> frameSamples[10000];      // Buffer of frame samples for each symbol.
                                                    // Large enough to accomodate any (reasonable) payload that 
@@ -1853,7 +1879,6 @@ int main(int argc, char ** argv)
     uhd::tx_streamer::sptr txStream;
 
 	float throughput = 0;
-	float efficiency = 0;
 	float total_symbols;
 	float payload_symbols;
 
@@ -1890,7 +1915,6 @@ int main(int argc, char ** argv)
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
     struct serverThreadStruct ss = CreateServerStruct();
     ss.serverPort = serverPort;
-    ss.feedback = feedback; // Deprecated
     ss.fb_ptr = &fb;
     pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
 
@@ -1904,6 +1928,41 @@ int main(int argc, char ** argv)
 
     // Allow server time to finish initialization
     usleep(0.1e6);
+
+	//signal (SIGPIPE, SIG_IGN);
+
+	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
+	if(!usingUSRPs){
+		// Create a client TCP socket] 
+		if( socket_to_server < 0)
+		{   
+		    fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
+		    exit(EXIT_FAILURE);
+		}   
+		//printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
+
+		// Parameters for connecting to server
+		struct sockaddr_in servAddr;
+		memset(&servAddr, 0, sizeof(servAddr));
+		servAddr.sin_family = AF_INET;
+		servAddr.sin_port = htons(serverPort);
+		servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+		// Attempt to connect client socket to server
+		int connect_status;
+		if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
+		{   
+		    fprintf(stderr, "Receiver Failed to Connect to server.\n");
+		    fprintf(stderr, "connect_status = %d\n", connect_status);
+		    exit(EXIT_FAILURE);
+		}
+
+		rxCBs.client = socket_to_server;
+	}
+	else{
+		printf("\nPress any key once all nodes have connected to the TCP server\n");
+		getchar();
+	}
 
     // Get current date and time
     char dataFilename[50];
@@ -2036,21 +2095,22 @@ int main(int argc, char ** argv)
                         // Record the feedback data received
                         //TODO: include fb.cfo
 
-						//float throughput = BPS*ce.bandwidth*ce.payloadLen/
+						// Compute throughput and spectral efficiency
+						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+						total_symbols = (float)ofdmflexframegen_getframelen(fg);
+						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
+						/*printf("\n\nThroughput/Spectral Efficiency Calculations\nPayload Symbols: %f\nTotal Symbols: %f\nBandwidth: %f\nBits Per Symbol: %u\n", 
+							payload_symbols, total_symbols, ce.bandwidth, ce.bitsPerSym);
+						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
 
-						printf("\n\n******* BITS PER SYMBOL: %i *******\n\n", ce.bitsPerSym);
-
-						//All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", 
+                        //All metrics
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors);*/
+							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth);*/
 						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-10.2f %-16.2f \n", 
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket);
-
-                        //fprintf(dataFile, "crtsdata:\t%u\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", fb.frameNum, feedback[0], 
-                        //        feedback[1], feedback[2], feedback[3], ce.PER, feedback[5], feedback[6], ce.BERLastPacket);
+							ce.BERLastPacket, throughput, throughput/ce.bandwidth);
                         fflush(dataFile);
 
                         // Increment the frame counter
@@ -2095,7 +2155,7 @@ int main(int argc, char ** argv)
 						header[7] = 0;
                         for (i=0; i<(signed int)ce.payloadLen; i++)
                             payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
-
+						
 						//printf("Header: %i %i %i %i %i %i %i %i\n", header[0], header[1], header[2], header[3], header[4], header[5], header[6], header[7]);
 
                         // Include frame number in header information
@@ -2107,7 +2167,7 @@ int main(int argc, char ** argv)
                         // Assemble frame
                         ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
                         //printf("DoneTransmitting= %d\n", DoneTransmitting);
-
+						
                         // i.e. Need to transmit each symbol in frame.
                         isLastSymbol = 0;
                         while (!isLastSymbol) 
@@ -2115,11 +2175,11 @@ int main(int argc, char ** argv)
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
                             enactScenario(frameSamples, ce, sc, usingUSRPs);
-
+							
                             // Rx Receives packet
                             //rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
                             symbolLen = ce.numSubcarriers + ce.CPLen;
-                            ofdmflexframesync_execute(fs, frameSamples, symbolLen);
+							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
 						
                         // posttransmittasks
@@ -2226,6 +2286,8 @@ int main(int argc, char ** argv)
     } // End CE for loop
 	msequence_destroy(tx_ms);
 	msequence_destroy(rx_ms);
+
+	if(!usingUSRPs) close(socket_to_server);
 
     return 0;
 }
