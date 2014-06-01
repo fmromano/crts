@@ -92,6 +92,9 @@ struct CognitiveEngine {
     unsigned int numSubcarriers;
     unsigned int CPLen;
     unsigned int taperLen;
+	unsigned int averaging;
+	float metric_mem[100]; // For computing running average
+	float averagedGoalValue;
 
 };
 
@@ -177,6 +180,9 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.PER_threshold = 0.5;
     ce.BER_threshold = 0.5;
     ce.FECswitch = 1;
+	ce.averaging = 1;
+	memset(ce.metric_mem,0,100*sizeof(float));
+	ce.averagedGoalValue = 0;
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.adaptation, "mod_scheme->BPSK");
     strcpy(ce.goal, "payload_valid");
@@ -539,6 +545,11 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->BER_threshold=tmpD; 
            if (verbose) printf("BER_threshold: %f\n", tmpD);
+        }
+		if (config_setting_lookup_float(setting, "averaging", &tmpD))
+        {
+           ce->averaging=tmpD; 
+           if (verbose) printf("Averaging: %f\n", tmpD);
         }
     }
     config_destroy(&cfg);
@@ -1359,7 +1370,6 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
     {       
 		if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime + ce->iteration*ce->delay_us/1.0e6);
         ce->latestGoalValue = ce->runningTime + ce->iteration*ce->delay_us/1.0e6;
-		//printf("Iteration: %i Delay: %f\n", ce->iteration, ce->delay_us);
     }
     else
     {
@@ -1371,21 +1381,30 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
     return 1;
 } // End ceProcessData()
 
-int ceOptimized(struct CognitiveEngine ce, int verbose)
+int ceOptimized(struct CognitiveEngine * ce, int verbose)
 {
-   if (verbose) 
-   {
-       printf("Checking if goal value has been reached.\n");
-       printf("ce.latestGoalValue= %f\n", ce.latestGoalValue);
-       printf("ce.threshold= %f\n", ce.threshold);
-   }
-   if (ce.latestGoalValue >= ce.threshold)
-   {
-       if (verbose) printf("Goal is reached!\n");
-       return 1;
-   }
-   if (verbose) printf("Goal not reached yet.\n");
-   return 0;
+	// Update running average
+	ce->averagedGoalValue -= ce->metric_mem[ce->iteration%ce->averaging]/ce->averaging;
+	ce->averagedGoalValue += ce->latestGoalValue/ce->averaging;
+	ce->metric_mem[ce->iteration%ce->averaging] = ce->latestGoalValue;
+
+	//printf("\nLatest: %.2f Average: %.2f Memory: %.2f\n\n", ce->latestGoalValue, ce->averagedGoalValue, ce->metric_mem[ce->iteration%ce->averaging]);
+	
+   	if(ce->frameNumber>ce->averaging){
+		if (verbose) 
+	   	{
+		   printf("Checking if goal value has been reached.\n");
+		   printf("ce.averagedGoalValue= %f\n", ce->averagedGoalValue);
+		   printf("ce.threshold= %f\n", ce->threshold);
+	   	}
+	   	if (ce->latestGoalValue >= ce->threshold)
+	   	{
+		   if (verbose) printf("Goal is reached!\n");
+		   return 1;
+	   	}
+	   	if (verbose) printf("Goal not reached yet.\n");
+	}
+   	return 0;
 } // end ceOptimized()
 
 int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, int verbose)
@@ -1752,7 +1771,7 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     // Process data from rx
     ceProcessData(cePtr, fb_ptr, verbose);
     // Modify transmission parameters (in fg and in USRP) accordingly
-    if (!ceOptimized(*cePtr, verbose)) 
+    if (!ceOptimized(cePtr, verbose)) 
     {
         if (verbose) printf("ceOptimized() returned false\n");
         ceModifyTxParams(cePtr, fb_ptr, verbose);
@@ -1774,6 +1793,10 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
 
     return DoneTransmitting;
 } // End postTxTasks()
+
+void terminate(int sig){
+	exit(1);
+}
 
 int main(int argc, char ** argv)
 {
@@ -1911,6 +1934,11 @@ int main(int argc, char ** argv)
                                                    
     ////////////////////// End variable initializations.///////////////////////
 
+	signal(SIGTERM, terminate);
+	signal(SIGINT, terminate);
+	signal(SIGQUIT, terminate);
+	signal(SIGKILL, terminate);
+
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
     struct serverThreadStruct ss = CreateServerStruct();
@@ -2008,12 +2036,12 @@ int main(int argc, char ** argv)
 
             fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
 			//All metrics
-            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-8s %-19s %-16s %-18s %-12s %-19s\n",
+            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-8s %-19s %-16s %-18s %-12s %-20s %-19s\n",
 				"linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors",
-				"BER:LastPacket","payloadBitErrors", "Throughput", "Spectral Efficiency");*/
+				"BER:LastPacket","payloadBitErrors", "Throughput", "Spectral Efficiency", "Averaged Goal Value");*/
 			//Useful metrics
-			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-19s\n",
-				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency");
+			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-20s %-19s\n",
+				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency", "Averaged Goal Value");
             fflush(dataFile);
 
             // Initialize Receiver Defaults for current CE and Sc
@@ -2104,13 +2132,13 @@ int main(int argc, char ** argv)
 						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
 
                         //All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-19.2f\n", 
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth);*/
+							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
 						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-19.2f\n", 
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth);
+							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
                         fflush(dataFile);
 
                         // Increment the frame counter
@@ -2201,17 +2229,16 @@ int main(int argc, char ** argv)
 						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
 
                         //All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-19.2f\n", 
+                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth);*/
+							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
 						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-19.2f\n", 
+						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth);
+							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 
                         // Increment the frame counters and iteration counter
                         ce.frameNumber++;
-						//rxCBs.frameNum++;
 						ce.iteration++;
                         // Update the clock
                         now = std::clock();
