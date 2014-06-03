@@ -109,6 +109,10 @@ struct Scenario {
     float fadeK;
     float fadeFd;
     float fadeDPhi;
+
+	int addCW; // Does the Scenario have a CW interferer?
+	float cw_pow;
+	float cw_freq;
 };
 
 struct rxCBstruct {
@@ -208,6 +212,11 @@ struct Scenario CreateScenario() {
     sc.fadeK = 30.0f,
     sc.fadeFd = 0.2f,
     sc.fadeDPhi = 0.001f;
+
+	sc.addCW = 0;
+	sc.cw_pow = 0;
+	sc.cw_freq = 0;
+
     return sc;
 } // End CreateScenario()
 
@@ -663,6 +672,27 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
             sc->addFading=(float)tmpD;
             if (verbose) printf("addFading: %f\n", tmpD);
         }
+
+		// Read the integer
+		if (config_setting_lookup_int(setting, "addCW", &tmpI))
+        {
+            sc->addCW=(float)tmpI;
+            if (verbose) printf("addCW: %i\n", tmpI);
+        }
+
+		// Read the double
+		if (config_setting_lookup_float(setting, "cw_pow", &tmpD))
+        {
+            sc->cw_pow=(float)tmpD;
+            if (verbose) printf("cw_pow: %f\n", tmpD);
+        }
+
+		// Read the double
+		if (config_setting_lookup_float(setting, "cw_freq", &tmpD))
+        {
+            sc->cw_freq=(float)tmpD;
+            if (verbose) printf("cw_freq: %f\n", tmpD);
+        }
         //else
         //    printf("No addFading setting in configuration file.\n");
     }
@@ -698,6 +728,20 @@ void addAWGN(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, s
         cawgn(&transmit_buffer[i], nstd);            // add noise
     }
 } // End addAWGN()
+
+void addCW(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+{
+	float fs = ce.bandwidth; // Sample rate of the transmit buffer
+	float k = pow(10.0, sc.cw_pow/20.0); // Coefficient to set the interferer power correctly
+	unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+
+	//printf("Coefficient: %f\n", k);
+
+	for(unsigned int i=0; i<symbol_len; i++)
+	{
+		transmit_buffer[i] += k*sin(6.283*sc.cw_freq*i/fs); // Add CW tone
+	}
+} // End addCW()
 
 // Add Rice-K Fading
 void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
@@ -789,19 +833,21 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
 // TODO: Alter code for when usingUSRPs
 void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc, int usingUSRPs)
 {
-    // Check AWGN
+    // Add appropriate RF impairments for the scenario
     if (sc.addNoise == 1){
        addAWGN(transmit_buffer, ce, sc);
     }
-    if (sc.addInterference == 1){
-       fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
+    if (sc.addCW == 1){
+       //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
        // Interference function
+		addCW(transmit_buffer, ce, sc);
     }
     if (sc.addFading == 1){
        addRiceFading(transmit_buffer, ce, sc);
     }
-    if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
-       fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
+    if ( (sc.addNoise == 0) && (sc.addCW == 0) && (sc.addFading == 0) ){
+       	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
+		fprintf(stderr, "addCW: %i\n", sc.addCW);
     }
 } // End enactScenario()
 
@@ -867,7 +913,7 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
        //addRiceFading(transmit_buffer, ce, sc);
        fprintf(stderr, "WARNING: There is currently no USRP Fading scenario functionality!\n");
     }
-    if ( (sc.addNoise == 0) && (sc.addInterference == 0) && (sc.addFading == 0) ){
+    if ( (sc.addNoise == 0) && (sc.addCW == 0) && (sc.addFading == 0) ){
        fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
     }
 } // End enactUSRPScenario()
@@ -2198,6 +2244,7 @@ int main(int argc, char ** argv)
 						
                         // i.e. Need to transmit each symbol in frame.
                         isLastSymbol = 0;
+
                         while (!isLastSymbol) 
                         {
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);

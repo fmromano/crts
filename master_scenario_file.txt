@@ -5,6 +5,8 @@ filename = "Master Configuation File for Scenarios";
 // Parameters
 params = 
 {
-NumberofScenarios =1;
+NumberofScenarios = 3;
 scenario_1 = "AWGN.txt";
+scenario_2 = "AWGNAndRiceanFading.txt";
+scenario_3 = "Interferer_CW.txt";
 };
