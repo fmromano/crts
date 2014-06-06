@@ -41,9 +41,9 @@ params =
     // Specifies what adaption will be made when 
     // the condition specified by the 'adaptationCondition'
     // option is met.
-    // Does not apply when using the "user_specified"
+    // Keep set to "None" when using the "user_specified"
     // 'adaptationCondition' option.
-    adaptation  =   "decrease_mod_scheme_PSK";
+    adaptation  =   "None";
 
     // For CE's that adapt based on the PER Rate.
     // Threshold for deciding whether to make an adaptation.
