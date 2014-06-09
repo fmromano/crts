@@ -9,12 +9,15 @@ params =
     // test in a particular scenario.
     // If there is an X in the goal. That value is specified by 
     // the 'threshold' option.
-    goal                =   "X_errorFreePayloads";
+    goal                =   "X_seconds";
     
     // Threshold for when the CE has reached its 'goal'
-    threshold           =   1000.0;
+    threshold           =   10.0;
 
-    // Specifies the condition under which the CE will
+	// Number of packets averaged to determine metric (where applicable)
+	averaging			=	1.0;    
+
+	// Specifies the condition under which the CE will
     // perform the adaptation specified in
     // the 'adaptation' option.
     // Possible options are: "last_payload_invalid", "PER<X", "PER>X", 
@@ -48,7 +51,7 @@ params =
 
     // Delay between sending of each frame.
     // In microseconds. Must be an int.
-    delay_us            =   1000000;
+    delay_us            =   100000;
 
     // Carrier frequency for when using USRPs.
     // In Hz. Must be a float. 

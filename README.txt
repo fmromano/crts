@@ -18,24 +18,23 @@ Running CRTS:
        The crts binary will simulate both a transmitter and a receiver, perform the cognitive functions, and record experiment data.
 
     To run CRTS using USRPs, use both
+            $./crts -rc
+        for the controller and
             $./crts -r
-        and
-            $./crts_rx
+        for the receiver node.
         They can be run on separate machines, but they must be networked. Check the command line options for specifying IP addresses and ports. 
-        When using CRTS with USRPs, the crts binary connects to the transmitter USRP, performs the cognitive functions, and records experiment data. The crts_rx binary, on the other hand, connects to the receiver USRP and sends feedback to the transmitter over a TCP/IP connection. 
+        When using CRTS with USRPs, the crts contorller connects to the transmitter USRP, performs the cognitive functions, and records experiment data. The crts receiver, on the other hand, connects to the receiver USRP and sends feedback to the transmitter over a TCP/IP connection. 
 
     For available command line options, use:
             $ ./crts -h
-        or
-            $ ./crts_rx -h
 
 Creating and Testing Cognitive Engines
-    Cognitive Engines are represented by configuration files located in the ceconfigs/ directory of the source tree. All CE config files should be placed there. An example CE config file, called ‘ce1.txt’, is provided. Read it to learn about the currently supported options for CEs.
-    To test one or more CEs, they should be listed in the CE master file, ‘master_cogengine_file.txt’. CRTS will run each listed CE through each test scenario. More details can be found in the CE master file.
+    Cognitive Engines are represented by configuration files located in the ceconfigs/ directory of the source tree. All CE config files should be placed there. An example CE config file, called 'ce1.txt', is provided. Read it to learn about the currently supported options for CEs.
+    To test one or more CEs, they should be listed in the CE master file, 'master_cogengine_file.txt'. CRTS will run each listed CE through each test scenario. More details can be found in the CE master file.
 
 Creating and Using Scenarios/Signal Environments
     Testing Scenarios are represented by configuration files located in the scconfigs/ directory of the source tree. All scenario config files should be placed there. Several example scenario config files are provided with CRTS. 
-    To use a scenario file in a test, it should be listed in scenario master file, ‘master_scenario_file.txt’, which uses the same format as the CE master file. 
+    To use a scenario file in a test, it should be listed in scenario master file, 'master_scenario_file.txt', which uses the same format as the CE master file. 
 
 Data logging
     All data files are logged in the data/ directory. The file names have the date and time of the start of the test appended to them.
