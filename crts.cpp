@@ -1702,16 +1702,16 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     // FIXME: Find another way to fix this:: FIXED?
     usleep(cePtr->delay_us);
 	std::clock_t timeout_start = std::clock();
-	/*while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
+	while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
 		usleep(10.0e5);
 		printf("Waiting for feedback\n");
 		printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
 			"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
 			"FB Frame Number:", fb_ptr->frameNum);
 		std::clock_t timeout_now = std::clock();
-		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-4) break;
+		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
 	}
-    */
+    
 	//printf("Feedback detected\n");
 	//printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
 		//"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
@@ -2001,7 +2001,7 @@ int main(int argc, char ** argv)
                     unsigned char * p = NULL;   // default subcarrier allocation
                     if (verbose) 
                         printf("Using ofdmtxrx\n");
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, NULL, NULL);
+                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs);
 
                     // Start the Scenario simulations from the scenario USRPs
                     //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
