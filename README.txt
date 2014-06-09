@@ -14,7 +14,7 @@ Building CRTS:
 Running CRTS:
     CRTS must be run from the root of the source tree. 
     To run CRTS in simulation mode, use:
-            $./crts
+            $./crts -c
        The crts binary will simulate both a transmitter and a receiver, perform the cognitive functions, and record experiment data.
 
     To run CRTS using USRPs, use both
