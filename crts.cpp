@@ -43,6 +43,14 @@ void usage() {
     printf("  -r     :   real transmissions using USRPs (opposite of -s)\n");
     printf("  -s     :   simulation mode (default)\n");
     printf("  -p     :   server port (default: 1402)\n");
+    printf("  -c     :   controller - this crts instance will act as experiment controller (needs -r)\n");
+    printf("  -a     :   server IP address (when not controller. default: 127.0.0.1)\n");
+    printf("  -f     :   center frequency [Hz] (when not controller. default: 460 MHz)\n");
+    printf("  -b     :   bandwidth [Hz], (when not controller. default: 1.0 MHz)\n");
+    printf("  -G     :   uhd rx gain [dB] (when not controller. default: 20dB)\n");
+    printf("  -M     :   number of subcarriers (when not controller. default: 64)\n");
+    printf("  -C     :   cyclic prefix length (when not controller. default: 16)\n");
+    printf("  -T     :   taper length (when not controller. default: 4)\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -113,6 +121,9 @@ struct rxCBstruct {
     float bandwidth;
     char * serverAddr;
 	msequence * rx_ms_ptr;
+    int ce_num;
+    int sc_num;
+    int frameNum;
 };
 
 struct feedbackStruct {
@@ -202,6 +213,8 @@ struct Scenario CreateScenario() {
 struct rxCBstruct CreaterxCBStruct() {
     struct rxCBstruct rxCB = {};
     rxCB.serverPort = 1402;
+    rxCB.bandwidth = 1.0e6;
+    rxCB.serverAddr = (char*) "127.0.0.1";
     rxCB.verbose = 1;
     return rxCB;
 } // End CreaterxCBStruct()
@@ -366,6 +379,9 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
 
     strcpy(ceFileLocation, "ceconfigs/");
     strcat(ceFileLocation, current_cogengine_file);
+
+    if (verbose)
+        printf("Reading ceconfigs/%s\n", current_cogengine_file);
 
     //Initialization
     config_init(&cfg);
@@ -1061,7 +1077,8 @@ int rxCallback(unsigned char *  _header,
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
     servAddr.sin_port = htons(rxCBS_ptr->serverPort);
-    servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    //servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servAddr.sin_addr.s_addr = inet_addr(rxCBS_ptr->serverAddr);
 
     // Attempt to connect client socket to server
     int connect_status;
@@ -1118,7 +1135,7 @@ int rxCallback(unsigned char *  _header,
 	fb.frameNum				=	0;
 
 	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
-	//printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
+	printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
 
     if (verbose)
     {
@@ -1685,15 +1702,16 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     // FIXME: Find another way to fix this:: FIXED?
     usleep(cePtr->delay_us);
 	std::clock_t timeout_start = std::clock();
-	while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
+	/*while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
 		usleep(10.0e5);
 		printf("Waiting for feedback\n");
 		printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
 			"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
 			"FB Frame Number:", fb_ptr->frameNum);
 		std::clock_t timeout_now = std::clock();
-		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
+		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-4) break;
 	}
+    */
 	//printf("Feedback detected\n");
 	//printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
 		//"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
@@ -1739,21 +1757,44 @@ int main(int argc, char ** argv)
     int verbose_explicit = 0;
     int dataToStdout = 0;
 
+    
+
+    // For experiments with CR Networks.
+    // Specifies whether this crts instance is managing the experiment.
+    int isController = 0;
+
     unsigned int serverPort = 1402;
+    char * serverAddr = (char*) "127.0.0.1";
+
+    // Frame Synchronizer parameters
+    unsigned int numSubcarriers = 64;
+    unsigned int CPLen = 16;
+    unsigned int taperLen = 4;
+    float bandwidth = 1.0e6;
+    float frequency = 460.0e6;
+    float uhd_rxgain = 20.0;
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uhqvdrsp:")) != EOF) {
+    while ((d = getopt(argc,argv,"uhqvdrsp:ca:f:b:G:M:C:T:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           return 0;
-        case 'q':   verbose = 0;                          break;
-        case 'v':   verbose = 1; verbose_explicit = 1;    break;
+        case 'q':   verbose = 0;                            break;
+        case 'v':   verbose = 1; verbose_explicit = 1;      break;
         case 'd':   dataToStdout = 1; 
-                    if (!verbose_explicit) verbose = 0;   break;
-        case 'r':   usingUSRPs = 1;                       break;
-        case 's':   usingUSRPs = 0;                       break;
-        case 'p':   serverPort = atoi(optarg);            break;
+                    if (!verbose_explicit) verbose = 0;     break;
+        case 'r':   usingUSRPs = 1;                         break;
+        case 's':   usingUSRPs = 0;                         break;
+        case 'p':   serverPort = atoi(optarg);              break;
+        case 'c':   isController = 1;                       break;
+        case 'a':   serverAddr = optarg;                    break;
+        case 'f':   frequency = atof(optarg);               break;
+        case 'b':   bandwidth = atof(optarg);               break;
+        case 'G':   uhd_rxgain = atof(optarg);              break;
+        case 'M':   numSubcarriers = atoi(optarg);          break;
+        case 'C':   CPLen = atoi(optarg);                   break;
+        case 'T':   taperLen = atoi(optarg);                break;
         //case 'p':   serverPort = atol(optarg);            break;
         //case 'f':   frequency = atof(optarg);           break;
         //case 'b':   bandwidth = atof(optarg);           break;
@@ -1764,7 +1805,6 @@ int main(int argc, char ** argv)
         }   
     }   
 
-    // Threading parameters (to open Server in its own thread)
     pthread_t TCPServerThread;   // Pointer to thread ID
     // Threading for using uhd_siggen (for when using USRPs)
     //pthread_t siggenThread;
@@ -1863,10 +1903,13 @@ int main(int argc, char ** argv)
     ss.serverPort = serverPort;
     ss.feedback = feedback; // Deprecated
     ss.fb_ptr = &fb;
-    pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
+    if (isController) 
+        pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
+    rxCBs.bandwidth = bandwidth;
     rxCBs.serverPort = serverPort;
+    rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
 	rxCBs.rx_ms_ptr = &rx_ms;
 	//rxCBs.ce_num = 1;
@@ -1909,23 +1952,36 @@ int main(int argc, char ** argv)
         {
             //rxCBs.sc_num = i_Sc+1;
 
-			// Initialize current CE
+            // Initialize current CE
             ce = CreateCognitiveEngine();
-            readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
+            if (isController)
+            {
+                readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
 
-            if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
-            // Initialize current Scenario
-            sc = CreateScenario();
-            readScConfigFile(&sc,scenario_list[i_Sc], verbose);
+                if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
+                // Initialize current Scenario
+                sc = CreateScenario();
+                readScConfigFile(&sc,scenario_list[i_Sc], verbose);
 
-            fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
-			//All metrics
-            /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
-				"linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");*/
-			//Useful metrics
-			fprintf(dataFile, "%-10s %-10s %-10s %-10s %-10s %-16s \n",
-				"linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER");
-            fflush(dataFile);
+                fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
+                //All metrics
+                /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
+                    "linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");*/
+                //Useful metrics
+                fprintf(dataFile, "%-10s %-10s %-10s %-10s %-10s %-16s \n",
+                    "linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER");
+                fflush(dataFile);
+            }
+            else
+            // If this crts instance is not the controller,
+            // then no CEs, adaptations, scenarios, etc.
+            {
+                ce.numSubcarriers = numSubcarriers;
+                ce.CPLen = CPLen;
+                ce.taperLen = taperLen;
+                ce.frequency = frequency;
+                ce.bandwidth = bandwidth;
+            }
 
             // Initialize Receiver Defaults for current CE and Sc
             ce.frameNumber = 1;
@@ -1958,6 +2014,27 @@ int main(int argc, char ** argv)
                         txcvr.set_tx_gain_soft(ce.txgain_dB);
                         txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
                         //txcvr.set_tx_antenna("TX/RX");
+
+                        if (!isController)
+                        {
+                            txcvr.set_rx_freq(frequency);
+                            txcvr.set_rx_rate(bandwidth);
+                            txcvr.set_rx_gain_uhd(uhd_rxgain);
+
+                            if (verbose)
+                            {
+                                txcvr.debug_enable();
+                                printf("Set Rx freq to %f\n", frequency);
+                                printf("Set Rx rate to %f\n", bandwidth);
+                                printf("Set uhd Rx gain to %f\n", uhd_rxgain);
+                            }
+
+                            int continue_running = 1;
+                            txcvr.start_rx();
+                            while(continue_running)
+                            {
+                            }
+                        }
 
                         if (verbose) {
                             txcvr.debug_enable();

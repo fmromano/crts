@@ -36,14 +36,14 @@ params =
     // Specifies the condition under which the CE will
     // perform the adaptation specified in
     // the 'adaptation' option.
-    adaptationCondition =   "BER_lastPacket>X";
+    adaptationCondition =   "user_specified";
 
     // Specifies what adaption will be made when 
     // the condition specified by the 'adaptationCondition'
     // option is met.
-    // Does not apply when using the "user_specified"
+    // Keep set to "None" when using the "user_specified"
     // 'adaptationCondition' option.
-    adaptation  =   "decrease_mod_scheme_PSK";
+    adaptation  =   "None";
 
     // For CE's that adapt based on the PER Rate.
     // Threshold for deciding whether to make an adaptation.
@@ -73,14 +73,14 @@ params =
     // Possible Values depend on your USRP hardware.
     // Helpful information can be found with the command
     // $ uhd_usrp_probe
-    uhd_txgain_dB       =   25.0;
+    uhd_txgain_dB       =   15.0;
 
     // Tx Gain applied to baseband signal before it is sent to USRP.
     // In dB. Should always be a float. 
     // Any float value is possible but beware that the USRP only accepts
     // sample values between -1.0 and 1.0 so don't make it too large. 
     // Currently only applicable when using USRPs.
-    txgain_dB           =   -8.0;
+    txgain_dB           =   -10.0;
 
     // Modulation scheme for the payload of the frame.
     // The header of the frame always uses BPSK.
@@ -88,7 +88,7 @@ params =
     // "64PSK", "128PSK", "8QAM", "16QAM", "32QAM", "64QAM", "BASK", 
     // "4ASK", "8ASK", "16ASK", "32ASK", "64ASK", and "128ASK"
     // See the liquid-dsp documentation for more information on these options.
-    modScheme           =   "64PSK";
+    modScheme           =   "BPSK";
 
     // Cyclic Redundancy Check for packet
     // Possible values are "none", "checksum", "8", "16", "24", and "32"

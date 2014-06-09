@@ -37,8 +37,8 @@ description = "This file specifies which CE config files to use in a run of CRTS
 params = 
 {
     # To only test one CE, use the format:
-    NumberofCogEngines = 1;
-    cogengine_1 = "ce1.txt";
+    #NumberofCogEngines = 1;
+    #cogengine_1 = "ce1.txt";
 
     ## To test multiple CE's, use the format:
     #NumberofCogEngines = 4;
@@ -50,7 +50,7 @@ params =
     ## To let a user or program specify the CE adaptations, use
     ## the special file: "userEngine.txt".
     ## Read the file "userEngine.txt" for more information.
-    #NumberofCogEngines = 1;
-    #cogengine_1 = "userEngine.txt";
+    NumberofCogEngines = 1;
+    cogengine_1 = "userEngine.txt";
 
 };

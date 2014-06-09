@@ -21,6 +21,8 @@ params =
     // "BER_lastPacket<X", "BER_lastPacket>X", "last_packet_error_free"
     // "weighted_avg_payload_valid<X", "weighted_avg_payload_valid>X"
     adaptationCondition =   "BER_lastPacket>X";
+    //adaptationCondition =   "user_specified";
+
 
     // Specifies what adaption will be made when 
     // the condition specified by the 'adaptationCondition'
@@ -64,7 +66,7 @@ params =
     // Possible Values depend on your USRP hardware.
     // Helpful information can be found with the command
     // $ uhd_usrp_probe
-    uhd_txgain_dB       =   25.0;
+    uhd_txgain_dB       =   30.0;
 
     // Tx Gain applied to baseband signal before it is sent to USRP.
     // In dB. Should always be a float. 
@@ -79,7 +81,7 @@ params =
     // "64PSK", "128PSK", "8QAM", "16QAM", "32QAM", "64QAM", "BASK", 
     // "4ASK", "8ASK", "16ASK", "32ASK", "64ASK", and "128ASK"
     // See the liquid-dsp documentation for more information on these options.
-    modScheme           =   "64PSK";
+    modScheme           =   "BPSK";
 
     // Cyclic Redundancy Check for packet
     // Possible values are "none", "checksum", "8", "16", "24", and "32"
