@@ -2063,6 +2063,7 @@ int main(int argc, char ** argv)
 		memset(&servAddr, 0, sizeof(servAddr));
 		servAddr.sin_family = AF_INET;
 		servAddr.sin_port = htons(serverPort);
+        //TODO: change to ip from command line
 		servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 		// Attempt to connect client socket to server
@@ -2241,6 +2242,19 @@ int main(int argc, char ** argv)
                         fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
                         txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        // TODO: Replace with txcvr methods that allow access to samples:
+                            /*
+                            txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
+                            int lastSymbol = 0;
+                            while(!lastSymbol)
+                            {
+                                lastSymbol = txcvr.write_symbol();
+                                //functionThatModifiesSamples(&txcvr);
+                                txcvr.transmit_symbol();
+                            }
+
+                            txcvr.end_transmit_frame();
+                            */
 
                         //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
                         DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
