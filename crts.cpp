@@ -848,13 +848,12 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
 } // End enactRicianFadingBaseband()
 
 // Enact Scenario
-// TODO: Alter code for when usingUSRPs
 void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Add appropriate RF impairments for the scenario
-    if (sc.addAWGNBaseband == 1)
+    if (sc.addRicianFadingBaseband == 1)
     {
-        enactAWGNBaseband(transmit_buffer, ce, sc);
+        enactRicianFadingBaseband(transmit_buffer, ce, sc);
     }
     if (sc.addCWInterfererBaseband == 1)
     {
@@ -862,9 +861,9 @@ void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct Cogniti
         // Interference function
         enactCWInterfererBaseband(transmit_buffer, ce, sc);
     }
-    if (sc.addRicianFadingBaseband == 1)
+    if (sc.addAWGNBaseband == 1)
     {
-        enactRicianFadingBaseband(transmit_buffer, ce, sc);
+        enactAWGNBaseband(transmit_buffer, ce, sc);
     }
     if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0))
     {
