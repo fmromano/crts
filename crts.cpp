@@ -2072,8 +2072,7 @@ int main(int argc, char ** argv)
 		memset(&servAddr, 0, sizeof(servAddr));
 		servAddr.sin_family = AF_INET;
 		servAddr.sin_port = htons(serverPort);
-        //TODO: change to ip from command line
-		servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		servAddr.sin_addr.s_addr = inet_addr(serverAddr);
 
 		// Attempt to connect client socket to server
 		int connect_status;
