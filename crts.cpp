@@ -257,6 +257,23 @@ struct serveClientStruct CreateServeClientStruct() {
 	return sc;
 }; // End CreateServeClientStruct
 
+void feedbackStruct_print(feedbackStruct * fb_ptr)
+{
+    // TODO: make formatting nicer
+    printf("feedbackStruct_print():\n");
+    printf("\theader_valid:\t%d\n",       fb_ptr->header_valid);
+    printf("\tpayload_valid:\t%d\n",      fb_ptr->header_valid);
+    printf("\tpayload_len:\t%u\n",        fb_ptr->payload_len);
+    printf("\tpayloadByteErrors:\t%u\n",  fb_ptr->payloadByteErrors);
+    printf("\tpayloadBitErrors:\t%u\n",   fb_ptr->payloadBitErrors);
+    printf("\tframeNum:\t%u\n",           fb_ptr->frameNum);
+    printf("\tce_num:\t%d\n",             fb_ptr->ce_num);
+    printf("\tsc_num:\t%d\n",             fb_ptr->sc_num);
+    printf("\tevm:\t%f\n",                fb_ptr->evm);
+    printf("\trssi:\t%f\n",               fb_ptr->rssi);
+    printf("\tcfo:\t%f\n",                fb_ptr->cfo);
+}
+
 int readScMasterFile(char scenario_list[30][60], int verbose )
 {
     config_t cfg;                   // Returns all parameters in this structure 
@@ -1231,13 +1248,13 @@ int rxCallback(unsigned char *  _header,
 	fb.frameNum				=	0;
 
 	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
-	printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
 
     if (verbose)
     {
-        // TODO: Create corresponding print statement for fb struct
-        //for (i=0; i<10; i++)
-        //printf("feedback data before transmission: %f\n", feedback[i]);
+        printf("In rxcallback():\n");
+        printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], 
+            _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
+        feedbackStruct_print(&fb);
     }
 
     // Receiver sends data to server
@@ -1388,15 +1405,11 @@ void * startTCPServer(void * _ss_ptr)
 
 int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, int verbose)
 {
-    // TODO: Create corresponding print statement for fb struct
-    //int i = 0;
-    //if (verbose)
-    //{
-    //    printf("In ceProcessData():\nfeedback=\n");
-    //    for (i = 0; i<8;i++) {
-    //        printf("feedback[%d]= %f\n", i, feedback[i]);
-    //    }
-    //}
+    if (verbose)
+    {
+        printf("In ceProcessData():\n");
+        feedbackStruct_print(fbPtr);
+    }
 
     ce->validPayloads += fbPtr->payload_valid;
 
@@ -1485,7 +1498,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 
     if (verbose) printf("ce->adaptationCondition= %s\n", ce->adaptationCondition);
 
-    //TODO: Add 'user input' adaptation
+    // Add 'user input' adaptation
     if(strcmp(ce->adaptationCondition, "user_specified") == 0) {
         // Check if parameters should be modified
         modify = 1;
