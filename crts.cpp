@@ -1859,9 +1859,8 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     // For debugging
     if (verbose)
     {
-        printf("ce.numSubcarriers= %u\n", cePtr->numSubcarriers);
+        printf("in postTxTasks(): \nce.numSubcarriers= %u\n", cePtr->numSubcarriers);
         printf("ce.CPLen= %u\n", cePtr->CPLen);
-        printf("ce.numSubcarriers= %u\n", cePtr->numSubcarriers);
     }
 
     return DoneTransmitting;
@@ -2269,7 +2268,10 @@ int main(int argc, char ** argv)
 
 						// Compute throughput and spectral efficiency
 						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-						total_symbols = (float)ofdmflexframegen_getframelen(fg);
+                        // FIXME:There is no independent fg object when using USRPs. 
+                        // Need to do this another way
+						//total_symbols = (float)ofdmflexframegen_getframelen(fg);
+                        total_symbols = 1;
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 						/*printf("\n\nThroughput/Spectral Efficiency Calculations\nPayload Symbols: %f\nTotal Symbols: %f\nBandwidth: %f\nBits Per Symbol: %u\n", 
 							payload_symbols, total_symbols, ce.bandwidth, ce.bitsPerSym);
