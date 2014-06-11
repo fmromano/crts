@@ -6,7 +6,7 @@ CRTS comes with the ability to test CEs with both a) simulated signal environmen
 
 Building CRTS:
     1. Install the necessary dependencies
-            Required: libconfig>=1.4, liquid-dsp, liquid-usrp, uhd>=3.5
+            Required: libconfig>=1.4, liquid-dsp, uhd>=3.5, liquid-usrp (fmromano version)
             Recommended: linux>=3.10
     2. Build with
             $ make

@@ -107,18 +107,18 @@ struct CognitiveEngine {
 };
 
 struct Scenario {
-    int addNoise; //Does the Scenario have noise?
+    int addAWGNBaseband; //Does the Scenario have noise?
     float noiseSNR;
     float noiseDPhi;
     
     int addInterference; // Does the Scenario have interference?
     
-    int addFading; // Does the Secenario have fading?
+    int addRicianFadingBaseband; // Does the Secenario have fading?
     float fadeK;
     float fadeFd;
     float fadeDPhi;
 
-	int addCW; // Does the Scenario have a CW interferer?
+	int addCWInterfererBaseband; // Does the Scenario have a CW interferer?
 	float cw_pow;
 	float cw_freq;
 };
@@ -213,18 +213,18 @@ struct CognitiveEngine CreateCognitiveEngine() {
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
     struct Scenario sc = {};
-    sc.addNoise = 0,
+    sc.addAWGNBaseband = 0,
     sc.noiseSNR = 7.0f, // in dB
     sc.noiseDPhi = 0.001f,
 
     sc.addInterference = 0,
 
-    sc.addFading = 0,
+    sc.addRicianFadingBaseband = 0,
     sc.fadeK = 30.0f,
     sc.fadeFd = 0.2f,
     sc.fadeDPhi = 0.001f;
 
-	sc.addCW = 0;
+	sc.addCWInterfererBaseband = 0;
 	sc.cw_pow = 0;
 	sc.cw_freq = 0;
 
@@ -620,10 +620,10 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     if (setting != NULL)
     {
         // Read the integer
-        if (config_setting_lookup_int(setting, "addNoise", &tmpI))
+        if (config_setting_lookup_int(setting, "addAWGNBaseband", &tmpI))
         {
-            sc->addNoise=tmpI;
-            if (verbose) printf("Addnoise: %d\n", tmpI);
+            sc->addAWGNBaseband=tmpI;
+            if (verbose) printf("addAWGNBaseband: %d\n", tmpI);
         }
         //else
         //    printf("No AddNoise setting in configuration file.\n");
@@ -647,6 +647,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         //    printf("No NoiseDPhi setting in configuration file.\n");
 
         // Read the integer
+        /*
         if (config_setting_lookup_int(setting, "addInterference", &tmpI))
         {
             sc->addInterference=tmpI;
@@ -654,46 +655,47 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         }
         //else
         //    printf("No addInterference setting in configuration file.\n");
+        */
 
         // Read the integer
-        if (config_setting_lookup_int(setting, "addFading", &tmpI))
+        if (config_setting_lookup_int(setting, "addRicianFadingBaseband", &tmpI))
         {
-            sc->addFading=tmpI;
-            if (verbose) printf("addFading: %d\n", tmpI);
+            sc->addRicianFadingBaseband=tmpI;
+            if (verbose) printf("addRicianFadingBaseband: %d\n", tmpI);
         }
         //else
-        //    printf("No addFading setting in configuration file.\n");
+        //    printf("No addRicianFadingBaseband setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeK", &tmpD))
         {
-            sc->addFading=(float)tmpD;
-            if (verbose) printf("addFading: %f\n", tmpD);
+            sc->fadeK=(float)tmpD;
+            if (verbose) printf("fadeK: %f\n", tmpD);
         }
         //else
-        //    printf("No addFading setting in configuration file.\n");
+        //    printf("No fadeK setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeFd", &tmpD))
         {
-            sc->addFading=(float)tmpD;
-            if (verbose) printf("addFading: %f\n", tmpD);
+            sc->fadeFd=(float)tmpD;
+            if (verbose) printf("fadeFd: %f\n", tmpD);
         }
         //else
-        //    printf("No addFading setting in configuration file.\n");
+        //    printf("No fadeFd setting in configuration file.\n");
 
         // Read the double
         if (config_setting_lookup_float(setting, "fadeDPhi", &tmpD))
         {
-            sc->addFading=(float)tmpD;
-            if (verbose) printf("addFading: %f\n", tmpD);
+            sc->fadeDPhi=(float)tmpD;
+            if (verbose) printf("fadeDPhi: %f\n", tmpD);
         }
 
 		// Read the integer
-		if (config_setting_lookup_int(setting, "addCW", &tmpI))
+		if (config_setting_lookup_int(setting, "addCWInterfererBaseband", &tmpI))
         {
-            sc->addCW=(float)tmpI;
-            if (verbose) printf("addCW: %i\n", tmpI);
+            sc->addCWInterfererBaseband=(float)tmpI;
+            if (verbose) printf("addCWIntefererBaseband: %i\n", tmpI);
         }
 
 		// Read the double
@@ -710,7 +712,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
             if (verbose) printf("cw_freq: %f\n", tmpD);
         }
         //else
-        //    printf("No addFading setting in configuration file.\n");
+        //    printf("No cw_freq setting in configuration file.\n");
     }
 
     config_destroy(&cfg);
@@ -720,14 +722,14 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
 } // End readScConfigFile()
 
 // Add AWGN
-void addAWGN(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     //options
     float dphi  = sc.noiseDPhi;                              // carrier frequency offset
     float SNRdB = sc.noiseSNR;                               // signal-to-noise ratio [dB]
     unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
     
-    //printf("In addAWGN: SNRdB=%f\n", SNRdB);
+    //printf("In enactAWGNBaseband: SNRdB=%f\n", SNRdB);
 
     // noise parameters
     float nstd = powf(10.0f, -SNRdB/20.0f); // noise standard deviation
@@ -743,9 +745,9 @@ void addAWGN(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, s
         phi += dphi;                                 // update carrier phase
         cawgn(&transmit_buffer[i], nstd);            // add noise
     }
-} // End addAWGN()
+} // End enactAWGNBaseband()
 
-void addCW(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
 	float fs = ce.bandwidth; // Sample rate of the transmit buffer
 	float k = pow(10.0, sc.cw_pow/20.0); // Coefficient to set the interferer power correctly
@@ -757,10 +759,10 @@ void addCW(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, str
 	{
 		transmit_buffer[i] += k*sin(6.283*sc.cw_freq*i/fs); // Add CW tone
 	}
-} // End addCW()
+} // End enactCWInterfererBaseband()
 
 // Add Rice-K Fading
-void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // options
     unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
@@ -843,29 +845,33 @@ void addRiceFading(std::complex<float> * transmit_buffer, struct CognitiveEngine
 
     // clean up allocated array
     free(y);
-} // End addRiceFading()
+} // End enactRicianFadingBaseband()
 
 // Enact Scenario
 // TODO: Alter code for when usingUSRPs
-void enactScenario(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc, int usingUSRPs)
+void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Add appropriate RF impairments for the scenario
-    if (sc.addNoise == 1){
-       addAWGN(transmit_buffer, ce, sc);
+    if (sc.addAWGNBaseband == 1)
+    {
+        enactAWGNBaseband(transmit_buffer, ce, sc);
     }
-    if (sc.addCW == 1){
-       //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
-       // Interference function
-		addCW(transmit_buffer, ce, sc);
+    if (sc.addCWInterfererBaseband == 1)
+    {
+        //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
+        // Interference function
+        enactCWInterfererBaseband(transmit_buffer, ce, sc);
     }
-    if (sc.addFading == 1){
-       addRiceFading(transmit_buffer, ce, sc);
+    if (sc.addRicianFadingBaseband == 1)
+    {
+        enactRicianFadingBaseband(transmit_buffer, ce, sc);
     }
-    if ( (sc.addNoise == 0) && (sc.addCW == 0) && (sc.addFading == 0) ){
+    if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0))
+    {
        	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
-		fprintf(stderr, "addCW: %i\n", sc.addCW);
+		//fprintf(stderr, "addCWInterfererBaseband: %i\n", sc.addCWInterfererBaseband);
     }
-} // End enactScenario()
+} // End enactScenarioBaseband()
 
 void * call_uhd_siggen(void * param)
 {
@@ -873,10 +879,11 @@ void * call_uhd_siggen(void * param)
     return NULL;
 } // end call_uhd_siggen()
 
+/*
 void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* siggen_pid)
 {
     // Check AWGN
-    if (sc.addNoise == 1){
+    if (sc.addAWGNBaseband == 1){
        // Center freq of noise
        char freq_opt[40] = "-f";
        char * freq = NULL;
@@ -925,14 +932,15 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
        fprintf(stderr, "WARNING: There is currently no USRP interference scenario functionality!\n");
        // Interference function
     }
-    if (sc.addFading == 1){
-       //addRiceFading(transmit_buffer, ce, sc);
+    if (sc.addRicianFadingBaseband == 1){
+       //enactRicianFadingBaseband(transmit_buffer, ce, sc);
        fprintf(stderr, "WARNING: There is currently no USRP Fading scenario functionality!\n");
     }
-    if ( (sc.addNoise == 0) && (sc.addCW == 0) && (sc.addFading == 0) ){
+    if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0) ){
        fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
     }
 } // End enactUSRPScenario()
+*/
 
 modulation_scheme convertModScheme(char * modScheme, unsigned int * bps)
 {
@@ -1286,6 +1294,7 @@ void * serveTCPclient(void * _sc_ptr){
         read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
 		if (read_buffer.evm) *fb_ptr = read_buffer;
     }
+    return NULL;
 }
 
 // Create a TCP socket for the server and bind it to a port
@@ -1570,7 +1579,7 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
         if(strcmp(ce->adaptationCondition, "user_specified") == 0) {
             // Check if parameters should be modified
             if (verbose) printf("Reading user specified adaptations from user ce file: 'userEngine.txt'\n");
-            readCEConfigFile(ce, "userEngine.txt", verbose);
+            readCEConfigFile(ce, (char*) "userEngine.txt", verbose);
         }
 
         if (strcmp(ce->adaptation, "increase_payload_len") == 0) {
@@ -2241,20 +2250,18 @@ int main(int argc, char ** argv)
                         if (verbose) printf("Outer FEC: ");
                         fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
-                        txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
-                        // TODO: Replace with txcvr methods that allow access to samples:
-                            /*
-                            txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
-                            int lastSymbol = 0;
-                            while(!lastSymbol)
-                            {
-                                lastSymbol = txcvr.write_symbol();
-                                //functionThatModifiesSamples(&txcvr);
-                                txcvr.transmit_symbol();
-                            }
-
-                            txcvr.end_transmit_frame();
-                            */
+                        //txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        // Replace with txcvr methods that allow access to samples:
+                        txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        int isLastSymbol = 0;
+                        while(!isLastSymbol)
+                        {
+                            isLastSymbol = txcvr.write_symbol();
+                            enactScenarioBaseband(txcvr.fgbuffer, ce, sc);
+                            //functionThatModifiesSamples(&txcvr);
+                            txcvr.transmit_symbol();
+                        }
+                        txcvr.end_transmit_frame();
 
                         //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
                         DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
@@ -2341,7 +2348,7 @@ int main(int argc, char ** argv)
                         {
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
-                            enactScenario(frameSamples, ce, sc, usingUSRPs);
+                            enactScenarioBaseband(frameSamples, ce, sc);
 							
                             // Rx Receives packet
                             //rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);

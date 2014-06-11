@@ -7,7 +7,7 @@ params =
 {
 
     // Enable CW interferer
-    addCW = 1;
+    addCWInterfererBaseband = 1;
     // Power difference between CW interferer and desired carrier in dB
 	// (Positive number means the CW iccnterferer is stronger than the desired carrier)
     cw_pow = -20.0;
