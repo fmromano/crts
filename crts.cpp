@@ -141,12 +141,13 @@ struct feedbackStruct {
     unsigned int    payload_len;
     unsigned int    payloadByteErrors;
     unsigned int    payloadBitErrors;
-    unsigned int    frameNum;
-	int				ce_num;
-	int				sc_num;
+    unsigned int    iteration;
+	//int				ce_num;
+	//int				sc_num;
     float           evm;
     float           rssi;
     float           cfo;
+	int 			block_flag;
 };
 
 struct serverThreadStruct {
@@ -157,6 +158,28 @@ struct serverThreadStruct {
 struct serveClientStruct {
 	int client;
 	struct feedbackStruct * fb_ptr;
+};
+
+struct scenarioSummaryInfo{
+	int total_frames[60][60];
+	int valid_headers[60][60];
+	int valid_payloads[60][60];
+	int total_bits[60][60];
+	int bit_errors[60][60];
+	float EVM[60][60];
+	float RSSI[60][60];
+	float PER[60][60];
+};
+
+struct cognitiveEngineSummaryInfo{
+	int total_frames[60];
+	int valid_headers[60];
+	int valid_payloads[60];
+	int total_bits[60];
+	int bit_errors[60];
+	float EVM[60];
+	float RSSI[60];
+	float PER[60];
 };
 
 // Default parameters for a Cognitive Engine
@@ -266,9 +289,9 @@ void feedbackStruct_print(feedbackStruct * fb_ptr)
     printf("\tpayload_len:\t%u\n",        fb_ptr->payload_len);
     printf("\tpayloadByteErrors:\t%u\n",  fb_ptr->payloadByteErrors);
     printf("\tpayloadBitErrors:\t%u\n",   fb_ptr->payloadBitErrors);
-    printf("\tframeNum:\t%u\n",           fb_ptr->frameNum);
-    printf("\tce_num:\t%d\n",             fb_ptr->ce_num);
-    printf("\tsc_num:\t%d\n",             fb_ptr->sc_num);
+    printf("\tframeNum:\t%u\n",           fb_ptr->iteration);
+    //printf("\tce_num:\t%d\n",             fb_ptr->ce_num);
+    //printf("\tsc_num:\t%d\n",             fb_ptr->sc_num);
     printf("\tevm:\t%f\n",                fb_ptr->evm);
     printf("\trssi:\t%f\n",               fb_ptr->rssi);
     printf("\tcfo:\t%f\n",                fb_ptr->cfo);
@@ -1172,38 +1195,7 @@ int rxCallback(unsigned char *  _header,
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
-
-    // Iterator
-    //int i = 0;
-
-    // Create a client TCP socket
-    /*int socket_to_server = socket(AF_INET, SOCK_STREAM, 0); 
-    if( socket_to_server < 0)
-    {   
-        fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }   
-    //printf("Created client socket to server. socket_to_server: %d\n", socket_to_server);
-
-    // Parameters for connecting to server
-    struct sockaddr_in servAddr;
-    memset(&servAddr, 0, sizeof(servAddr));
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(rxCBS_ptr->serverPort);
-    //servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    servAddr.sin_addr.s_addr = inet_addr(rxCBS_ptr->serverAddr);
-
-    // Attempt to connect client socket to server
-    int connect_status;
-    if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
-    {   
-        fprintf(stderr, "Receiver Failed to Connect to server.\n");
-        fprintf(stderr, "connect_status = %d\n", connect_status);
-        exit(EXIT_FAILURE);
-    }*/
-   
-    //framesyncstats_print(&_stats); 
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr; 
 
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
@@ -1243,11 +1235,12 @@ int rxCallback(unsigned char *  _header,
     fb.evm                  =   _stats.evm;
     fb.rssi                 =   _stats.rssi;
     fb.cfo                  =   _stats.cfo;	
-	fb.ce_num				=	_header[0];
-	fb.sc_num				=	_header[1];
-	fb.frameNum				=	0;
+	//fb.ce_num				=	_header[0];
+	//fb.sc_num				=	_header[1];
+	fb.iteration			=	0;
+	fb.block_flag			=	0;
 
-	for(int i=0; i<4; i++)	fb.frameNum += _header[i+2]<<(8*(3-i));
+	for(int i=0; i<4; i++)	fb.iteration += _header[i+2]<<(8*(3-i));
 
     if (verbose)
     {
@@ -1258,14 +1251,8 @@ int rxCallback(unsigned char *  _header,
     }
 
     // Receiver sends data to server
-    //printf("socket_to_server: %d\n", socket_to_server);
-    //int writeStatus = write(socket_to_server, feedback, 8*sizeof(float));
-    //write(socket_to_server, feedback, 8*sizeof(float));
-	//if(rxCBS_ptr->client)printf("TEST\n");
     write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
 
-    // Receiver closes socket to server
-    //close(socket_to_server);
     return 0;
 
 } // end rxCallback()
@@ -1308,7 +1295,7 @@ void * serveTCPclient(void * _sc_ptr){
 	while(1){
         bzero(&read_buffer, sizeof(read_buffer));
         read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
-		if (read_buffer.evm) *fb_ptr = read_buffer;
+		if (read_buffer.evm) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
     }
     return NULL;
 }
@@ -1318,17 +1305,10 @@ void * serveTCPclient(void * _sc_ptr){
 // to an array that is accessible to the CE
 void * startTCPServer(void * _ss_ptr)
 {
-    // TODO: Implement blocking of feedback data so that it is not read
-    //  while being written to
 
     //printf("(Server thread called.)\n");
 
     struct serverThreadStruct * ss_ptr = (struct serverThreadStruct*) _ss_ptr;
-
-    // Buffer for data sent by client. This memory address is also given to CE
-    //float * read_buffer = (float *) _read_buffer;
-
-    //float * read_buffer = ss_ptr->feedback;
 
     //  Local (server) address
     struct sockaddr_in servAddr;   
@@ -1397,8 +1377,6 @@ void * startTCPServer(void * _ss_ptr)
 			client++;
 		}
         //printf("Server has accepted connection from client\n");
-        // Transmitter receives data from client (receiver)
-        // Zero the read buffer. Then read the data into it.
 	}// End While loop
 	
 } // End startTCPServer()
@@ -1413,18 +1391,15 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
 
     ce->validPayloads += fbPtr->payload_valid;
 
-    //if (feedback[1] == 1 && feedback[6] == 0 && feedback[4]>ce->lastReceivedFrame)
-    if (fbPtr->payload_valid && (!(fbPtr->payloadBitErrors)) && fbPtr->frameNum>ce->lastReceivedFrame)
+    if (fbPtr->payload_valid && (!(fbPtr->payloadBitErrors)))
     {
         ce->errorFreePayloads++;
         if (verbose) printf("Error Free payload!\n");
     }
 
     ce->PER = ((float)ce->frameNumber-(float)ce->errorFreePayloads)/((float)ce->frameNumber);
-    ce->lastReceivedFrame = fbPtr->frameNum;
-
+    ce->lastReceivedFrame = fbPtr->iteration;
     ce->BERLastPacket = ((float)fbPtr->payloadBitErrors)/((float)(ce->payloadLen*8));
-
     ce->weightedAvg += (float) fbPtr->payload_valid;
 
     //printf("ce->goal=%s\n", ce->goal);
@@ -1452,8 +1427,8 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
     }
     else if (strcmp(ce->goal, "X_seconds") == 0)
     {       
-		if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime + ce->iteration*ce->delay_us/1.0e6);
-        ce->latestGoalValue = ce->runningTime + ce->iteration*ce->delay_us/1.0e6;
+		if (verbose) printf("Goal is X_seconds. Setting latestGoalValue to %f\n", ce->runningTime);
+        ce->latestGoalValue = ce->runningTime;
     }
     else
     {
@@ -1831,25 +1806,16 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 //} // end initializeUSRPs()
 
 
-int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int current_ce_num, int current_sc_num, int verbose)
+int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int verbose)
 {
     // FIXME: Find another way to fix this:: FIXED?
     usleep(cePtr->delay_us);
 	std::clock_t timeout_start = std::clock();
-	while( !(current_ce_num==fb_ptr->ce_num && current_sc_num==fb_ptr->sc_num && cePtr->frameNumber==fb_ptr->frameNum) ){
-		/*usleep(10.0e5);
-		printf("Waiting for feedback\n");
-		printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
-			"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
-			"FB Frame Number:", fb_ptr->frameNum);*/
+	while( !fb_ptr->block_flag ){
 		std::clock_t timeout_now = std::clock();
 		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
 	}
-    
-	//printf("Feedback detected\n");
-	//printf("%s %i %s %i\n%s %i %s %i\n%s %i %s %i\n\n","Current CE Number:", current_ce_num, "FB CE Number:", fb_ptr->ce_num,
-		//"Current SC Number:", current_sc_num, "FB SC Number:", fb_ptr->sc_num, "Current Frame Number:", cePtr->frameNumber,
-		//"FB Frame Number:", fb_ptr->frameNum);
+	fb_ptr->block_flag = 0;
 
     int DoneTransmitting = 0;
 
@@ -1878,6 +1844,41 @@ int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, 
     return DoneTransmitting;
 } // End postTxTasks()
 
+void updateScenarioSummary(struct scenarioSummaryInfo *sc_sum, struct feedbackStruct *fb, struct CognitiveEngine *ce, int i_CE, int i_Sc){
+	sc_sum->valid_headers[i_CE][i_Sc] += fb->header_valid;
+	sc_sum->valid_payloads[i_CE][i_Sc] += fb->payload_valid;
+	sc_sum->EVM[i_CE][i_Sc] += fb->evm;
+	sc_sum->RSSI[i_CE][i_Sc] += fb->rssi;
+	sc_sum->total_bits[i_CE][i_Sc] += ce->payloadLen;
+	sc_sum->bit_errors[i_CE][i_Sc] += fb->payloadBitErrors;
+}
+
+void updateCognitiveEngineSummaryInfo(struct cognitiveEngineSummaryInfo *ce_sum, struct scenarioSummaryInfo *sc_sum, struct CognitiveEngine *ce, int i_CE, int i_Sc){
+	// Decrement frameNumber once
+	ce->frameNumber--;
+	// Store metrics for scenario
+	sc_sum->total_frames[i_CE][i_Sc] = ce->frameNumber;
+	sc_sum->EVM[i_CE][i_Sc] /= ce->frameNumber;
+	sc_sum->RSSI[i_CE][i_Sc] /= ce->frameNumber;
+	sc_sum->PER[i_CE][i_Sc] = ce->PER;
+
+	// Display the scenario summary
+	printf("Cognitive Engine %i Scenario %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
+		"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, i_Sc+1, sc_sum->total_frames[i_CE][i_Sc],
+		(float)sc_sum->valid_headers[i_CE][i_Sc]/(float)sc_sum->total_frames[i_CE][i_Sc], (float)sc_sum->valid_payloads[i_CE][i_Sc]/(float)sc_sum->total_frames[i_CE][i_Sc],
+		sc_sum->EVM[i_CE][i_Sc], sc_sum->RSSI[i_CE][i_Sc], (float)sc_sum->bit_errors[i_CE][i_Sc]/(float)sc_sum->total_bits[i_CE][i_Sc], sc_sum->PER[i_CE][i_Sc]);
+
+	// Store the sum of scenario metrics for the cognitive engine
+	ce_sum->total_frames[i_CE] += sc_sum->total_frames[i_CE][i_Sc];
+	ce_sum->valid_headers[i_CE] += sc_sum->valid_headers[i_CE][i_Sc];
+	ce_sum->valid_payloads[i_CE] += sc_sum->valid_payloads[i_CE][i_Sc];
+	ce_sum->EVM[i_CE] += sc_sum->EVM[i_CE][i_Sc];
+	ce_sum->RSSI[i_CE] += sc_sum->RSSI[i_CE][i_Sc];
+	ce_sum->total_bits[i_CE] += sc_sum->total_bits[i_CE][i_Sc];
+	ce_sum->bit_errors[i_CE] += sc_sum->bit_errors[i_CE][i_Sc];
+	ce_sum->PER[i_CE] += sc_sum->PER[i_CE][i_Sc];
+}
+
 void terminate(int sig){
 	exit(1);
 }
@@ -1892,9 +1893,7 @@ int main(int argc, char ** argv)
 
     int verbose = 1;
     int verbose_explicit = 0;
-    int dataToStdout = 0;
-
-    
+    int dataToStdout = 0;    
 
     // For experiments with CR Networks.
     // Specifies whether this crts instance is managing the experiment.
@@ -1960,11 +1959,8 @@ int main(int argc, char ** argv)
     int i_CE = 0;
     int i_Sc = 0;
     int DoneTransmitting = 0;
-    //int N = 0;                 // Iterations of transmission before receiving.
-    //int i_N = 0;
     int isLastSymbol = 0;
     char scenario_list [30][60];
-    //printf ("Declared scenario array\n");
     char cogengine_list [30][60];
     
     //printf("variables declared.\n");
@@ -2011,32 +2007,9 @@ int main(int argc, char ** argv)
 	float total_symbols;
 	float payload_symbols;
 
-	// Metric Summary Variables for each scenario and each cognitive engine
-	int SC_total_frames[60][60];
-	int SC_valid_headers[60][60];
-	int SC_valid_payloads[60][60];
-	int SC_total_bits[60][60];
-	int SC_bit_errors[60][60];
-	float SC_EVM[60][60];
-	float SC_RSSI[60][60];
-	float SC_PER[60][60];
-	memset(SC_total_frames,0,60*60*sizeof(int));
-	memset(SC_valid_headers,0,60*60*sizeof(int));
-	memset(SC_valid_payloads,0,60*60*sizeof(int));
-	memset(SC_total_bits,0,60*60*sizeof(int));
-	memset(SC_total_bits,0,60*60*sizeof(int));
-	memset(SC_EVM,0,60*60*sizeof(float));
-	memset(SC_RSSI,0,60*60*sizeof(float));
-	memset(SC_PER,0,60*60*sizeof(float));
-
-	int CE_total_frames[60] = {0};
-	int CE_valid_headers[60] = {0};
-	int CE_valid_payloads[60] = {0};
-	int CE_total_bits[60] = {0};
-	int CE_bit_errors[60] = {0};
-	float CE_EVM[60] = {0};
-	float CE_RSSI[60] = {0};
-	float CE_PER[60] = {0};
+	// Metric Summary structs for each scenario and each cognitive engine
+	struct scenarioSummaryInfo sc_sum;
+	struct cognitiveEngineSummaryInfo ce_sum;
                                                    
     ////////////////////// End variable initializations.///////////////////////
 
@@ -2059,9 +2032,6 @@ int main(int argc, char ** argv)
     rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
 	rxCBs.rx_ms_ptr = &rx_ms;
-	//rxCBs.ce_num = 1;
-	//rxCBs.sc_num = 1;
-	//rxCBs.frameNum = 1;
 
     // Allow server time to finish initialization
     usleep(0.1e6);
@@ -2069,7 +2039,7 @@ int main(int argc, char ** argv)
 	//signal (SIGPIPE, SIG_IGN);
 
 	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
-	if(!isController){
+	if(!isController  || !usingUSRPs){
 		// Create a client TCP socket] 
 		if( socket_to_server < 0)
 		{   
@@ -2098,7 +2068,7 @@ int main(int argc, char ** argv)
         if (verbose)
             printf("Connected to Server.\n");
 	}
-	else{
+	if(usingUSRPs && isController){
 		printf("\nPress any key once all nodes have connected to the TCP server\n");
 		getchar();
 	}
@@ -2126,7 +2096,6 @@ int main(int argc, char ** argv)
     // For each Cognitive Engine
     for (i_CE=0; i_CE<NumCE; i_CE++)
     {
-        //rxCBs.ce_num = i_CE+1;
 
 		if (verbose) 
             printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
@@ -2134,7 +2103,6 @@ int main(int argc, char ** argv)
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {
-            //rxCBs.sc_num = i_Sc+1;
 
             // Initialize current CE
             ce = CreateCognitiveEngine();
@@ -2214,9 +2182,19 @@ int main(int argc, char ** argv)
                             }
 
                             int continue_running = 1;
-                            txcvr.start_rx();
+							int rflag;
+							char readbuffer;
+							txcvr.start_rx();
                             while(continue_running)
                             {
+								// Wait until server closes or there is an error, then exit
+								rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
+								printf("Rx flag: %i\n", rflag);
+								if(rflag == 0 || rflag == -1){
+									close(socket_to_server);
+									msequence_destroy(rx_ms);
+									exit(1);
+								}
                             }
                         }
 
@@ -2268,13 +2246,11 @@ int main(int argc, char ** argv)
                         {
                             isLastSymbol = txcvr.write_symbol();
                             enactScenarioBaseband(txcvr.fgbuffer, ce, sc);
-                            //functionThatModifiesSamples(&txcvr);
                             txcvr.transmit_symbol();
                         }
                         txcvr.end_transmit_frame();
 
-                        //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
-                        DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
+                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                         // Record the feedback data received
                         //TODO: include fb.cfo
 
@@ -2285,9 +2261,6 @@ int main(int argc, char ** argv)
 						//total_symbols = (float)ofdmflexframegen_getframelen(fg);
                         total_symbols = 1;
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
-						/*printf("\n\nThroughput/Spectral Efficiency Calculations\nPayload Symbols: %f\nTotal Symbols: %f\nBandwidth: %f\nBits Per Symbol: %u\n", 
-							payload_symbols, total_symbols, ce.bandwidth, ce.bitsPerSym);
-						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
 
                         //All metrics
                         /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
@@ -2295,7 +2268,7 @@ int main(int argc, char ** argv)
 							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
 						//Useful metrics
 						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
+							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
 							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
                         fflush(dataFile);
 
@@ -2307,13 +2280,7 @@ int main(int argc, char ** argv)
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-						// Store the sum of frame metrics for the scenario
-						SC_valid_headers[i_CE][i_Sc] += fb.header_valid;
-						SC_valid_payloads[i_CE][i_Sc] += fb.payload_valid;
-						SC_EVM[i_CE][i_Sc] += fb.evm;
-						SC_RSSI[i_CE][i_Sc] += fb.rssi;
-						SC_total_bits[i_CE][i_Sc] += ce.payloadLen;
-						SC_bit_errors[i_CE][i_Sc] += fb.payloadBitErrors;
+						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
                     } // End If while loop
                 }
                 else // If not using USRPs
@@ -2324,12 +2291,8 @@ int main(int argc, char ** argv)
                         fg = CreateFG(ce, sc, verbose);  // Create ofdmflexframegen object with given parameters
                         if (verbose) ofdmflexframegen_print(fg);
 
-                        // Generate data to go into frame (packet)
-                        //txGeneratePacket(ce, &fg, header, payload);
-
                         // Iterator
                         int i = 0;
-                        //printf("ce.payloadLen= %u", ce.payloadLen);
 
                         // Generate data
                         if (verbose) printf("\n\nGenerating data that will go in frame...\n");
@@ -2341,11 +2304,6 @@ int main(int argc, char ** argv)
 						header[7] = 0;
                         for (i=0; i<(signed int)ce.payloadLen; i++)
                             payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
-						
-						//printf("Header: %i %i %i %i %i %i %i %i\n", header[0], header[1], header[2], header[3], header[4], header[5], header[6], header[7]);
-
-                        // Include frame number in header information
-                        //* header_u = ce.frameNumber;
 
 						// Called just to update bits per symbol field
 						convertModScheme(ce.modScheme, &ce.bitsPerSym);
@@ -2364,28 +2322,18 @@ int main(int argc, char ** argv)
                             enactScenarioBaseband(frameSamples, ce, sc);
 							
                             // Rx Receives packet
-                            //rxReceivePacket(ce, &fs, frameSamples, usingUSRPs);
                             symbolLen = ce.numSubcarriers + ce.CPLen;
 							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
 						
-                        // posttransmittasks
-                        //DoneTransmitting = postTxTasks(&ce, feedback, verbose);
-                        DoneTransmitting = postTxTasks(&ce, &fb, i_CE+1, i_Sc+1, verbose);
-						
-                        // Record the feedback data received
-						//for (i=0; i<(signed int)ce.payloadLen; i++){
-						//	fprintf(dataFile, "%-4f", payload[i]);
-						//}
+                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
+
 						fflush(dataFile);
 
 						// Compute throughput and spectral efficiency
 						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
 						total_symbols = (float)ofdmflexframegen_getframelen(fg);
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
-						/*printf("\n\nThroughput/Spectral Efficiency Calculations\nPayload Symbols: %f\nTotal Symbols: %f\nBandwidth: %f\nBits Per Symbol: %u\n", 
-							payload_symbols, total_symbols, ce.bandwidth, ce.bitsPerSym);
-						printf("Throughput: %f\nEfficiency: %f\n", throughput, throughput/ce.bandwidth);*/
 
                         //All metrics
                         /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
@@ -2393,7 +2341,7 @@ int main(int argc, char ** argv)
 							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
 						//Useful metrics
 						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum,  fb.evm, fb.rssi, ce.PER,
+							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
 							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 
                         // Increment the frame counters and iteration counter
@@ -2403,13 +2351,7 @@ int main(int argc, char ** argv)
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-						// Store the sum of frame metrics for the scenario
-						SC_valid_headers[i_CE][i_Sc] += fb.header_valid;
-						SC_valid_payloads[i_CE][i_Sc] += fb.payload_valid;
-						SC_EVM[i_CE][i_Sc] += fb.evm;
-						SC_RSSI[i_CE][i_Sc] += fb.rssi;
-						SC_total_bits[i_CE][i_Sc] += ce.payloadLen;
-						SC_bit_errors[i_CE][i_Sc] += fb.payloadBitErrors;
+						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
                     } // End else While loop					
                 }
 
@@ -2428,30 +2370,7 @@ int main(int argc, char ** argv)
             fprintf(dataFile, "\n\n");
             fflush(dataFile);
 
-			// Decrement frameNumber once
-			ce.frameNumber--;
-			// Store metrics for scenario
-			SC_total_frames[i_CE][i_Sc] = ce.frameNumber;
-			SC_EVM[i_CE][i_Sc] = SC_EVM[i_CE][i_Sc]/ce.frameNumber;
-			SC_RSSI[i_CE][i_Sc] = SC_RSSI[i_CE][i_Sc]/ce.frameNumber;
-			SC_PER[i_CE][i_Sc] = ce.PER;
-
-			// Display the scenario summary
-			printf("Cognitive Engine %i Scenario %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
-				"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, i_Sc+1, SC_total_frames[i_CE][i_Sc],
-				(float)SC_valid_headers[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc], (float)SC_valid_payloads[i_CE][i_Sc]/(float)SC_total_frames[i_CE][i_Sc],
-				SC_EVM[i_CE][i_Sc], SC_RSSI[i_CE][i_Sc], (float)SC_bit_errors[i_CE][i_Sc]/(float)SC_total_bits[i_CE][i_Sc], SC_PER[i_CE][i_Sc]);
-
-			// Store the sum of scenario metrics for the cognitive engine
-			CE_total_frames[i_CE] += SC_total_frames[i_CE][i_Sc];
-			CE_valid_headers[i_CE] += SC_valid_headers[i_CE][i_Sc];
-			CE_valid_payloads[i_CE] += SC_valid_payloads[i_CE][i_Sc];
-			CE_EVM[i_CE] += SC_EVM[i_CE][i_Sc];
-			CE_RSSI[i_CE] += SC_RSSI[i_CE][i_Sc];
-			CE_total_bits[i_CE] += SC_total_bits[i_CE][i_Sc];
-			CE_bit_errors[i_CE] += SC_bit_errors[i_CE][i_Sc];
-			CE_PER[i_CE] += SC_PER[i_CE][i_Sc];
-
+			updateCognitiveEngineSummaryInfo(&ce_sum, &sc_sum, &ce, i_CE, i_Sc);
 
 			// Reset frame number
 			ce.frameNumber = 0;
@@ -2461,17 +2380,21 @@ int main(int argc, char ** argv)
         if (verbose) printf("Tests on Cognitive Engine %i completed.\n", i_CE+1);
 
 		// Divide the sum of each metric by the number of scenarios run to get the final metric
-		CE_EVM[i_CE] = CE_EVM[i_CE]/i_Sc;
-		CE_RSSI[i_CE] = CE_RSSI[i_CE]/i_Sc;
-		CE_PER[i_CE] = CE_PER[i_CE]/i_Sc;
+		ce_sum.EVM[i_CE] /= i_Sc;
+		ce_sum.RSSI[i_CE] /= i_Sc;
+		ce_sum.PER[i_CE] /= i_Sc;
 
+		// Print cognitive engine summaries
 		printf("Cognitive Engine %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
-			"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, CE_total_frames[i_CE], (float)CE_valid_headers[i_CE]/(float)CE_total_frames[i_CE],
-			(float)CE_valid_payloads[i_CE]/(float)CE_total_frames[i_CE], CE_EVM[i_CE], CE_RSSI[i_CE], (float)CE_bit_errors[i_CE]/(float)CE_total_bits[i_CE], CE_PER[i_CE]);
+			"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, ce_sum.total_frames[i_CE], (float)ce_sum.valid_headers[i_CE]/(float)ce_sum.total_frames[i_CE],
+			(float)ce_sum.valid_payloads[i_CE]/(float)ce_sum.total_frames[i_CE], ce_sum.EVM[i_CE], ce_sum.RSSI[i_CE], (float)ce_sum.bit_errors[i_CE]/(float)ce_sum.total_bits[i_CE], ce_sum.PER[i_CE]);
 
     } // End CE for loop
+
+	// destroy objects
 	msequence_destroy(tx_ms);
 	msequence_destroy(rx_ms);
+	close(socket_to_server);
 
 	if(!usingUSRPs) close(socket_to_server);
 
