@@ -1200,10 +1200,6 @@ int rxCallback(unsigned char *  _header,
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
     unsigned int payloadBitErrors   =   0;
-    //int   header_check = 0;
-    //int   _header_temp = 0;
-    //int   payload_check = 0;
-    //int   _payload_temp = 0;
     int j,m;
 	unsigned int tx_byte;
 
@@ -1295,7 +1291,7 @@ void * serveTCPclient(void * _sc_ptr){
 	while(1){
         bzero(&read_buffer, sizeof(read_buffer));
         read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
-		if (read_buffer.evm) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
+		if (read_buffer.evm && !fb_ptr->block_flag) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
     }
     return NULL;
 }
