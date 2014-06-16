@@ -2258,8 +2258,8 @@ int main(int argc, char ** argv)
 						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
                         // FIXME:There is no independent fg object when using USRPs. 
                         // Need to do this another way
-						//total_symbols = (float)ofdmflexframegen_getframelen(fg);
-                        total_symbols = 1;
+						total_symbols = (float)ofdmflexframegen_getframelen(txcvr.fg);
+                        //total_symbols = 1;
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                         //All metrics
