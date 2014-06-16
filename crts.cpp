@@ -2256,10 +2256,7 @@ int main(int argc, char ** argv)
 
 						// Compute throughput and spectral efficiency
 						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-                        // FIXME:There is no independent fg object when using USRPs. 
-                        // Need to do this another way
 						total_symbols = (float)ofdmflexframegen_getframelen(txcvr.fg);
-                        //total_symbols = 1;
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                         //All metrics
