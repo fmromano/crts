@@ -1370,6 +1370,8 @@ void * startTCPServer(void * _ss_ptr)
         }
 		// Create separate thread for each client as they are accepted.
 		else {
+            printf("Received a client connection.\n");
+            printf("Press any key once all nodes have connected to the TCP server.\n");
 			struct serveClientStruct sc = CreateServeClientStruct();
 			sc.client = socket_to_client;
 			sc.fb_ptr = ss_ptr->fb_ptr;
@@ -2024,7 +2026,9 @@ int main(int argc, char ** argv)
     ss.serverPort = serverPort;
     ss.fb_ptr = &fb;
     if (isController) 
+    {
         pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
+    }
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
@@ -2040,7 +2044,7 @@ int main(int argc, char ** argv)
 
 	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
 	if(!isController  || !usingUSRPs){
-		// Create a client TCP socket] 
+		// Create a client TCP socket
 		if( socket_to_server < 0)
 		{   
 		    fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
@@ -2055,21 +2059,27 @@ int main(int argc, char ** argv)
 		servAddr.sin_port = htons(serverPort);
 		servAddr.sin_addr.s_addr = inet_addr(serverAddr);
 
+        if(verbose)
+        {
+            printf("Connecting to server at %s:%u\n", serverAddr, serverPort);
+        }
+
 		// Attempt to connect client socket to server
 		int connect_status;
 		if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
 		{   
-		    fprintf(stderr, "Receiver Failed to Connect to server.\n");
+		    fprintf(stderr, "Failed to Connect to server.\n");
 		    fprintf(stderr, "connect_status = %d\n", connect_status);
 		    exit(EXIT_FAILURE);
 		}
+        //printf("connect_status: %d\n", connect_status);
 
 		rxCBs.client = socket_to_server;
         if (verbose)
             printf("Connected to Server.\n");
 	}
 	if(usingUSRPs && isController){
-		printf("\nPress any key once all nodes have connected to the TCP server\n");
+		printf("\nPress any key once all nodes have connected to the TCP server.\n");
 		getchar();
 	}
 
