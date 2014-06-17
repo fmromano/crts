@@ -107,18 +107,21 @@ struct CognitiveEngine {
 };
 
 struct Scenario {
-    int addAWGNBaseband; //Does the Scenario have noise?
+    int addAWGNBasebandTx; //Does the Scenario have noise?
+    int addAWGNBasebandRx; //Does the Scenario have noise?
     float noiseSNR;
     float noiseDPhi;
     
     int addInterference; // Does the Scenario have interference?
     
-    int addRicianFadingBaseband; // Does the Secenario have fading?
+    int addRicianFadingBasebandTx; // Does the Secenario have fading?
+    int addRicianFadingBasebandRx; // Does the Secenario have fading?
     float fadeK;
     float fadeFd;
     float fadeDPhi;
 
-	int addCWInterfererBaseband; // Does the Scenario have a CW interferer?
+	int addCWInterfererBasebandTx; // Does the Scenario have a CW interferer?
+	int addCWInterfererBasebandRx; // Does the Scenario have a CW interferer?
 	float cw_pow;
 	float cw_freq;
 };
@@ -158,6 +161,12 @@ struct serverThreadStruct {
 struct serveClientStruct {
 	int client;
 	struct feedbackStruct * fb_ptr;
+};
+
+struct enactScenarioBasebandRxStruct {
+    ofdmtxrx * txcvr;
+    struct CognitiveEngine * ce;
+    struct Scenario * sc;
 };
 
 struct scenarioSummaryInfo{
@@ -236,18 +245,21 @@ struct CognitiveEngine CreateCognitiveEngine() {
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
     struct Scenario sc = {};
-    sc.addAWGNBaseband = 0,
+    sc.addAWGNBasebandTx = 0,
+    sc.addAWGNBasebandRx = 0,
     sc.noiseSNR = 7.0f, // in dB
     sc.noiseDPhi = 0.001f,
 
     sc.addInterference = 0,
 
-    sc.addRicianFadingBaseband = 0,
+    sc.addRicianFadingBasebandTx = 0,
+    sc.addRicianFadingBasebandRx = 0,
     sc.fadeK = 30.0f,
     sc.fadeFd = 0.2f,
     sc.fadeDPhi = 0.001f;
 
-	sc.addCWInterfererBaseband = 0;
+	sc.addCWInterfererBasebandTx = 0;
+	sc.addCWInterfererBasebandRx = 0;
 	sc.cw_pow = 0;
 	sc.cw_freq = 0;
 
@@ -660,14 +672,19 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     if (setting != NULL)
     {
         // Read the integer
-        if (config_setting_lookup_int(setting, "addAWGNBaseband", &tmpI))
+        if (config_setting_lookup_int(setting, "addAWGNBasebandTx", &tmpI))
         {
-            sc->addAWGNBaseband=tmpI;
-            if (verbose) printf("addAWGNBaseband: %d\n", tmpI);
+            sc->addAWGNBasebandTx=tmpI;
+            if (verbose) printf("addAWGNBasebandTx: %d\n", tmpI);
         }
         //else
         //    printf("No AddNoise setting in configuration file.\n");
-        
+        // Read the integer
+        if (config_setting_lookup_int(setting, "addAWGNBasebandRx", &tmpI))
+        {
+            sc->addAWGNBasebandRx=tmpI;
+            if (verbose) printf("addAWGNBasebandRx: %d\n", tmpI);
+        }
         // Read the double
         if (config_setting_lookup_float(setting, "noiseSNR", &tmpD))
         {
@@ -698,10 +715,15 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         */
 
         // Read the integer
-        if (config_setting_lookup_int(setting, "addRicianFadingBaseband", &tmpI))
+        if (config_setting_lookup_int(setting, "addRicianFadingBasebandTx", &tmpI))
         {
-            sc->addRicianFadingBaseband=tmpI;
-            if (verbose) printf("addRicianFadingBaseband: %d\n", tmpI);
+            sc->addRicianFadingBasebandTx=tmpI;
+            if (verbose) printf("addRicianFadingBasebandTx: %d\n", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "addRicianFadingBasebandRx", &tmpI))
+        {
+            sc->addRicianFadingBasebandRx=tmpI;
+            if (verbose) printf("addRicianFadingBasebandRx: %d\n", tmpI);
         }
         //else
         //    printf("No addRicianFadingBaseband setting in configuration file.\n");
@@ -732,10 +754,16 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         }
 
 		// Read the integer
-		if (config_setting_lookup_int(setting, "addCWInterfererBaseband", &tmpI))
+		if (config_setting_lookup_int(setting, "addCWInterfererBasebandTx", &tmpI))
         {
-            sc->addCWInterfererBaseband=(float)tmpI;
-            if (verbose) printf("addCWIntefererBaseband: %i\n", tmpI);
+            sc->addCWInterfererBasebandTx=(float)tmpI;
+            if (verbose) printf("addCWIntefererBasebandTx: %d\n", tmpI);
+        }
+		// Read the integer
+		if (config_setting_lookup_int(setting, "addCWInterfererBasebandRx", &tmpI))
+        {
+            sc->addCWInterfererBasebandRx=(float)tmpI;
+            if (verbose) printf("addCWIntefererBasebandRx: %d\n", tmpI);
         }
 
 		// Read the double
@@ -887,28 +915,66 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     free(y);
 } // End enactRicianFadingBaseband()
 
+//TODO: enable starting of this thread when a new scenario begins
+// This function runs in its own thread waiting to modify the samples every time
+// they are recieve by the ofdmtxrx object, but before they are sent to the
+// synchronizer. 
+void * enactScenarioBasebandRx( void * _arg)
+{
+    enactScenarioBasebandRxStruct * esbrs = (enactScenarioBasebandRxStruct *) _arg;
+    while (true)
+    {
+        pthread_mutex_lock(&esbrs->txcvr->rx_buffer_mutex);
+        // Wait for txcvr rx_worker to signal samples are ready to be modified
+        pthread_cond_wait(&esbrs->txcvr->rx_buffer_filled_cond, &esbrs->txcvr->rx_buffer_mutex);
+
+        // Add appropriate RF impairments for the scenario
+        if (esbrs->sc->addRicianFadingBasebandRx == 1)
+        {
+            enactRicianFadingBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+        }
+        if (esbrs->sc->addCWInterfererBasebandRx == 1)
+        {
+            // Interference function
+            enactCWInterfererBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+        }
+        if (esbrs->sc->addAWGNBasebandRx == 1)
+        {
+            enactAWGNBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+        }
+
+        // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
+        pthread_cond_signal(&(esbrs->txcvr->rx_buffer_filled_cond));
+        // unlock mutex
+        pthread_mutex_unlock(&(esbrs->txcvr->rx_buffer_mutex));
+
+        //TODO implement killing of this thread when a scenario ends.
+    }
+    return NULL;
+} // End enactScenarioBasebandRx()
+
 // Enact Scenario
 void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Add appropriate RF impairments for the scenario
-    if (sc.addRicianFadingBaseband == 1)
+    if (sc.addRicianFadingBasebandTx == 1)
     {
         enactRicianFadingBaseband(transmit_buffer, ce, sc);
     }
-    if (sc.addCWInterfererBaseband == 1)
+    if (sc.addCWInterfererBasebandTx == 1)
     {
         //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
         // Interference function
         enactCWInterfererBaseband(transmit_buffer, ce, sc);
     }
-    if (sc.addAWGNBaseband == 1)
+    if (sc.addAWGNBasebandTx == 1)
     {
         enactAWGNBaseband(transmit_buffer, ce, sc);
     }
-    if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0))
+    if ( (sc.addAWGNBasebandTx == 0) && (sc.addCWInterfererBasebandTx == 0) && (sc.addRicianFadingBasebandTx == 0))
     {
        	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
-		//fprintf(stderr, "addCWInterfererBaseband: %i\n", sc.addCWInterfererBaseband);
+		//fprintf(stderr, "addCWInterfererBasebandTx: %i\n", sc.addCWInterfererBaseband);
     }
 } // End enactScenarioBaseband()
 
@@ -1944,6 +2010,7 @@ int main(int argc, char ** argv)
     }   
 
     pthread_t TCPServerThread;   // Pointer to thread ID
+    pthread_t enactScBbRxThread;   // Pointer to thread ID
     // Threading for using uhd_siggen (for when using USRPs)
     //pthread_t siggenThread;
     //int serverThreadReturn = 0;  // return value of creating TCPServer thread
@@ -2029,6 +2096,11 @@ int main(int argc, char ** argv)
     {
         pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
     }
+    /*else 
+    {
+        pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &ss);
+    }
+    */
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
@@ -2154,6 +2226,10 @@ int main(int argc, char ** argv)
             // Begin Testing Scenario
             DoneTransmitting = 0;
 
+            // Pointer to ofdmtxrx object for when using USRPs
+            // Needs to be outside if statement so object can be closed later.
+            ofdmtxrx * txcvr_ptr;
+
             //while(!DoneTransmitting)
             //{
                 if (usingUSRPs) 
@@ -2163,11 +2239,13 @@ int main(int argc, char ** argv)
                     unsigned char * p = NULL;   // default subcarrier allocation
                     if (verbose) 
                         printf("Using ofdmtxrx\n");
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs);
+                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+                    txcvr_ptr = &txcvr;
 
                     // Start the Scenario simulations from the scenario USRPs
                     //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
 
+                    // Each instance of this while loop transmits one packet
                     while(!DoneTransmitting)
                     {
                         // set properties
@@ -2179,6 +2257,7 @@ int main(int argc, char ** argv)
 
                         if (!isController)
                         {
+
                             txcvr.set_rx_freq(frequency);
                             txcvr.set_rx_rate(bandwidth);
                             txcvr.set_rx_gain_uhd(uhd_rxgain);
@@ -2195,16 +2274,30 @@ int main(int argc, char ** argv)
 							int rflag;
 							char readbuffer;
 							txcvr.start_rx();
+                            //TODO get first ce and sc over tcp connection.
+                            // Start enactScenarioBasebandRx Thread
+                            //struct enactScenarioBasebandRxStruct esbrs = {.txcvr = &txcvr, .ce = &ce, .sc = &sc};
+                            // start enactScenarioBasebandRx thread
+                            //pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
                             while(continue_running)
                             {
 								// Wait until server closes or there is an error, then exit
 								rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
-								printf("Rx flag: %i\n", rflag);
+								printf("Rx flag: %d\n", rflag);
 								if(rflag == 0 || rflag == -1){
 									close(socket_to_server);
 									msequence_destroy(rx_ms);
 									exit(1);
 								}
+                                //TODO:
+                                // if new scenario:
+                                //{
+                                    // close enactScenarioBasebandRx Thread
+                                    // close current ofdmtxrx object
+                                    // update sc and ce
+                                    // open new ofdmtxrx object
+                                    // open new enactScenarioBasebandRx Thread
+                                //}
                             }
                         }
 
@@ -2288,7 +2381,8 @@ int main(int argc, char ** argv)
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
 						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
-                    } // End If while loop
+                    } // End while not done transmitting loop
+                    // TODO: close ofdmtxrx object
                 }
                 else // If not using USRPs
                 {
