@@ -76,10 +76,12 @@ struct CognitiveEngine {
     float PER;
     float BERLastPacket;
     float BERTotal;
-    float frequency;
+    float frequency_tx;
+	float frequency_rx;
     float bandwidth;
     float txgain_dB;
     float uhd_txgain_dB;
+	float uhd_rxgain_dB;
     float delay_us;
     float weighted_avg_payload_valid_threshold;
     float PER_threshold;
@@ -129,10 +131,14 @@ struct rxCBstruct {
     float bandwidth;
     char * serverAddr;
 	msequence * rx_ms_ptr;
-    int ce_num;
-    int sc_num;
     int frameNum;
 	int client;
+	int isController;
+	int usingUSRPs;
+	ofdmtxrx * txrx_ptr;
+	struct CognitiveEngine * ce_ptr;
+	struct Scenario * sc_ptr;
+	struct feedbackStruct *fb_ptr;
 };
 
 struct feedbackStruct {
@@ -152,11 +158,15 @@ struct feedbackStruct {
 
 struct serverThreadStruct {
     unsigned int serverPort;
+	int OTA;
+	int usingUSRPs;
     struct feedbackStruct * fb_ptr;
 };
 
 struct serveClientStruct {
 	int client;
+	int OTA;
+	int usingUSRPs;
 	struct feedbackStruct * fb_ptr;
 };
 
@@ -207,7 +217,6 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.lastReceivedFrame = 0;
     ce.validPayloads = 0;
     ce.errorFreePayloads = 0;
-    ce.frequency = 460.0e6;
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
     ce.uhd_txgain_dB = 40.0;
@@ -254,7 +263,7 @@ struct Scenario CreateScenario() {
     return sc;
 } // End CreateScenario()
 
-// Defaults for struct that is sent to rxCallBack()
+// Defaults for struct that is sent to rxCallback()
 struct rxCBstruct CreaterxCBStruct() {
     struct rxCBstruct rxCB = {};
     rxCB.serverPort = 1402;
@@ -368,7 +377,7 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
     return no_of_scenarios;
 } // End readScMasterFile()
 
-int readCEMasterFile(char cogengine_list[30][60], int verbose)
+int readCEMasterFile(char cogengine_list[30][60], int verbose, int isController)
 {
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
@@ -379,8 +388,12 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
     int no_of_cogengines=1;
     int i;
     char tmpS[30];
+	char type[12];
     //Initialization
     config_init(&cfg);
+
+	if(isController) strcpy(type,"_controller");
+	else strcpy(type,"_slave");
    
     //printf ("\nInside readCEMasterFile function\n");
     //printf ("%sCogEngine List[0]:\n",cogengine_list[0] );
@@ -393,9 +406,8 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
         config_destroy(&cfg);
         exit(EX_NOINPUT);
     }
-    else
+    //else
         //printf("Found master Cognitive Engine config file.\n");
-        ;
   
     //// Get the configuration file name. 
     //if (config_lookup_string(&cfg, "filename", &str))
@@ -421,6 +433,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose)
             sprintf (tmpS,"%d",i);
             //printf ("\n Scenario Number =%s", tmpS);
             strcat (current_ce,tmpS);
+			strcat(current_ce,type);
             //printf ("\n CURRENT SCENARIO =%s", current_sc);
             if (config_setting_lookup_string(setting, current_ce, &str))
             {
@@ -576,10 +589,15 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
            ce->threshold=tmpD; 
            if (verbose) printf("Threshold: %f\n", tmpD);
         }
-        if (config_setting_lookup_float(setting, "frequency", &tmpD))
+        if (config_setting_lookup_float(setting, "frequency_tx", &tmpD))
         {
-           ce->frequency=tmpD; 
-           if (verbose) printf("frequency: %f\n", tmpD);
+           ce->frequency_tx=tmpD; 
+           if (verbose) printf("Transmit frequency: %f\n", tmpD);
+        }
+		if (config_setting_lookup_float(setting, "frequency_rx", &tmpD))
+        {
+           ce->frequency_rx=tmpD; 
+           if (verbose) printf("Receive frequency: %f\n", tmpD);
         }
         if (config_setting_lookup_float(setting, "txgain_dB", &tmpD))
         {
@@ -762,12 +780,12 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
 } // End readScConfigFile()
 
 // Add AWGN
-void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine *ce_ptr, struct Scenario *sc_ptr)
 {
     //options
-    float dphi  = sc.noiseDPhi;                              // carrier frequency offset
-    float SNRdB = sc.noiseSNR;                               // signal-to-noise ratio [dB]
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+    float dphi  = sc_ptr->noiseDPhi;                              // carrier frequency offset
+    float SNRdB = sc_ptr->noiseSNR;                               // signal-to-noise ratio [dB]
+    unsigned int symbol_len = ce_ptr->numSubcarriers + ce_ptr->CPLen;  // defining symbol length
     
     //printf("In enactAWGNBaseband: SNRdB=%f\n", SNRdB);
 
@@ -787,25 +805,25 @@ void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEn
     }
 } // End enactAWGNBaseband()
 
-void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine *ce_ptr, struct Scenario *sc_ptr)
 {
-	float fs = ce.bandwidth; // Sample rate of the transmit buffer
-	float k = pow(10.0, sc.cw_pow/20.0); // Coefficient to set the interferer power correctly
-	unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+	float fs = ce_ptr->bandwidth; // Sample rate of the transmit buffer
+	float k = pow(10.0, sc_ptr->cw_pow/20.0); // Coefficient to set the interferer power correctly
+	unsigned int symbol_len = ce_ptr->numSubcarriers + ce_ptr->CPLen;  // defining symbol length
 
 	//printf("Coefficient: %f\n", k);
 
 	for(unsigned int i=0; i<symbol_len; i++)
 	{
-		transmit_buffer[i] += k*sin(6.283*sc.cw_freq*i/fs); // Add CW tone
+		transmit_buffer[i] += k*sin(6.283*sc_ptr->cw_freq*i/fs); // Add CW tone
 	}
 } // End enactCWInterfererBaseband()
 
 // Add Rice-K Fading
-void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine *ce_ptr, struct Scenario *sc_ptr)
 {
     // options
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+    unsigned int symbol_len = ce_ptr->numSubcarriers + ce_ptr->CPLen; // defining symbol length
     unsigned int h_len;                                     // doppler filter length
     if (symbol_len > 94){
         h_len = 0.0425*symbol_len;
@@ -813,12 +831,12 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     else {
         h_len = 4;
     }
-    float fd           = sc.fadeFd; // maximum doppler frequency
-    float K            = sc.fadeK;  // Rice fading factor
+    float fd           = sc_ptr->fadeFd; // maximum doppler frequency
+    float K            = sc_ptr->fadeK;  // Rice fading factor
     float omega        = 1.0f;      // mean power
     float theta        = 0.0f;      // angle of arrival
-    float dphi = sc.fadeDPhi;       // carrier frequency offset
-    float phi = 0.0f;               // channel phase
+    float dphi 		   = sc_ptr->fadeDPhi;       // carrier frequency offset
+    float phi          = 0.0f;               // channel phase
 
     // validate input
     if (K < 1.5f) {
@@ -888,24 +906,24 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
 } // End enactRicianFadingBaseband()
 
 // Enact Scenario
-void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine *ce_ptr, struct Scenario *sc_ptr)
 {
     // Add appropriate RF impairments for the scenario
-    if (sc.addRicianFadingBaseband == 1)
+    if (sc_ptr->addRicianFadingBaseband == 1)
     {
-        enactRicianFadingBaseband(transmit_buffer, ce, sc);
+        enactRicianFadingBaseband(transmit_buffer, ce_ptr, sc_ptr);
     }
-    if (sc.addCWInterfererBaseband == 1)
+    if (sc_ptr->addCWInterfererBaseband == 1)
     {
         //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
         // Interference function
-        enactCWInterfererBaseband(transmit_buffer, ce, sc);
+        enactCWInterfererBaseband(transmit_buffer, ce_ptr, sc_ptr);
     }
-    if (sc.addAWGNBaseband == 1)
+    if (sc_ptr->addAWGNBaseband == 1)
     {
-        enactAWGNBaseband(transmit_buffer, ce, sc);
+        enactAWGNBaseband(transmit_buffer, ce_ptr, sc_ptr);
     }
-    if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0))
+    if ( (sc_ptr->addAWGNBaseband == 0) && (sc_ptr->addCWInterfererBaseband == 0) && (sc_ptr->addRicianFadingBaseband == 0))
     {
        	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
 		//fprintf(stderr, "addCWInterfererBaseband: %i\n", sc.addCWInterfererBaseband);
@@ -984,6 +1002,7 @@ void enactUSRPScenario(struct CognitiveEngine ce, struct Scenario sc, pid_t* sig
 modulation_scheme convertModScheme(char * modScheme, unsigned int * bps)
 {
     modulation_scheme ms;
+	//printf("Modulation Scheme: %s", modScheme);
     // TODO: add other liquid-supported mod schemes
     if (strcmp(modScheme, "QPSK") == 0) {
         ms = LIQUID_MODEM_QPSK;
@@ -1192,63 +1211,131 @@ int rxCallback(unsigned char *  _header,
                int              _payload_valid,
                framesyncstats_s _stats,
                void *           _userdata)
-{
-    struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
+{   
+	struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr; 
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
     unsigned int payloadBitErrors   =   0;
     int j,m;
 	unsigned int tx_byte;
+	
+	if(rxCBS_ptr->isController && rxCBS_ptr->usingUSRPs){
+		// Read FB from the payload received OTA and write it to the FB struct
+		//while (rxCBS_ptr->fb_ptr->block_flag) {}
+		printf("TP1\n");
+		printf("FB length: %i, Payload FB length: %i\n", sizeof(*rxCBS_ptr->fb_ptr), sizeof(*(struct feedbackStruct*)_payload));
+		*rxCBS_ptr->fb_ptr = *(struct feedbackStruct*)_payload;
+		printf("TP2\n");
+		//rxCBS_ptr->fb_ptr->block_flag = 1;
+	}
+	else{
+		
+		// Read the feedback directly from the callback parameters
+		struct feedbackStruct fb = {};
+		fb.header_valid         =   _header_valid;
+		fb.payload_valid        =   _payload_valid;
+		fb.payload_len          =   _payload_len;
+		fb.payloadByteErrors    =   payloadByteErrors;
+		fb.payloadBitErrors     =   payloadBitErrors;
+		fb.evm                  =   _stats.evm;
+		fb.rssi                 =   _stats.rssi;
+		fb.cfo                  =   _stats.cfo;	
+		//fb.ce_num				=	_header[0];
+		//fb.sc_num				=	_header[1];
+		fb.iteration			=	0;
+		fb.block_flag			=	0;
 
-    // Calculate byte error rate and bit error rate for payload
-    for (m=0; m<(signed int)_payload_len; m++)
-    {
-		tx_byte = msequence_generate_symbol(rx_ms,8);
-		//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
-        if (((int)_payload[m] != tx_byte))
-        {
-            payloadByteErrors++;
-            for (j=0; j<8; j++)
-            {
-				if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
-                   payloadBitErrors++;
-            }      
-        }           
-    }               
-                    
-    // Data that will be sent to server
-    // TODO: Send other useful data through feedback array
+		for(int i=0; i<4; i++)	fb.iteration += _header[i+2]<<(8*(3-i));
 
-    struct feedbackStruct fb = {};
-    fb.header_valid         =   _header_valid;
-    fb.payload_valid        =   _payload_valid;
-    fb.payload_len          =   _payload_len;
-    fb.payloadByteErrors    =   payloadByteErrors;
-    fb.payloadBitErrors     =   payloadBitErrors;
-    fb.evm                  =   _stats.evm;
-    fb.rssi                 =   _stats.rssi;
-    fb.cfo                  =   _stats.cfo;	
-	//fb.ce_num				=	_header[0];
-	//fb.sc_num				=	_header[1];
-	fb.iteration			=	0;
-	fb.block_flag			=	0;
+		if (verbose)
+		{
+			printf("In rxCallback():\n");
+			printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], 
+			    _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
+			feedbackStruct_print(&fb);
+		}
 
-	for(int i=0; i<4; i++)	fb.iteration += _header[i+2]<<(8*(3-i));
+		// Calculate byte error rate and bit error rate for payload
+		for (m=0; m<(signed int)_payload_len; m++)
+		{
+			tx_byte = msequence_generate_symbol(rx_ms,8);
+			//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
+		    if (((int)_payload[m] != tx_byte))
+		    {
+		        payloadByteErrors++;
+		        for (j=0; j<8; j++)
+		        {
+					if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
+		               payloadBitErrors++;
+		        }      
+		    }           
+		}             
+                
+		// Data that will be sent to server
+		// TODO: Send other useful data through feedback array
+		if(rxCBS_ptr->isController){
+			//while(rxCBS_ptr->fb_ptr->block_flag){}
+			*rxCBS_ptr->fb_ptr = fb;
+			//rxCBS_ptr->fb_ptr->block_flag = 1;
+		}
+		else{
+			// Receiver sends feedback over TCP link
+			write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
 
-    if (verbose)
-    {
-        printf("In rxcallback():\n");
-        printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], 
-            _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
-        feedbackStruct_print(&fb);
-    }
+			// Receiver sends feedback OTA
 
-    // Receiver sends data to server
-    write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
+			int i = 0;
+			unsigned char header[8] = {0};            // Must always be 8 bytes for ofdmflexframe
+			unsigned char *fb_c_ptr = (unsigned char*)&fb;
+			unsigned char payload[1000];
+			// Generate data
+			if (verbose) printf("\n\nGenerating data that will go in frame...\n");
+			for (i=0; i<sizeof(fb); i++){
+				payload[i] = *fb_c_ptr;
+				fb_c_ptr++;
+			}
+			for (i=sizeof(fb); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++)
+				payload[i] = i;
 
+			// Include frame number in header information
+			if (verbose) printf("Frame Num: %u\n", rxCBS_ptr->ce_ptr->frameNumber);
+
+			// Set Modulation Scheme
+			char mod[30] = "BPSK";
+			char FEC0[30] = "Hamming74";
+			char FEC1[30] = "none";
+			modulation_scheme ms = convertModScheme(mod, &rxCBS_ptr->ce_ptr->bitsPerSym);
+
+			// Set Cyclic Redundency Check Scheme
+			//crc_scheme check = convertCRCScheme(ce.crcScheme);
+
+			// Set inner forward error correction scheme
+			if (verbose) printf("Inner FEC: ");
+			fec_scheme fec0 = convertFECScheme(FEC0, verbose);
+
+			// Set outer forward error correction scheme
+			if (verbose) printf("Outer FEC: ");
+			fec_scheme fec1 = convertFECScheme(FEC1, verbose);
+
+			//txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+			// Replace with txcvr methods that allow access to samples:
+			rxCBS_ptr->txrx_ptr->assemble_frame(header, payload, rxCBS_ptr->ce_ptr->payloadLen, ms, fec0, fec1);
+			printf("Assembled\n");
+			int isLastSymbol = 0;
+			while(!isLastSymbol)
+			{
+				isLastSymbol = rxCBS_ptr->txrx_ptr->write_symbol();
+				//enactScenarioBaseband(rxCBS_ptr->txrx_ptr->fgbuffer, rxCBS_ptr->ce_ptr, rxCBS_ptr->sc_ptr);
+				rxCBS_ptr->txrx_ptr->transmit_symbol();
+			}
+			printf("Transmitted\n");
+			rxCBS_ptr->txrx_ptr->end_transmit_frame();
+			printf("\nTransmitted feedback for frame %i\n\n", _header[5]);
+		}
+	}// End else (not the controller)
     return 0;
 
 } // end rxCallback()
@@ -1287,12 +1374,23 @@ ofdmflexframesync CreateFS(struct CognitiveEngine ce, struct Scenario sc, struct
 void * serveTCPclient(void * _sc_ptr){
 	struct serveClientStruct * sc_ptr = (struct serveClientStruct*) _sc_ptr;
 	struct feedbackStruct read_buffer;
-	struct feedbackStruct *fb_ptr = sc_ptr->fb_ptr;
+	int rflag;
+	// Write feedback to file
+	printf("Serving TCP Client\n");
 	while(1){
-        bzero(&read_buffer, sizeof(read_buffer));
-        read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
-		if (read_buffer.evm && !fb_ptr->block_flag) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
-    }
+		//read(sc_ptr->client, &read_buffer, sizeof(struct feedbackStruct));
+		//if(read_buffer.evm){
+			//printf("Read evm: %f\n", read_buffer.evm);
+			// Write feedback from TCP to file
+		//}
+		rflag = recv(sc_ptr->client, &read_buffer, sizeof(struct feedbackStruct), 0);
+			printf("Rx flag: %i\n", rflag);
+			if(rflag == 0 || rflag == -1){
+				close(sc_ptr->client);
+				printf("Socket failure\n");
+				exit(1);
+			}
+		}
     return NULL;
 }
 
@@ -1369,6 +1467,8 @@ void * startTCPServer(void * _ss_ptr)
 			struct serveClientStruct sc = CreateServeClientStruct();
 			sc.client = socket_to_client;
 			sc.fb_ptr = ss_ptr->fb_ptr;
+			sc.OTA = ss_ptr->OTA;
+			sc.usingUSRPs = ss_ptr->usingUSRPs;
 			pthread_create( &TCPServeClientThread[client], NULL, serveTCPclient, (void*) &sc);
 			client++;
 		}
@@ -1805,14 +1905,14 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int verbose)
 {
     // FIXME: Find another way to fix this:: FIXED?
-    usleep(cePtr->delay_us);
+	usleep(cePtr->delay_us);
 	std::clock_t timeout_start = std::clock();
-	while( !fb_ptr->block_flag ){
-		std::clock_t timeout_now = std::clock();
-		if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>1.0e-3) break;
-	}
-	fb_ptr->block_flag = 0;
 
+	//while( fb_ptr->block_flag ){
+	//	std::clock_t timeout_now = std::clock();
+	//	if(double(timeout_now-timeout_start)/CLOCKS_PER_SEC>100.0e-3) break;
+	//}
+	//fb_ptr->block_flag = 0;
     int DoneTransmitting = 0;
 
     // Process data from rx
@@ -1903,8 +2003,9 @@ int main(int argc, char ** argv)
     unsigned int CPLen = 16;
     unsigned int taperLen = 4;
     float bandwidth = 1.0e6;
-    float frequency = 460.0e6;
     float uhd_rxgain = 20.0;
+	float frequency_tx;
+	float frequency_rx;
 
     // Check Program options
     int d;
@@ -1921,7 +2022,8 @@ int main(int argc, char ** argv)
         case 'p':   serverPort = atoi(optarg);              break;
         case 'c':   isController = 1;                       break;
         case 'a':   serverAddr = optarg;                    break;
-        case 'f':   frequency = atof(optarg);               break;
+        case 'f':   frequency_tx = atof(optarg);            break;
+		case 'F':	frequency_rx = atof(optarg);			break;
         case 'b':   bandwidth = atof(optarg);               break;
         case 'G':   uhd_rxgain = atof(optarg);              break;
         case 'M':   numSubcarriers = atoi(optarg);          break;
@@ -1935,17 +2037,24 @@ int main(int argc, char ** argv)
         default:
             verbose = 1;
         }   
-    }   
+    }
+
+	// Default transmit and receive frequencies (reversed for controller/slaves)
+	if(isController){
+	    frequency_tx = 140.0e6;
+		frequency_rx = 154.0e6;
+	}
+	else{
+		frequency_tx = 154.0e6;
+		frequency_rx = 140.0e6;
+	}
 
     pthread_t TCPServerThread;   // Pointer to thread ID
-    // Threading for using uhd_siggen (for when using USRPs)
-    //pthread_t siggenThread;
-    //int serverThreadReturn = 0;  // return value of creating TCPServer thread
-    //pid_t uhd_siggen_pid;
 
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
     struct feedbackStruct fb = {};
+	fb.block_flag = 0;
 
     // For creating appropriate symbol length from 
     // number of subcarriers and CP Length
@@ -1961,7 +2070,7 @@ int main(int argc, char ** argv)
     
     //printf("variables declared.\n");
 
-    int NumCE=readCEMasterFile(cogengine_list, verbose);  
+    int NumCE=readCEMasterFile(cogengine_list, verbose, isController);  
     int NumSc=readScMasterFile(scenario_list, verbose);  
     //printf ("\nCalled readScMasterFile function\n");
 
@@ -2014,13 +2123,28 @@ int main(int argc, char ** argv)
 	signal(SIGQUIT, terminate);
 	signal(SIGKILL, terminate);
 
-    // Begin TCP Server Thread
-    //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
-    struct serverThreadStruct ss = CreateServerStruct();
-    ss.serverPort = serverPort;
-    ss.fb_ptr = &fb;
-    if (isController) 
-        pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
+	//if (isController){
+		// Begin local TCP Server Thread
+		//serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+		/*struct serverThreadStruct ss_local = CreateServerStruct();
+		ss_local.serverPort = serverPort;
+		ss_local.fb_ptr = &fb;
+		ss_local.OTA = 0; 
+		ss_local.usingUSRPs = usingUSRPs;
+		pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_local);*/
+
+		// Begin TCP Server Thread for slave node(s) if using USRP's
+		if(usingUSRPs && isController){
+			struct serverThreadStruct ss_slave = CreateServerStruct();
+			ss_slave.serverPort = serverPort;
+			ss_slave.OTA = 1;
+			ss_slave.usingUSRPs = usingUSRPs;
+			pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_slave);
+			printf("\nPress any key once all nodes have connected to the TCP server\n");
+			getchar();
+		}
+	//}
+	
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
@@ -2028,6 +2152,9 @@ int main(int argc, char ** argv)
     rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
 	rxCBs.rx_ms_ptr = &rx_ms;
+	rxCBs.isController = isController;
+	rxCBs.usingUSRPs = usingUSRPs;
+	rxCBs.fb_ptr = &fb;
 
     // Allow server time to finish initialization
     usleep(0.1e6);
@@ -2035,7 +2162,7 @@ int main(int argc, char ** argv)
 	//signal (SIGPIPE, SIG_IGN);
 
 	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
-	if(!isController  || !usingUSRPs){
+	if(!isController && usingUSRPs){
 		// Create a client TCP socket] 
 		if( socket_to_server < 0)
 		{   
@@ -2061,13 +2188,13 @@ int main(int argc, char ** argv)
 		}
 
 		rxCBs.client = socket_to_server;
-        if (verbose)
+        //if (verbose)
             printf("Connected to Server.\n");
 	}
-	if(usingUSRPs && isController){
+	/*if(usingUSRPs && isController){
 		printf("\nPress any key once all nodes have connected to the TCP server\n");
 		getchar();
-	}
+	}*/
 
     // Get current date and time
     char dataFilename[50];
@@ -2102,15 +2229,20 @@ int main(int argc, char ** argv)
 
             // Initialize current CE
             ce = CreateCognitiveEngine();
-            if (isController)
+            readCEConfigFile(&ce, cogengine_list[i_CE], verbose);
+			ce.frequency_tx = frequency_tx;
+			ce.frequency_rx = frequency_rx;
+
+            if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
+            // Initialize current Scenario
+            sc = CreateScenario();
+            readScConfigFile(&sc,scenario_list[i_Sc], verbose);
+            
+            rxCBs.ce_ptr = &ce;
+            rxCBs.sc_ptr = &sc;
+
+			if (isController)
             {
-                readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
-
-                if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
-                // Initialize current Scenario
-                sc = CreateScenario();
-                readScConfigFile(&sc,scenario_list[i_Sc], verbose);
-
                 fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
                 //All metrics
                 /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
@@ -2120,16 +2252,17 @@ int main(int argc, char ** argv)
                     "linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency", "Averaged Goal Value");
                 fflush(dataFile);
             }
-            else
+            //else
             // If this crts instance is not the controller,
             // then no CEs, adaptations, scenarios, etc.
-            {
+            /*{
                 ce.numSubcarriers = numSubcarriers;
                 ce.CPLen = CPLen;
                 ce.taperLen = taperLen;
-                ce.frequency = frequency;
+                ce.frequency_tx = frequency_tx;
+				ce.frequency_rx = frequency_rx;
                 ce.bandwidth = bandwidth;
-            }
+            }*/
 
             // Initialize Receiver Defaults for current CE and Sc
             ce.frameNumber = 1;
@@ -2139,217 +2272,212 @@ int main(int argc, char ** argv)
             std::clock_t now;
             // Begin Testing Scenario
             DoneTransmitting = 0;
+		    if (usingUSRPs) 
+		    {
+				// Create transceiver object with appropriate callback
+		        unsigned char * p = NULL;   // default subcarrier allocation
+		        if (verbose) 
+		            printf("Using ofdmtxrx\n");
+				//printf("!!!! Modulation Scheme: %s !!!!\n", rxCBs.ce_ptr->modScheme);
+		        ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs);
+			
+				// Set Tx properties
+		        txcvr.set_tx_freq(ce.frequency_tx);
+		        txcvr.set_tx_rate(ce.bandwidth);
+		        txcvr.set_tx_gain_soft(ce.txgain_dB);
+		        txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
+		        //txcvr.set_tx_antenna("TX/RX");
+				
+				// Set Rx properties
+		        txcvr.set_rx_freq(ce.frequency_rx);
+		        txcvr.set_rx_rate(ce.bandwidth);
+		        txcvr.set_rx_gain_uhd(ce.uhd_rxgain_dB);
+				// Point the slave rx callback to the transceiver object
+				rxCBs.txrx_ptr = &txcvr;
 
-            //while(!DoneTransmitting)
-            //{
-                if (usingUSRPs) 
-                {
-                    //usrp = initializeUSRPs();    
-                    // create transceiver object
-                    unsigned char * p = NULL;   // default subcarrier allocation
-                    if (verbose) 
-                        printf("Using ofdmtxrx\n");
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs);
+				if(isController) txcvr.start_rx();		// Start control receiver
+				if (verbose) {
+		            txcvr.debug_enable();
+		            printf("Set Tx frequency to %f\n", ce.frequency_tx);
+		            printf("Set bandwidth to %f\n", ce.bandwidth);
+		            printf("Set txgain_dB to %f\n", ce.txgain_dB);
+		            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain_dB);
+		            printf("Set Tx antenna to %s\n", "TX/RX");
+					printf("Set Rx freq to %f\n", ce.frequency_rx);
+		            printf("Set Rx rate to %f\n", ce.bandwidth);
+		            printf("Set uhd Rx gain to %f\n", ce.uhd_rxgain_dB);
+		        }
+		        while(!DoneTransmitting)
+		        {
 
-                    // Start the Scenario simulations from the scenario USRPs
-                    //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
+		            if (!isController)
+		            {
+		                int continue_running = 1;
+						int rflag;
+						char readbuffer;
+						txcvr.start_rx();
+		                while(continue_running)
+		                {
+							// Wait until server closes or there is an error, then exit
+							rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
+							printf("Rx flag: %i\n", rflag);
+							if(rflag == 0 || rflag == -1){
+								close(socket_to_server);
+								msequence_destroy(rx_ms);
+								exit(1);
+							}
+		                }
+		            }
 
-                    while(!DoneTransmitting)
-                    {
-                        // set properties
-                        txcvr.set_tx_freq(ce.frequency);
-                        txcvr.set_tx_rate(ce.bandwidth);
-                        txcvr.set_tx_gain_soft(ce.txgain_dB);
-                        txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
-                        //txcvr.set_tx_antenna("TX/RX");
+		            int i = 0;
+		            // Generate data
+		            if (verbose) printf("\n\nGenerating data that will go in frame...\n");
+					header[0] = i_CE+1;
+					header[1] = i_Sc+1;
+		            for (i=0; i<4; i++)
+		                header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+					header[6] = 0;
+					header[7] = 0;
+		            for (i=0; i<(signed int)ce.payloadLen; i++)
+		                payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
 
-                        if (!isController)
-                        {
-                            txcvr.set_rx_freq(frequency);
-                            txcvr.set_rx_rate(bandwidth);
-                            txcvr.set_rx_gain_uhd(uhd_rxgain);
+		            // Include frame number in header information
+		            //* header_u = ce.frameNumber;
+		            if (verbose) printf("Frame Num: %u\n", ce.frameNumber);
 
-                            if (verbose)
-                            {
-                                txcvr.debug_enable();
-                                printf("Set Rx freq to %f\n", frequency);
-                                printf("Set Rx rate to %f\n", bandwidth);
-                                printf("Set uhd Rx gain to %f\n", uhd_rxgain);
-                            }
+		            // Set Modulation Scheme
+		            if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
+		            modulation_scheme ms = convertModScheme(ce.modScheme, &ce.bitsPerSym);
 
-                            int continue_running = 1;
-							int rflag;
-							char readbuffer;
-							txcvr.start_rx();
-                            while(continue_running)
-                            {
-								// Wait until server closes or there is an error, then exit
-								rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
-								printf("Rx flag: %i\n", rflag);
-								if(rflag == 0 || rflag == -1){
-									close(socket_to_server);
-									msequence_destroy(rx_ms);
-									exit(1);
-								}
-                            }
-                        }
+		            // Set Cyclic Redundency Check Scheme
+		            //crc_scheme check = convertCRCScheme(ce.crcScheme);
 
-                        if (verbose) {
-                            txcvr.debug_enable();
-                            printf("Set frequency to %f\n", ce.frequency);
-                            printf("Set bandwidth to %f\n", ce.bandwidth);
-                            printf("Set txgain_dB to %f\n", ce.txgain_dB);
-                            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain_dB);
-                            printf("Set Tx antenna to %s\n", "TX/RX");
-                        }
+		            // Set inner forward error correction scheme
+		            if (verbose) printf("Inner FEC: ");
+		            fec_scheme fec0 = convertFECScheme(ce.innerFEC, verbose);
 
-                        int i = 0;
-                        // Generate data
-                        if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-						header[0] = i_CE+1;
-						header[1] = i_Sc+1;
-                        for (i=0; i<4; i++)
-                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
-						header[6] = 0;
-						header[7] = 0;
-                        for (i=0; i<(signed int)ce.payloadLen; i++)
-                            payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+		            // Set outer forward error correction scheme
+		            if (verbose) printf("Outer FEC: ");
+		            fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
-                        // Include frame number in header information
-                        //* header_u = ce.frameNumber;
-                        if (verbose) printf("Frame Num: %u\n", ce.frameNumber);
+		            //txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+		            // Replace with txcvr methods that allow access to samples:
+		            txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
+		            int isLastSymbol = 0;
+					
+		            while(!isLastSymbol)
+		            {
+		                isLastSymbol = txcvr.write_symbol();
+		                enactScenarioBaseband(txcvr.fgbuffer, &ce, &sc);
+		                txcvr.transmit_symbol();
+		            }
+					
+		            txcvr.end_transmit_frame();
+		            DoneTransmitting = postTxTasks(&ce, &fb, verbose);
 
-                        // Set Modulation Scheme
-                        if (verbose) printf("Modulation scheme: %s\n", ce.modScheme);
-                        modulation_scheme ms = convertModScheme(ce.modScheme, &ce.bitsPerSym);
+		            // Record the feedback data received
+		            //TODO: include fb.cfo
 
-                        // Set Cyclic Redundency Check Scheme
-                        //crc_scheme check = convertCRCScheme(ce.crcScheme);
+					// Compute throughput and spectral efficiency
+					payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+		            // FIXME:There is no independent fg object when using USRPs. 
+		            // Need to do this another way
+					//total_symbols = (float)ofdmflexframegen_getframelen(fg);
+		            total_symbols = 1;
+					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
-                        // Set inner forward error correction scheme
-                        if (verbose) printf("Inner FEC: ");
-                        fec_scheme fec0 = convertFECScheme(ce.innerFEC, verbose);
+		            //All metrics
+		            /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
+						"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+						ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+					//Useful metrics
+					fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+						"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
+						ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+		            fflush(dataFile);
 
-                        // Set outer forward error correction scheme
-                        if (verbose) printf("Outer FEC: ");
-                        fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
+		            // Increment the frame counter
+		            ce.frameNumber++;
+					ce.iteration++;
 
-                        //txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
-                        // Replace with txcvr methods that allow access to samples:
-                        txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
-                        int isLastSymbol = 0;
-                        while(!isLastSymbol)
-                        {
-                            isLastSymbol = txcvr.write_symbol();
-                            enactScenarioBaseband(txcvr.fgbuffer, ce, sc);
-                            txcvr.transmit_symbol();
-                        }
-                        txcvr.end_transmit_frame();
+		            // Update the clock
+		            now = std::clock();
+		            ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
-                        // Record the feedback data received
-                        //TODO: include fb.cfo
+					updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
+					
+		        } // End If while loop
+				txcvr.stop_rx();
+		    }
+		    else // If not using USRPs
+		    {
+		        while(!DoneTransmitting)
+		        {
+		            // Initialize Transmitter Defaults for current CE and Sc
+		            fg = CreateFG(ce, sc, verbose);  // Create ofdmflexframegen object with given parameters
+		            if (verbose) ofdmflexframegen_print(fg);
 
-						// Compute throughput and spectral efficiency
-						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-                        // FIXME:There is no independent fg object when using USRPs. 
-                        // Need to do this another way
-						//total_symbols = (float)ofdmflexframegen_getframelen(fg);
-                        total_symbols = 1;
-						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
+		            // Iterator
+		            int i = 0;
 
-                        //All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
-						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
-                        fflush(dataFile);
+		            // Generate data
+		            if (verbose) printf("\n\nGenerating data that will go in frame...\n");
+		            header[0] = i_CE+1;
+					header[1] = i_Sc+1;
+		            for (i=0; i<4; i++)
+		                header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+					header[6] = 0;
+					header[7] = 0;
+		            for (i=0; i<(signed int)ce.payloadLen; i++)
+		                payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
 
-                        // Increment the frame counter
-                        ce.frameNumber++;
-						ce.iteration++;
+					// Called just to update bits per symbol field
+					convertModScheme(ce.modScheme, &ce.bitsPerSym);
 
-                        // Update the clock
-                        now = std::clock();
-                        ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
+		            // Assemble frame
+		            ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
+		            //printf("DoneTransmitting= %d\n", DoneTransmitting);
+		            // i.e. Need to transmit each symbol in frame.
+		            isLastSymbol = 0;
+		            while (!isLastSymbol) 
+		            {
+		                //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
+		                isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
+		                enactScenarioBaseband(frameSamples, &ce, &sc);
 
-						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
-                    } // End If while loop
-                }
-                else // If not using USRPs
-                {
-                    while(!DoneTransmitting)
-                    {
-                        // Initialize Transmitter Defaults for current CE and Sc
-                        fg = CreateFG(ce, sc, verbose);  // Create ofdmflexframegen object with given parameters
-                        if (verbose) ofdmflexframegen_print(fg);
+		                // Rx Receives packet
+		                symbolLen = ce.numSubcarriers + ce.CPLen;
+						ofdmflexframesync_execute(fs, frameSamples, symbolLen);
+		            } // End Transmition For loop
 
-                        // Iterator
-                        int i = 0;
+		            DoneTransmitting = postTxTasks(&ce, &fb, verbose);
 
-                        // Generate data
-                        if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-                        header[0] = i_CE+1;
-						header[1] = i_Sc+1;
-                        for (i=0; i<4; i++)
-                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
-						header[6] = 0;
-						header[7] = 0;
-                        for (i=0; i<(signed int)ce.payloadLen; i++)
-                            payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+					fflush(dataFile);
 
-						// Called just to update bits per symbol field
-						convertModScheme(ce.modScheme, &ce.bitsPerSym);
+					// Compute throughput and spectral efficiency
+					payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+					total_symbols = (float)ofdmflexframegen_getframelen(fg);
+					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
-                        // Assemble frame
-                        ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
-                        //printf("DoneTransmitting= %d\n", DoneTransmitting);
-						
-                        // i.e. Need to transmit each symbol in frame.
-                        isLastSymbol = 0;
+		            //All metrics
+		            /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
+						"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+						ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+					//Useful metrics
+					fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+						"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
+						ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 
-                        while (!isLastSymbol) 
-                        {
-                            //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
-                            isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
-                            enactScenarioBaseband(frameSamples, ce, sc);
-							
-                            // Rx Receives packet
-                            symbolLen = ce.numSubcarriers + ce.CPLen;
-							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
-                        } // End Transmition For loop
-						
-                        DoneTransmitting = postTxTasks(&ce, &fb, verbose);
+		            // Increment the frame counters and iteration counter
+		            ce.frameNumber++;
+					ce.iteration++;
+		            // Update the clock
+		            now = std::clock();
+		            ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-						fflush(dataFile);
-
-						// Compute throughput and spectral efficiency
-						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-						total_symbols = (float)ofdmflexframegen_getframelen(fg);
-						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
-
-                        //All metrics
-                        /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
-						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
-
-                        // Increment the frame counters and iteration counter
-                        ce.frameNumber++;
-						ce.iteration++;
-                        // Update the clock
-                        now = std::clock();
-                        ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
-
-						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
-                    } // End else While loop					
-                }
+					updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
+		        } // End else While loop					
+		    }
 
 
             //} // End Test While loop
