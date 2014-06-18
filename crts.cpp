@@ -790,12 +790,12 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
 } // End readScConfigFile()
 
 // Add AWGN
-void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactAWGNBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     //options
     float dphi  = sc.noiseDPhi;                              // carrier frequency offset
     float SNRdB = sc.noiseSNR;                               // signal-to-noise ratio [dB]
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+    //unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
     
     //printf("In enactAWGNBaseband: SNRdB=%f\n", SNRdB);
 
@@ -807,7 +807,8 @@ void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEn
     unsigned int i;
 
     // noise mixing
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         transmit_buffer[i] = std::exp(tmp*phi) * transmit_buffer[i]; // apply carrier offset
         //transmit_buffer[i] *= cexpf(_Complex_I*phi); // apply carrier offset
         phi += dphi;                                 // update carrier phase
@@ -815,28 +816,31 @@ void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEn
     }
 } // End enactAWGNBaseband()
 
-void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
 	float fs = ce.bandwidth; // Sample rate of the transmit buffer
 	float k = pow(10.0, sc.cw_pow/20.0); // Coefficient to set the interferer power correctly
-	unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+	//unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
 
 	//printf("Coefficient: %f\n", k);
 
-	for(unsigned int i=0; i<symbol_len; i++)
+	for(unsigned int i=0; i<buffer_len; i++)
 	{
 		transmit_buffer[i] += k*sin(6.283*sc.cw_freq*i/fs); // Add CW tone
 	}
 } // End enactCWInterfererBaseband()
 
 // Add Rice-K Fading
-void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     // options
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+    //unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+
     unsigned int h_len;                                     // doppler filter length
-    if (symbol_len > 94){
-        h_len = 0.0425*symbol_len;
+    //if (symbol_len > 94){
+    if (buffer_len > 94){
+        //h_len = 0.0425*symbol_len;
+        h_len = 0.0425*buffer_len;
     }
     else {
         h_len = 4;
@@ -858,7 +862,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     } else if (fd <= 0.0f || fd >= 0.5f) {
         fprintf(stderr, "error: Doppler frequency must be in (0,0.5)\n");
         exit(1);
-    } else if (symbol_len== 0) {
+    //} else if (symbol_len== 0) {
+    } else if (buffer_len== 0) {
         fprintf(stderr, "error: number of samples must be greater than zero\n");
         exit(1);
     }
@@ -866,7 +871,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     unsigned int i;
 
     // allocate array for output samples
-    std::complex<float> * y = (std::complex<float> *) malloc(symbol_len*sizeof(std::complex<float>));
+    //std::complex<float> * y = (std::complex<float> *) malloc(symbol_len*sizeof(std::complex<float>));
+    std::complex<float> * y = (std::complex<float> *) malloc(buffer_len*sizeof(std::complex<float>));
     // generate Doppler filter coefficients
     float h[h_len];
     liquid_firdes_doppler(h_len, fd, K, theta, h);
@@ -890,7 +896,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     float sig = sqrtf(0.5f*omega/(K+1.0));
         
     std::complex<float> tmp(0, 1);
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         // generate complex Gauss random variable
         crandnf(&v);
 
@@ -902,7 +909,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
         y[i] = tmp*( std::imag(x)*sig + s ) +
                           ( std::real(x)*sig     );
     }
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         transmit_buffer[i] *= std::exp(tmp*phi);  // apply carrier offset
         phi += dphi;                                  // update carrier phase
         transmit_buffer[i] *= y[i];                   // apply Rice-K distribution
@@ -931,16 +939,16 @@ void * enactScenarioBasebandRx( void * _arg)
         // Add appropriate RF impairments for the scenario
         if (esbrs->sc->addRicianFadingBasebandRx == 1)
         {
-            enactRicianFadingBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+            enactRicianFadingBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
         }
         if (esbrs->sc->addCWInterfererBasebandRx == 1)
         {
             // Interference function
-            enactCWInterfererBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+            enactCWInterfererBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
         }
         if (esbrs->sc->addAWGNBasebandRx == 1)
         {
-            enactAWGNBaseband(esbrs->txcvr->rx_buffer->data(), *esbrs->ce, *esbrs->sc);
+            enactAWGNBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
         }
 
         // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
@@ -954,29 +962,29 @@ void * enactScenarioBasebandRx( void * _arg)
 } // End enactScenarioBasebandRx()
 
 // Enact Scenario
-void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactScenarioBasebandTx(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Add appropriate RF impairments for the scenario
     if (sc.addRicianFadingBasebandTx == 1)
     {
-        enactRicianFadingBaseband(transmit_buffer, ce, sc);
+        enactRicianFadingBaseband(transmit_buffer, buffer_len, ce, sc);
     }
     if (sc.addCWInterfererBasebandTx == 1)
     {
         //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
         // Interference function
-        enactCWInterfererBaseband(transmit_buffer, ce, sc);
+        enactCWInterfererBaseband(transmit_buffer, buffer_len, ce, sc);
     }
     if (sc.addAWGNBasebandTx == 1)
     {
-        enactAWGNBaseband(transmit_buffer, ce, sc);
+        enactAWGNBaseband(transmit_buffer, buffer_len, ce, sc);
     }
     if ( (sc.addAWGNBasebandTx == 0) && (sc.addCWInterfererBasebandTx == 0) && (sc.addRicianFadingBasebandTx == 0))
     {
        	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
 		//fprintf(stderr, "addCWInterfererBasebandTx: %i\n", sc.addCWInterfererBaseband);
     }
-} // End enactScenarioBaseband()
+} // End enactScenarioBasebandTx()
 
 void * call_uhd_siggen(void * param)
 {
@@ -2348,7 +2356,7 @@ int main(int argc, char ** argv)
                         while(!isLastSymbol)
                         {
                             isLastSymbol = txcvr.write_symbol();
-                            enactScenarioBaseband(txcvr.fgbuffer, ce, sc);
+                            enactScenarioBasebandTx(txcvr.fgbuffer, txcvr.fgbuffer_len, ce, sc);
                             txcvr.transmit_symbol();
                         }
                         txcvr.end_transmit_frame();
@@ -2420,10 +2428,10 @@ int main(int argc, char ** argv)
                         {
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
-                            enactScenarioBaseband(frameSamples, ce, sc);
+                            symbolLen = ce.numSubcarriers + ce.CPLen;
+                            enactScenarioBasebandTx(frameSamples, symbolLen, ce, sc);
 							
                             // Rx Receives packet
-                            symbolLen = ce.numSubcarriers + ce.CPLen;
 							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
 						
