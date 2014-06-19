@@ -38,3 +38,6 @@ Creating and Using Scenarios/Signal Environments
 
 Data logging
     All data files are logged in the data/ directory. The file names have the date and time of the start of the test appended to them.
+    
+    
+We would like to give thanks to Virginia Tech ICTAS for their support in funding our research into Cognitive Radio Testing and Evaluation.
