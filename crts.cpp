@@ -8,6 +8,7 @@
 // whether <complex> is included before or after liquid.h
 #include <liquid/ofdmtxrx.h>
 #include <time.h>
+#include <sys/time.h>
 #include <string.h>
 // For Threading (POSIX Threads)
 #include <pthread.h>
@@ -154,6 +155,8 @@ struct feedbackStruct {
     float           rssi;
     float           cfo;
 	int 			block_flag;
+    pthread_mutex_t fb_mutex;
+    pthread_cond_t fb_cond;
 };
 
 struct serverThreadStruct {
@@ -925,7 +928,7 @@ void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct Cogniti
     }
     if ( (sc_ptr->addAWGNBaseband == 0) && (sc_ptr->addCWInterfererBaseband == 0) && (sc_ptr->addRicianFadingBaseband == 0))
     {
-       	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
+       	//fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
 		//fprintf(stderr, "addCWInterfererBaseband: %i\n", sc.addCWInterfererBaseband);
     }
 } // End enactScenarioBaseband()
@@ -1219,16 +1222,48 @@ int rxCallback(unsigned char *  _header,
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
     unsigned int payloadBitErrors   =   0;
-    int j,m;
+    int j;
+    unsigned int m;
 	unsigned int tx_byte;
 	
 	if(rxCBS_ptr->isController && rxCBS_ptr->usingUSRPs){
 		// Read FB from the payload received OTA and write it to the FB struct
 		//while (rxCBS_ptr->fb_ptr->block_flag) {}
-		printf("TP1\n");
-		printf("FB length: %i, Payload FB length: %i\n", sizeof(*rxCBS_ptr->fb_ptr), sizeof(*(struct feedbackStruct*)_payload));
-		*rxCBS_ptr->fb_ptr = *(struct feedbackStruct*)_payload;
-		printf("TP2\n");
+		//printf("TP1\n");
+		//printf("FB length: %i, Payload FB length: %i\n", sizeof(*rxCBS_ptr->fb_ptr), sizeof(*(struct feedbackStruct*)_payload));
+        printf("Received feedback from OTA!\n");
+        if (_payload_valid)
+        {
+            //printf("Rxcallback locking fb mutex\n");
+            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            //*rxCBS_ptr->fb_ptr = *(struct feedbackStruct*)_payload;
+            struct feedbackStruct * _fbReceived = (struct feedbackStruct *) _payload;
+            rxCBS_ptr->fb_ptr->header_valid = _fbReceived->header_valid;
+            rxCBS_ptr->fb_ptr->payload_valid = _fbReceived->payload_valid;
+            rxCBS_ptr->fb_ptr->payload_len = _fbReceived->payload_len;
+            rxCBS_ptr->fb_ptr->payloadByteErrors = _fbReceived->payloadByteErrors;
+            rxCBS_ptr->fb_ptr->evm = _fbReceived->evm;
+            rxCBS_ptr->fb_ptr->rssi = _fbReceived->rssi;
+            rxCBS_ptr->fb_ptr->cfo = _fbReceived->cfo;
+            rxCBS_ptr->fb_ptr->iteration = _fbReceived->iteration;
+            //printf("Rxcallback signalling fb cond\n");
+            int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            //printf("In Rxcallback: pthread_cond_signal returned: %d\n", sigrt);
+            //printf("Rxcallback unlocking fb mutex\n");
+            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
+        }
+        else
+        {
+            printf("but payload invalid\n");
+            //printf("Rxcallback locking fb mutex\n");
+            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            //printf("Rxcallback signalling fb cond\n");
+            int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            //printf("In Rxcallback: pthread_cond_signal returned: %d\n", sigrt);
+            //printf("Rxcallback unlocking fb mutex\n");
+            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
+        }
+		//printf("TP2\n");
 		//rxCBS_ptr->fb_ptr->block_flag = 1;
 	}
 	else{
@@ -1259,7 +1294,7 @@ int rxCallback(unsigned char *  _header,
 		}
 
 		// Calculate byte error rate and bit error rate for payload
-		for (m=0; m<(signed int)_payload_len; m++)
+		for (m=0; m<_payload_len; m++)
 		{
 			tx_byte = msequence_generate_symbol(rx_ms,8);
 			//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
@@ -1278,7 +1313,10 @@ int rxCallback(unsigned char *  _header,
 		// TODO: Send other useful data through feedback array
 		if(rxCBS_ptr->isController){
 			//while(rxCBS_ptr->fb_ptr->block_flag){}
+            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
 			*rxCBS_ptr->fb_ptr = fb;
+            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
 			//rxCBS_ptr->fb_ptr->block_flag = 1;
 		}
 		else{
@@ -1293,8 +1331,8 @@ int rxCallback(unsigned char *  _header,
 			unsigned char payload[1000];
 			// Generate data
 			if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-			for (i=0; i<sizeof(fb); i++){
-				payload[i] = *fb_c_ptr;
+			for (size_t k=0; k<sizeof(fb); k++){
+				payload[k] = *fb_c_ptr;
 				fb_c_ptr++;
 			}
 			for (i=sizeof(fb); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++)
@@ -1308,6 +1346,9 @@ int rxCallback(unsigned char *  _header,
 			char FEC0[30] = "Hamming74";
 			char FEC1[30] = "none";
 			modulation_scheme ms = convertModScheme(mod, &rxCBS_ptr->ce_ptr->bitsPerSym);
+
+            rxCBS_ptr->txrx_ptr->set_tx_gain_uhd(30.0);
+            rxCBS_ptr->txrx_ptr->set_tx_gain_soft(-8.0);
 
 			// Set Cyclic Redundency Check Scheme
 			//crc_scheme check = convertCRCScheme(ce.crcScheme);
@@ -1905,8 +1946,8 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
 int postTxTasks(struct CognitiveEngine * cePtr, struct feedbackStruct * fb_ptr, int verbose)
 {
     // FIXME: Find another way to fix this:: FIXED?
-	usleep(cePtr->delay_us);
-	std::clock_t timeout_start = std::clock();
+	//usleep(cePtr->delay_us);
+	//std::clock_t timeout_start = std::clock();
 
 	//while( fb_ptr->block_flag ){
 	//	std::clock_t timeout_now = std::clock();
@@ -2054,7 +2095,7 @@ int main(int argc, char ** argv)
     // Array that will be accessible to both Server and CE.
     // Server uses it to pass data to CE.
     struct feedbackStruct fb = {};
-	fb.block_flag = 0;
+	//fb.block_flag = 0;
 
     // For creating appropriate symbol length from 
     // number of subcarriers and CP Length
@@ -2373,6 +2414,28 @@ int main(int argc, char ** argv)
 		            }
 					
 		            txcvr.end_transmit_frame();
+
+                    // Get current time. Then add delay to find out at what time to stop waiting. 
+                    //TODO switch to boost library for more accuracy
+                    struct timeval timeNow;
+                    struct timespec releaseTime;
+                    gettimeofday(&timeNow, NULL);
+                    double wholeSecondsDelay = 0.0;
+                    //printf("delay = %f\n", ce.delay_us);
+                    double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
+                    //printf("wholeSecondsDelay = %f\n", wholeSecondsDelay);
+                    releaseTime.tv_sec = timeNow.tv_sec + (int) wholeSecondsDelay;
+                    unsigned int wholeNsDelay = (int) delay_fpart_s*1e9;
+                    releaseTime.tv_nsec = (timeNow.tv_usec*1000) + wholeNsDelay;
+
+                    // Lock the feedback struct mutex and
+                    // Wait for either a signal, or until the delay time has passed.
+                    //printf("In main: locking fb_mutex\n");
+                    pthread_mutex_lock(&fb.fb_mutex);
+                    printf("Frame transmitted. Waiting for feedback OTA or for timeout\n");
+                    int ptrt = pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
+                    //printf("in main: pthread_cond_timedwait signal or cond received: %d\n", ptrt);
+
 		            DoneTransmitting = postTxTasks(&ce, &fb, verbose);
 
 		            // Record the feedback data received
@@ -2405,6 +2468,9 @@ int main(int argc, char ** argv)
 		            ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
 					updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
+                    // unlock the feedback struct mutex
+                    //printf("In main: unlocking fb mutex\n");
+                    pthread_mutex_unlock(&fb.fb_mutex);
 					
 		        } // End If while loop
 				txcvr.stop_rx();
