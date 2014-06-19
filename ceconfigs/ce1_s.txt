@@ -51,7 +51,7 @@ params =
 
     // Delay between sending of each frame.
     // In microseconds. Must be an int.
-    delay_us            =   100000;
+    delay_us            =   5000000;
 
     // Carrier frequency for when using USRPs.
     // In Hz. Must be a float. 
