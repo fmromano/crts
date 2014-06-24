@@ -1425,7 +1425,7 @@ void * serveTCPclient(void * _sc_ptr){
 			// Write feedback from TCP to file
 		//}
 		rflag = recv(sc_ptr->client, &read_buffer, sizeof(struct feedbackStruct), 0);
-			printf("Rx flag: %i\n", rflag);
+			//printf("Rx flag: %i\n", rflag);
 			if(rflag == 0 || rflag == -1){
 				close(sc_ptr->client);
 				printf("Socket failure\n");
@@ -2432,7 +2432,8 @@ int main(int argc, char ** argv)
                     // Wait for either a signal, or until the delay time has passed.
                     //printf("In main: locking fb_mutex\n");
                     pthread_mutex_lock(&fb.fb_mutex);
-                    printf("Frame transmitted. Waiting for feedback OTA or for timeout\n");
+                    if (verbose)
+                        printf("Frame transmitted. Waiting for feedback OTA or for timeout\n");
                     int ptrt = pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
                     //printf("in main: pthread_cond_timedwait signal or cond received: %d\n", ptrt);
 
