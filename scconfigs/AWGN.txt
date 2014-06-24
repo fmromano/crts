@@ -9,5 +9,5 @@ params =
     // Enable AWGN
     addAWGNBasebandTx = 1;
     // Theoretical SNR per bit (Eb/N0)
-    noiseSNR = 20.0;
+    noiseSNR = 100.0;
 };

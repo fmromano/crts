@@ -156,6 +156,7 @@ struct feedbackStruct {
 struct serverThreadStruct {
     unsigned int serverPort;
     struct feedbackStruct * fb_ptr;
+    int * client_ptr;
 };
 
 struct serveClientStruct {
@@ -164,9 +165,9 @@ struct serveClientStruct {
 };
 
 struct enactScenarioBasebandRxStruct {
-    ofdmtxrx * txcvr;
-    struct CognitiveEngine * ce;
-    struct Scenario * sc;
+    ofdmtxrx * txcvr_ptr;
+    struct CognitiveEngine * ce_ptr;
+    struct Scenario * sc_ptr;
 };
 
 struct scenarioSummaryInfo{
@@ -932,29 +933,29 @@ void * enactScenarioBasebandRx( void * _arg)
     enactScenarioBasebandRxStruct * esbrs = (enactScenarioBasebandRxStruct *) _arg;
     while (true)
     {
-        pthread_mutex_lock(&esbrs->txcvr->rx_buffer_mutex);
+        pthread_mutex_lock(&esbrs->txcvr_ptr->rx_buffer_mutex);
         // Wait for txcvr rx_worker to signal samples are ready to be modified
-        pthread_cond_wait(&esbrs->txcvr->rx_buffer_filled_cond, &esbrs->txcvr->rx_buffer_mutex);
+        pthread_cond_wait(&esbrs->txcvr_ptr->rx_buffer_filled_cond, &esbrs->txcvr_ptr->rx_buffer_mutex);
 
         // Add appropriate RF impairments for the scenario
-        if (esbrs->sc->addRicianFadingBasebandRx == 1)
+        if (esbrs->sc_ptr->addRicianFadingBasebandRx == 1)
         {
-            enactRicianFadingBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
+            enactRicianFadingBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
         }
-        if (esbrs->sc->addCWInterfererBasebandRx == 1)
+        if (esbrs->sc_ptr->addCWInterfererBasebandRx == 1)
         {
             // Interference function
-            enactCWInterfererBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
+            enactCWInterfererBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
         }
-        if (esbrs->sc->addAWGNBasebandRx == 1)
+        if (esbrs->sc_ptr->addAWGNBasebandRx == 1)
         {
-            enactAWGNBaseband(esbrs->txcvr->rx_buffer->data(), esbrs->txcvr->rx_buffer->size(), *esbrs->ce, *esbrs->sc);
+            enactAWGNBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
         }
 
         // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
-        pthread_cond_signal(&(esbrs->txcvr->rx_buffer_filled_cond));
+        pthread_cond_signal(&(esbrs->txcvr_ptr->rx_buffer_filled_cond));
         // unlock mutex
-        pthread_mutex_unlock(&(esbrs->txcvr->rx_buffer_mutex));
+        pthread_mutex_unlock(&(esbrs->txcvr_ptr->rx_buffer_mutex));
 
         //TODO implement killing of this thread when a scenario ends.
     }
@@ -1270,6 +1271,8 @@ int rxCallback(unsigned char *  _header,
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
 	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr; 
+	
+	printf("!!!!! RX Callback !!!!!!\n");
 
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
@@ -1369,6 +1372,7 @@ void * serveTCPclient(void * _sc_ptr){
 	while(1){
         bzero(&read_buffer, sizeof(read_buffer));
         read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
+        printf("%f\n", read_buffer.evm);
 		if (read_buffer.evm) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
     }
     return NULL;
@@ -1451,6 +1455,7 @@ void * startTCPServer(void * _ss_ptr)
 			sc.fb_ptr = ss_ptr->fb_ptr;
 			pthread_create( &TCPServeClientThread[client], NULL, serveTCPclient, (void*) &sc);
 			client++;
+			*ss_ptr->client_ptr = socket_to_client; ////////////////////
 		}
         //printf("Server has accepted connection from client\n");
 	}// End While loop
@@ -1991,7 +1996,7 @@ int main(int argc, char ** argv)
     while ((d = getopt(argc,argv,"uhqvdrsp:ca:f:b:G:M:C:T:")) != EOF) {
         switch (d) {
         case 'u':
-        case 'h':   usage();                           return 0;
+        case 'h':   usage();                           		return 0;
         case 'q':   verbose = 0;                            break;
         case 'v':   verbose = 1; verbose_explicit = 1;      break;
         case 'd':   dataToStdout = 1; 
@@ -2097,9 +2102,11 @@ int main(int argc, char ** argv)
 
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+    int client;
     struct serverThreadStruct ss = CreateServerStruct();
     ss.serverPort = serverPort;
     ss.fb_ptr = &fb;
+    ss.client_ptr = &client;
     if (isController) 
     {
         pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
@@ -2161,6 +2168,7 @@ int main(int argc, char ** argv)
 	if(usingUSRPs && isController){
 		printf("\nPress any key once all nodes have connected to the TCP server.\n");
 		getchar();
+		//pthread_cancel( &TCPServerThread);
 	}
 
     // Get current date and time
@@ -2189,21 +2197,29 @@ int main(int argc, char ** argv)
 
 		if (verbose) 
             printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
+            
+        if(isController){
+		    // Initialize current CE
+			ce = CreateCognitiveEngine();
+			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
+
+			// Send CE info to slave node(s)
+			write(client, (void*)&ce, sizeof(ce));
+		}
         
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
-        {
-
-            // Initialize current CE
-            ce = CreateCognitiveEngine();
+        {                	
+				
             if (isController)
-            {
-                readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
-
-                if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
+            {                   
+        		if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
                 // Initialize current Scenario
                 sc = CreateScenario();
                 readScConfigFile(&sc,scenario_list[i_Sc], verbose);
+                
+                // Send Sc info to slave node(s)
+                write(client, (void*)&sc, sizeof(sc));
 
                 fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
                 //All metrics
@@ -2246,8 +2262,8 @@ int main(int argc, char ** argv)
                     // create transceiver object
                     unsigned char * p = NULL;   // default subcarrier allocation
                     if (verbose) 
-                        printf("Using ofdmtxrx\n");
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+                        printf("Using ofdmtxrx\n");                    
+                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);                    
                     txcvr_ptr = &txcvr;
 
                     // Start the Scenario simulations from the scenario USRPs
@@ -2257,47 +2273,75 @@ int main(int argc, char ** argv)
                     while(!DoneTransmitting)
                     {
                         // set properties
-                        txcvr.set_tx_freq(ce.frequency);
-                        txcvr.set_tx_rate(ce.bandwidth);
-                        txcvr.set_tx_gain_soft(ce.txgain_dB);
-                        txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
-                        //txcvr.set_tx_antenna("TX/RX");
+                        txcvr_ptr->set_tx_freq(ce.frequency);
+                        txcvr_ptr->set_tx_rate(ce.bandwidth);
+                        txcvr_ptr->set_tx_gain_soft(ce.txgain_dB);
+                        txcvr_ptr->set_tx_gain_uhd(ce.uhd_txgain_dB);
+                        //txcvr_ptr->set_tx_antenna("TX/RX");
 
                         if (!isController)
                         {
 
-                            txcvr.set_rx_freq(frequency);
-                            txcvr.set_rx_rate(bandwidth);
-                            txcvr.set_rx_gain_uhd(uhd_rxgain);
+                            txcvr_ptr->set_rx_freq(frequency);
+                            txcvr_ptr->set_rx_rate(bandwidth);
+                            txcvr_ptr->set_rx_gain_uhd(uhd_rxgain);
 
                             if (verbose)
                             {
-                                txcvr.debug_enable();
+                                txcvr_ptr->debug_enable();
                                 printf("Set Rx freq to %f\n", frequency);
                                 printf("Set Rx rate to %f\n", bandwidth);
                                 printf("Set uhd Rx gain to %f\n", uhd_rxgain);
                             }
-
+                            
+                            // Structs for CE and Sc info
+                            struct CognitiveEngine ce_controller;
+                            struct Scenario sc_controller;
+							
                             int continue_running = 1;
 							int rflag;
-							char readbuffer;
-							txcvr.start_rx();
+							char readbuffer[1000];
+							txcvr_ptr->start_rx();
+							
                             //TODO get first ce and sc over tcp connection.
                             // Start enactScenarioBasebandRx Thread
                             //struct enactScenarioBasebandRxStruct esbrs = {.txcvr = &txcvr, .ce = &ce, .sc = &sc};
                             // start enactScenarioBasebandRx thread
                             //pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+                            
+                            // Receive CE info
+                            rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
+                            if(rflag == 0 || rflag == -1){
+                            	printf("Error receiving CE info from the controller\n");
+								close(socket_to_server);
+								exit(1);
+							}
+							else ce_controller = *(struct CognitiveEngine*)readbuffer;
+							
+							// Receive Sc info
+							rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
+                            if(rflag == 0 || rflag == -1){
+                            	printf("Error receiving Scenario info from the controller\n");
+								close(socket_to_server);
+								exit(1);
+							}
+							else sc_controller = *(struct Scenario*)readbuffer;
+							
+							struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+							pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+							
                             while(continue_running)
                             {
-								// Wait until server closes or there is an error, then exit
-								rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
-								printf("Rx flag: %d\n", rflag);
+								// Wait until server provides more information, closes, or there is an error
+								rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario)+sizeof(struct CognitiveEngine), 0);
 								if(rflag == 0 || rflag == -1){
+									printf("Socket closed or failed\n");
 									close(socket_to_server);
 									msequence_destroy(rx_ms);
 									exit(1);
 								}
-                                //TODO:
+								
+								//TODO:
                                 // if new scenario:
                                 //{
                                     // close enactScenarioBasebandRx Thread
@@ -2306,11 +2350,30 @@ int main(int argc, char ** argv)
                                     // open new ofdmtxrx object
                                     // open new enactScenarioBasebandRx Thread
                                 //}
+                                /*else if(rflag == sizeof(struct Scenario)){
+                                	if(verbose) printf("Rewriting Scenario Info");
+									pthread_cancel(enactScBbRxThread);
+									delete txcvr_ptr;
+									sc_controller = *(struct Scenario*)readbuffer;
+									ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+									struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+									pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+								}
+								else if(rflag == sizeof(struct CognitiveEngine)){
+									if(verbose) printf("Rewriting CE info");
+									pthread_cancel(enactScBbRxThread);
+									delete txcvr_ptr;
+									ce_controller = *(struct CognitiveEngine*)readbuffer;
+									ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+									struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+									pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+								}*/
+                                
                             }
                         }
 
                         if (verbose) {
-                            txcvr.debug_enable();
+                            txcvr_ptr->debug_enable();
                             printf("Set frequency to %f\n", ce.frequency);
                             printf("Set bandwidth to %f\n", ce.bandwidth);
                             printf("Set txgain_dB to %f\n", ce.txgain_dB);
@@ -2349,17 +2412,17 @@ int main(int argc, char ** argv)
                         if (verbose) printf("Outer FEC: ");
                         fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
-                        //txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        //txcvr_ptr->transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
                         // Replace with txcvr methods that allow access to samples:
-                        txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        txcvr_ptr->assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
                         int isLastSymbol = 0;
                         while(!isLastSymbol)
                         {
-                            isLastSymbol = txcvr.write_symbol();
-                            enactScenarioBasebandTx(txcvr.fgbuffer, txcvr.fgbuffer_len, ce, sc);
-                            txcvr.transmit_symbol();
+                            isLastSymbol = txcvr_ptr->write_symbol();
+                            enactScenarioBasebandTx(txcvr_ptr->fgbuffer, txcvr_ptr->fgbuffer_len, ce, sc);
+                            txcvr_ptr->transmit_symbol();
                         }
-                        txcvr.end_transmit_frame();
+                        txcvr_ptr->end_transmit_frame();
 
                         DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                         // Record the feedback data received
@@ -2367,7 +2430,7 @@ int main(int argc, char ** argv)
 
 						// Compute throughput and spectral efficiency
 						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-						total_symbols = (float)ofdmflexframegen_getframelen(txcvr.fg);
+						total_symbols = (float)ofdmflexframegen_getframelen(txcvr_ptr->fg);
 						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                         //All metrics

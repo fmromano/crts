@@ -12,7 +12,7 @@ params =
     goal                =   "X_seconds";
     
     // Threshold for when the CE has reached its 'goal'
-    threshold           =   10.0;
+    threshold           =   5.0;
 
 	// Number of packets averaged to determine metric (where applicable)
 	averaging			=	1.0;    
@@ -51,7 +51,7 @@ params =
 
     // Delay between sending of each frame.
     // In microseconds. Must be an int.
-    delay_us            =   100000;
+    delay_us            =   1000000;
 
     // Carrier frequency for when using USRPs.
     // In Hz. Must be a float. 
