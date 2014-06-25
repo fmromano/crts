@@ -168,6 +168,8 @@ struct enactScenarioBasebandRxStruct {
     ofdmtxrx * txcvr_ptr;
     struct CognitiveEngine * ce_ptr;
     struct Scenario * sc_ptr;
+    int esbrs_ready;
+    pthread_mutex_t esbrs_ready_mutex;
 };
 
 struct scenarioSummaryInfo{
@@ -930,12 +932,22 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, unsigned i
 // synchronizer. 
 void * enactScenarioBasebandRx( void * _arg)
 {
+    printf("Scenario being added\n");
     enactScenarioBasebandRxStruct * esbrs = (enactScenarioBasebandRxStruct *) _arg;
+    int count = 0;
     while (true)
     {
         pthread_mutex_lock(&esbrs->txcvr_ptr->rx_buffer_mutex);
+        printf("In esbrs: esbrs ready\n"); 
+        pthread_mutex_lock(&esbrs->esbrs_ready_mutex);
+		esbrs->esbrs_ready = 1;
+		pthread_mutex_unlock(&esbrs->esbrs_ready_mutex);
+
+	
         // Wait for txcvr rx_worker to signal samples are ready to be modified
-        pthread_cond_wait(&esbrs->txcvr_ptr->rx_buffer_filled_cond, &esbrs->txcvr_ptr->rx_buffer_mutex);
+        printf("In esbrs: waiting for buffer to be filled %i\n", count);
+	count++;
+	pthread_cond_wait(&esbrs->txcvr_ptr->rx_buffer_filled_cond, &esbrs->txcvr_ptr->rx_buffer_mutex);
 
         // Add appropriate RF impairments for the scenario
         if (esbrs->sc_ptr->addRicianFadingBasebandRx == 1)
@@ -951,9 +963,10 @@ void * enactScenarioBasebandRx( void * _arg)
         {
             enactAWGNBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
         }
-
+	
         // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
-        pthread_cond_signal(&(esbrs->txcvr_ptr->rx_buffer_filled_cond));
+        printf("In esbrs: Buffer modified\n");
+	pthread_cond_signal(&(esbrs->txcvr_ptr->rx_buffer_modified_cond));
         // unlock mutex
         pthread_mutex_unlock(&(esbrs->txcvr_ptr->rx_buffer_mutex));
 
@@ -1270,9 +1283,7 @@ int rxCallback(unsigned char *  _header,
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr; 
-	
-	printf("!!!!! RX Callback !!!!!!\n");
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
@@ -1372,8 +1383,7 @@ void * serveTCPclient(void * _sc_ptr){
 	while(1){
         bzero(&read_buffer, sizeof(read_buffer));
         read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
-        printf("%f\n", read_buffer.evm);
-		if (read_buffer.evm) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
+	if (read_buffer.evm) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
     }
     return NULL;
 }
@@ -2263,8 +2273,8 @@ int main(int argc, char ** argv)
                     unsigned char * p = NULL;   // default subcarrier allocation
                     if (verbose) 
                         printf("Using ofdmtxrx\n");                    
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);                    
-                    txcvr_ptr = &txcvr;
+                    ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);                    
+                    //txcvr_ptr = &txcvr;
 
                     // Start the Scenario simulations from the scenario USRPs
                     //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
@@ -2282,15 +2292,15 @@ int main(int argc, char ** argv)
                         if (!isController)
                         {
 
-                            txcvr_ptr->set_rx_freq(frequency);
-                            txcvr_ptr->set_rx_rate(bandwidth);
+                            txcvr_ptr->set_rx_freq(ce.frequency);
+                            txcvr_ptr->set_rx_rate(ce.bandwidth);
                             txcvr_ptr->set_rx_gain_uhd(uhd_rxgain);
 
                             if (verbose)
                             {
                                 txcvr_ptr->debug_enable();
-                                printf("Set Rx freq to %f\n", frequency);
-                                printf("Set Rx rate to %f\n", bandwidth);
+                                printf("Set Rx freq to %f\n", ce.frequency);
+                                printf("Set Rx rate to %f\n", ce.bandwidth);
                                 printf("Set uhd Rx gain to %f\n", uhd_rxgain);
                             }
                             
@@ -2301,7 +2311,7 @@ int main(int argc, char ** argv)
                             int continue_running = 1;
 							int rflag;
 							char readbuffer[1000];
-							txcvr_ptr->start_rx();
+							
 							
                             //TODO get first ce and sc over tcp connection.
                             // Start enactScenarioBasebandRx Thread
@@ -2327,8 +2337,24 @@ int main(int argc, char ** argv)
 							}
 							else sc_controller = *(struct Scenario*)readbuffer;
 							
-							struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+							// Initialize members of esbrs struct sent to enactScenarioBasebandRx()
+							//struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
+							struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller, .esbrs_ready = 0};
+							pthread_mutex_init(&esbrs.esbrs_ready_mutex, NULL);
+							
 							pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+							
+							// Wait until enactScenarioBasebandRx() has initialized
+							pthread_mutex_lock(&esbrs.esbrs_ready_mutex);
+							while (!esbrs.esbrs_ready) 
+							{
+							    pthread_mutex_unlock(&esbrs.esbrs_ready_mutex);
+							    pthread_mutex_lock(&esbrs.esbrs_ready_mutex);
+							}
+							pthread_mutex_unlock(&esbrs.esbrs_ready_mutex);
+							
+							// Start liquid-usrp receiver
+							txcvr_ptr->start_rx();
 							
                             while(continue_running)
                             {
@@ -2350,7 +2376,7 @@ int main(int argc, char ** argv)
                                     // open new ofdmtxrx object
                                     // open new enactScenarioBasebandRx Thread
                                 //}
-                                /*else if(rflag == sizeof(struct Scenario)){
+                                else if(rflag == sizeof(struct Scenario)){
                                 	if(verbose) printf("Rewriting Scenario Info");
 									pthread_cancel(enactScBbRxThread);
 									delete txcvr_ptr;
@@ -2367,7 +2393,7 @@ int main(int argc, char ** argv)
 									ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
 									struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
 									pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
-								}*/
+								}
                                 
                             }
                         }
@@ -2419,7 +2445,7 @@ int main(int argc, char ** argv)
                         while(!isLastSymbol)
                         {
                             isLastSymbol = txcvr_ptr->write_symbol();
-                            enactScenarioBasebandTx(txcvr_ptr->fgbuffer, txcvr_ptr->fgbuffer_len, ce, sc);
+                            //enactScenarioBasebandTx(txcvr_ptr->fgbuffer, txcvr_ptr->fgbuffer_len, ce, sc);
                             txcvr_ptr->transmit_symbol();
                         }
                         txcvr_ptr->end_transmit_frame();
@@ -2492,7 +2518,7 @@ int main(int argc, char ** argv)
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
                             symbolLen = ce.numSubcarriers + ce.CPLen;
-                            enactScenarioBasebandTx(frameSamples, symbolLen, ce, sc);
+                            //enactScenarioBasebandTx(frameSamples, symbolLen, ce, sc);
 							
                             // Rx Receives packet
 							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
