@@ -107,18 +107,21 @@ struct CognitiveEngine {
 };
 
 struct Scenario {
-    int addAWGNBaseband; //Does the Scenario have noise?
+    int addAWGNBasebandTx; //Does the Scenario have noise?
+    int addAWGNBasebandRx; //Does the Scenario have noise?
     float noiseSNR;
     float noiseDPhi;
     
     int addInterference; // Does the Scenario have interference?
     
-    int addRicianFadingBaseband; // Does the Secenario have fading?
+    int addRicianFadingBasebandTx; // Does the Secenario have fading?
+    int addRicianFadingBasebandRx; // Does the Secenario have fading?
     float fadeK;
     float fadeFd;
     float fadeDPhi;
 
-	int addCWInterfererBaseband; // Does the Scenario have a CW interferer?
+	int addCWInterfererBasebandTx; // Does the Scenario have a CW interferer?
+	int addCWInterfererBasebandRx; // Does the Scenario have a CW interferer?
 	float cw_pow;
 	float cw_freq;
 };
@@ -153,11 +156,18 @@ struct feedbackStruct {
 struct serverThreadStruct {
     unsigned int serverPort;
     struct feedbackStruct * fb_ptr;
+    int * client_ptr;
 };
 
 struct serveClientStruct {
 	int client;
 	struct feedbackStruct * fb_ptr;
+};
+
+struct enactScenarioBasebandRxStruct {
+    ofdmtxrx * txcvr_ptr;
+    struct CognitiveEngine * ce_ptr;
+    struct Scenario * sc_ptr;
 };
 
 struct scenarioSummaryInfo{
@@ -236,18 +246,21 @@ struct CognitiveEngine CreateCognitiveEngine() {
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
     struct Scenario sc = {};
-    sc.addAWGNBaseband = 0,
+    sc.addAWGNBasebandTx = 0,
+    sc.addAWGNBasebandRx = 0,
     sc.noiseSNR = 7.0f, // in dB
     sc.noiseDPhi = 0.001f,
 
     sc.addInterference = 0,
 
-    sc.addRicianFadingBaseband = 0,
+    sc.addRicianFadingBasebandTx = 0,
+    sc.addRicianFadingBasebandRx = 0,
     sc.fadeK = 30.0f,
     sc.fadeFd = 0.2f,
     sc.fadeDPhi = 0.001f;
 
-	sc.addCWInterfererBaseband = 0;
+	sc.addCWInterfererBasebandTx = 0;
+	sc.addCWInterfererBasebandRx = 0;
 	sc.cw_pow = 0;
 	sc.cw_freq = 0;
 
@@ -660,14 +673,19 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     if (setting != NULL)
     {
         // Read the integer
-        if (config_setting_lookup_int(setting, "addAWGNBaseband", &tmpI))
+        if (config_setting_lookup_int(setting, "addAWGNBasebandTx", &tmpI))
         {
-            sc->addAWGNBaseband=tmpI;
-            if (verbose) printf("addAWGNBaseband: %d\n", tmpI);
+            sc->addAWGNBasebandTx=tmpI;
+            if (verbose) printf("addAWGNBasebandTx: %d\n", tmpI);
         }
         //else
         //    printf("No AddNoise setting in configuration file.\n");
-        
+        // Read the integer
+        if (config_setting_lookup_int(setting, "addAWGNBasebandRx", &tmpI))
+        {
+            sc->addAWGNBasebandRx=tmpI;
+            if (verbose) printf("addAWGNBasebandRx: %d\n", tmpI);
+        }
         // Read the double
         if (config_setting_lookup_float(setting, "noiseSNR", &tmpD))
         {
@@ -698,10 +716,15 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         */
 
         // Read the integer
-        if (config_setting_lookup_int(setting, "addRicianFadingBaseband", &tmpI))
+        if (config_setting_lookup_int(setting, "addRicianFadingBasebandTx", &tmpI))
         {
-            sc->addRicianFadingBaseband=tmpI;
-            if (verbose) printf("addRicianFadingBaseband: %d\n", tmpI);
+            sc->addRicianFadingBasebandTx=tmpI;
+            if (verbose) printf("addRicianFadingBasebandTx: %d\n", tmpI);
+        }
+        if (config_setting_lookup_int(setting, "addRicianFadingBasebandRx", &tmpI))
+        {
+            sc->addRicianFadingBasebandRx=tmpI;
+            if (verbose) printf("addRicianFadingBasebandRx: %d\n", tmpI);
         }
         //else
         //    printf("No addRicianFadingBaseband setting in configuration file.\n");
@@ -732,10 +755,16 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         }
 
 		// Read the integer
-		if (config_setting_lookup_int(setting, "addCWInterfererBaseband", &tmpI))
+		if (config_setting_lookup_int(setting, "addCWInterfererBasebandTx", &tmpI))
         {
-            sc->addCWInterfererBaseband=(float)tmpI;
-            if (verbose) printf("addCWIntefererBaseband: %i\n", tmpI);
+            sc->addCWInterfererBasebandTx=(float)tmpI;
+            if (verbose) printf("addCWIntefererBasebandTx: %d\n", tmpI);
+        }
+		// Read the integer
+		if (config_setting_lookup_int(setting, "addCWInterfererBasebandRx", &tmpI))
+        {
+            sc->addCWInterfererBasebandRx=(float)tmpI;
+            if (verbose) printf("addCWIntefererBasebandRx: %d\n", tmpI);
         }
 
 		// Read the double
@@ -762,12 +791,12 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
 } // End readScConfigFile()
 
 // Add AWGN
-void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactAWGNBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     //options
     float dphi  = sc.noiseDPhi;                              // carrier frequency offset
     float SNRdB = sc.noiseSNR;                               // signal-to-noise ratio [dB]
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+    //unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
     
     //printf("In enactAWGNBaseband: SNRdB=%f\n", SNRdB);
 
@@ -779,7 +808,8 @@ void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEn
     unsigned int i;
 
     // noise mixing
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         transmit_buffer[i] = std::exp(tmp*phi) * transmit_buffer[i]; // apply carrier offset
         //transmit_buffer[i] *= cexpf(_Complex_I*phi); // apply carrier offset
         phi += dphi;                                 // update carrier phase
@@ -787,28 +817,31 @@ void enactAWGNBaseband(std::complex<float> * transmit_buffer, struct CognitiveEn
     }
 } // End enactAWGNBaseband()
 
-void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactCWInterfererBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
 	float fs = ce.bandwidth; // Sample rate of the transmit buffer
 	float k = pow(10.0, sc.cw_pow/20.0); // Coefficient to set the interferer power correctly
-	unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
+	//unsigned int symbol_len = ce.numSubcarriers + ce.CPLen;  // defining symbol length
 
 	//printf("Coefficient: %f\n", k);
 
-	for(unsigned int i=0; i<symbol_len; i++)
+	for(unsigned int i=0; i<buffer_len; i++)
 	{
 		transmit_buffer[i] += k*sin(6.283*sc.cw_freq*i/fs); // Add CW tone
 	}
 } // End enactCWInterfererBaseband()
 
 // Add Rice-K Fading
-void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     // options
-    unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+    //unsigned int symbol_len = ce.numSubcarriers + ce.CPLen; // defining symbol length
+
     unsigned int h_len;                                     // doppler filter length
-    if (symbol_len > 94){
-        h_len = 0.0425*symbol_len;
+    //if (symbol_len > 94){
+    if (buffer_len > 94){
+        //h_len = 0.0425*symbol_len;
+        h_len = 0.0425*buffer_len;
     }
     else {
         h_len = 4;
@@ -830,7 +863,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     } else if (fd <= 0.0f || fd >= 0.5f) {
         fprintf(stderr, "error: Doppler frequency must be in (0,0.5)\n");
         exit(1);
-    } else if (symbol_len== 0) {
+    //} else if (symbol_len== 0) {
+    } else if (buffer_len== 0) {
         fprintf(stderr, "error: number of samples must be greater than zero\n");
         exit(1);
     }
@@ -838,7 +872,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     unsigned int i;
 
     // allocate array for output samples
-    std::complex<float> * y = (std::complex<float> *) malloc(symbol_len*sizeof(std::complex<float>));
+    //std::complex<float> * y = (std::complex<float> *) malloc(symbol_len*sizeof(std::complex<float>));
+    std::complex<float> * y = (std::complex<float> *) malloc(buffer_len*sizeof(std::complex<float>));
     // generate Doppler filter coefficients
     float h[h_len];
     liquid_firdes_doppler(h_len, fd, K, theta, h);
@@ -862,7 +897,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     float sig = sqrtf(0.5f*omega/(K+1.0));
         
     std::complex<float> tmp(0, 1);
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         // generate complex Gauss random variable
         crandnf(&v);
 
@@ -874,7 +910,8 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
         y[i] = tmp*( std::imag(x)*sig + s ) +
                           ( std::real(x)*sig     );
     }
-    for (i=0; i<symbol_len; i++) {
+    //for (i=0; i<symbol_len; i++) {
+    for (i=0; i<buffer_len; i++) {
         transmit_buffer[i] *= std::exp(tmp*phi);  // apply carrier offset
         phi += dphi;                                  // update carrier phase
         transmit_buffer[i] *= y[i];                   // apply Rice-K distribution
@@ -887,30 +924,79 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, struct Cog
     free(y);
 } // End enactRicianFadingBaseband()
 
+//TODO: enable starting of this thread when a new scenario begins
+// This function runs in its own thread waiting to modify the samples every time
+// they are recieve by the ofdmtxrx object, but before they are sent to the
+// synchronizer. 
+void * enactScenarioBasebandRx( void * _arg)
+{
+    //printf("Scenario being added\n");
+    enactScenarioBasebandRxStruct * esbrs = (enactScenarioBasebandRxStruct *) _arg;
+    int count = 0;
+    pthread_mutex_lock(&esbrs->txcvr_ptr->rx_buffer_mutex);
+    //printf("In esbrs: esbrs ready\n");
+    pthread_cond_signal(&(esbrs->txcvr_ptr->esbrs_ready));
+    while (true)
+    { 
+        //pthread_mutex_lock(esbrs->esbrs_ready_mutex_ptr);
+	//*esbrs->esbrs_ready_ptr = 1;
+	//pthread_mutex_unlock(esbrs->esbrs_ready_mutex_ptr);
+	
+        // Wait for txcvr rx_worker to signal samples are ready to be modified
+        //printf("In esbrs: waiting for buffer to be filled %i\n", count);
+	count++;
+	pthread_cond_wait(&esbrs->txcvr_ptr->rx_buffer_filled_cond, &esbrs->txcvr_ptr->rx_buffer_mutex);
+
+        // Add appropriate RF impairments for the scenario
+        if (esbrs->sc_ptr->addRicianFadingBasebandRx == 1)
+        {
+            enactRicianFadingBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
+        }
+        if (esbrs->sc_ptr->addCWInterfererBasebandRx == 1)
+        {
+            // Interference function
+            enactCWInterfererBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
+        }
+        if (esbrs->sc_ptr->addAWGNBasebandRx == 1)
+        {
+            enactAWGNBaseband(esbrs->txcvr_ptr->rx_buffer->data(), esbrs->txcvr_ptr->rx_buffer->size(), *esbrs->ce_ptr, *esbrs->sc_ptr);
+        }
+	
+        // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
+        //printf("In esbrs: Buffer modified\n");
+	pthread_cond_signal(&(esbrs->txcvr_ptr->rx_buffer_modified_cond));
+        // unlock mutex
+        //pthread_mutex_unlock(&(esbrs->txcvr_ptr->rx_buffer_mutex));
+
+        //TODO implement killing of this thread when a scenario ends.
+    }
+    return NULL;
+} // End enactScenarioBasebandRx()
+
 // Enact Scenario
-void enactScenarioBaseband(std::complex<float> * transmit_buffer, struct CognitiveEngine ce, struct Scenario sc)
+void enactScenarioBasebandTx(std::complex<float> * transmit_buffer, unsigned int buffer_len, struct CognitiveEngine ce, struct Scenario sc)
 {
     // Add appropriate RF impairments for the scenario
-    if (sc.addRicianFadingBaseband == 1)
+    if (sc.addRicianFadingBasebandTx == 1)
     {
-        enactRicianFadingBaseband(transmit_buffer, ce, sc);
+        enactRicianFadingBaseband(transmit_buffer, buffer_len, ce, sc);
     }
-    if (sc.addCWInterfererBaseband == 1)
+    if (sc.addCWInterfererBasebandTx == 1)
     {
         //fprintf(stderr, "WARNING: There is currently no interference scenario functionality!\n");
         // Interference function
-        enactCWInterfererBaseband(transmit_buffer, ce, sc);
+        enactCWInterfererBaseband(transmit_buffer, buffer_len, ce, sc);
     }
-    if (sc.addAWGNBaseband == 1)
+    if (sc.addAWGNBasebandTx == 1)
     {
-        enactAWGNBaseband(transmit_buffer, ce, sc);
+        enactAWGNBaseband(transmit_buffer, buffer_len, ce, sc);
     }
-    if ( (sc.addAWGNBaseband == 0) && (sc.addCWInterfererBaseband == 0) && (sc.addRicianFadingBaseband == 0))
+    if ( (sc.addAWGNBasebandTx == 0) && (sc.addCWInterfererBasebandTx == 0) && (sc.addRicianFadingBasebandTx == 0))
     {
        	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
-		//fprintf(stderr, "addCWInterfererBaseband: %i\n", sc.addCWInterfererBaseband);
+		//fprintf(stderr, "addCWInterfererBasebandTx: %i\n", sc.addCWInterfererBaseband);
     }
-} // End enactScenarioBaseband()
+} // End enactScenarioBasebandTx()
 
 void * call_uhd_siggen(void * param)
 {
@@ -1195,7 +1281,7 @@ int rxCallback(unsigned char *  _header,
 {
     struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr; 
+	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Variables for checking number of errors 
     unsigned int payloadByteErrors  =   0;
@@ -1289,10 +1375,10 @@ void * serveTCPclient(void * _sc_ptr){
 	struct feedbackStruct read_buffer;
 	struct feedbackStruct *fb_ptr = sc_ptr->fb_ptr;
 	while(1){
-        bzero(&read_buffer, sizeof(read_buffer));
-        read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
+        	bzero(&read_buffer, sizeof(read_buffer));
+        	read(sc_ptr->client, &read_buffer, sizeof(read_buffer));
 		if (read_buffer.evm && !fb_ptr->block_flag) {*fb_ptr = read_buffer; fb_ptr->block_flag = 1;}
-    }
+    	}	
     return NULL;
 }
 
@@ -1366,11 +1452,14 @@ void * startTCPServer(void * _ss_ptr)
         }
 		// Create separate thread for each client as they are accepted.
 		else {
+            printf("Received a client connection.\n");
+            printf("Press any key once all nodes have connected to the TCP server.\n");
 			struct serveClientStruct sc = CreateServeClientStruct();
 			sc.client = socket_to_client;
 			sc.fb_ptr = ss_ptr->fb_ptr;
 			pthread_create( &TCPServeClientThread[client], NULL, serveTCPclient, (void*) &sc);
 			client++;
+			*ss_ptr->client_ptr = socket_to_client; ////////////////////
 		}
         //printf("Server has accepted connection from client\n");
 	}// End While loop
@@ -1904,14 +1993,14 @@ int main(int argc, char ** argv)
     unsigned int taperLen = 4;
     float bandwidth = 1.0e6;
     float frequency = 460.0e6;
-    float uhd_rxgain = 20.0;
+    float uhd_rxgain = 30.0;
 
     // Check Program options
     int d;
     while ((d = getopt(argc,argv,"uhqvdrsp:ca:f:b:G:M:C:T:")) != EOF) {
         switch (d) {
         case 'u':
-        case 'h':   usage();                           return 0;
+        case 'h':   usage();                           		return 0;
         case 'q':   verbose = 0;                            break;
         case 'v':   verbose = 1; verbose_explicit = 1;      break;
         case 'd':   dataToStdout = 1; 
@@ -1938,6 +2027,7 @@ int main(int argc, char ** argv)
     }   
 
     pthread_t TCPServerThread;   // Pointer to thread ID
+    pthread_t enactScBbRxThread;   // Pointer to thread ID
     // Threading for using uhd_siggen (for when using USRPs)
     //pthread_t siggenThread;
     //int serverThreadReturn = 0;  // return value of creating TCPServer thread
@@ -2016,11 +2106,20 @@ int main(int argc, char ** argv)
 
     // Begin TCP Server Thread
     //serverThreadReturn = pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) feedback);
+    int client;
     struct serverThreadStruct ss = CreateServerStruct();
     ss.serverPort = serverPort;
     ss.fb_ptr = &fb;
+    ss.client_ptr = &client;
     if (isController) 
+    {
         pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss);
+    }
+    /*else 
+    {
+        pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &ss);
+    }
+    */
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
@@ -2036,7 +2135,7 @@ int main(int argc, char ** argv)
 
 	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
 	if(!isController  || !usingUSRPs){
-		// Create a client TCP socket] 
+		// Create a client TCP socket
 		if( socket_to_server < 0)
 		{   
 		    fprintf(stderr, "ERROR: Receiver Failed to Create Client Socket. \nerror: %s\n", strerror(errno));
@@ -2051,22 +2150,29 @@ int main(int argc, char ** argv)
 		servAddr.sin_port = htons(serverPort);
 		servAddr.sin_addr.s_addr = inet_addr(serverAddr);
 
+        if(verbose)
+        {
+            printf("Connecting to server at %s:%u\n", serverAddr, serverPort);
+        }
+
 		// Attempt to connect client socket to server
 		int connect_status;
 		if((connect_status = connect(socket_to_server, (struct sockaddr*)&servAddr, sizeof(servAddr))))
 		{   
-		    fprintf(stderr, "Receiver Failed to Connect to server.\n");
+		    fprintf(stderr, "Failed to Connect to server.\n");
 		    fprintf(stderr, "connect_status = %d\n", connect_status);
 		    exit(EXIT_FAILURE);
 		}
+        //printf("connect_status: %d\n", connect_status);
 
 		rxCBs.client = socket_to_server;
         if (verbose)
             printf("Connected to Server.\n");
 	}
 	if(usingUSRPs && isController){
-		printf("\nPress any key once all nodes have connected to the TCP server\n");
+		printf("\nPress any key once all nodes have connected to the TCP server.\n");
 		getchar();
+		//pthread_cancel( &TCPServerThread);
 	}
 
     // Get current date and time
@@ -2095,21 +2201,29 @@ int main(int argc, char ** argv)
 
 		if (verbose) 
             printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
+            
+        if(isController){
+		    // Initialize current CE
+			ce = CreateCognitiveEngine();
+			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
+
+			// Send CE info to slave node(s)
+			write(client, (void*)&ce, sizeof(ce));
+		}
         
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
-        {
-
-            // Initialize current CE
-            ce = CreateCognitiveEngine();
+        {                	
+				
             if (isController)
-            {
-                readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
-
-                if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
+            {                   
+        		if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
                 // Initialize current Scenario
                 sc = CreateScenario();
                 readScConfigFile(&sc,scenario_list[i_Sc], verbose);
+                
+                // Send Sc info to slave node(s)
+                write(client, (void*)&sc, sizeof(sc));
 
                 fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
                 //All metrics
@@ -2140,6 +2254,10 @@ int main(int argc, char ** argv)
             // Begin Testing Scenario
             DoneTransmitting = 0;
 
+            // Pointer to ofdmtxrx object for when using USRPs
+            // Needs to be outside if statement so object can be closed later.
+            //ofdmtxrx * txcvr_ptr;
+
             //while(!DoneTransmitting)
             //{
                 if (usingUSRPs) 
@@ -2148,75 +2266,164 @@ int main(int argc, char ** argv)
                     // create transceiver object
                     unsigned char * p = NULL;   // default subcarrier allocation
                     if (verbose) 
-                        printf("Using ofdmtxrx\n");
-                    ofdmtxrx txcvr(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs);
+                        printf("Using ofdmtxrx\n");                    
+                    
+
+		    //pthread_mutex_t esbrs_ready_mutex;
+		    //int esbrs_ready = 0;
+		    ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);                    
+                    //txcvr_ptr = &txcvr;
 
                     // Start the Scenario simulations from the scenario USRPs
                     //enactUSRPScenario(ce, sc, &uhd_siggen_pid);
 
+                    // Each instance of this while loop transmits one packet
                     while(!DoneTransmitting)
                     {
                         // set properties
-                        txcvr.set_tx_freq(ce.frequency);
-                        txcvr.set_tx_rate(ce.bandwidth);
-                        txcvr.set_tx_gain_soft(ce.txgain_dB);
-                        txcvr.set_tx_gain_uhd(ce.uhd_txgain_dB);
-                        //txcvr.set_tx_antenna("TX/RX");
+                        txcvr_ptr->set_tx_freq(ce.frequency);
+                        txcvr_ptr->set_tx_rate(ce.bandwidth);
+                        txcvr_ptr->set_tx_gain_soft(ce.txgain_dB);
+                        txcvr_ptr->set_tx_gain_uhd(ce.uhd_txgain_dB);
+                        //txcvr_ptr->set_tx_antenna("TX/RX");
 
                         if (!isController)
                         {
-                            txcvr.set_rx_freq(frequency);
-                            txcvr.set_rx_rate(bandwidth);
-                            txcvr.set_rx_gain_uhd(uhd_rxgain);
 
-                            if (verbose)
-                            {
-                                txcvr.debug_enable();
-                                printf("Set Rx freq to %f\n", frequency);
-                                printf("Set Rx rate to %f\n", bandwidth);
-                                printf("Set uhd Rx gain to %f\n", uhd_rxgain);
-                            }
+                            	txcvr_ptr->set_rx_freq(ce.frequency);
+                            	txcvr_ptr->set_rx_rate(ce.bandwidth);
+                            	txcvr_ptr->set_rx_gain_uhd(uhd_rxgain);
 
-                            int continue_running = 1;
-							int rflag;
-							char readbuffer;
-							txcvr.start_rx();
-                            while(continue_running)
-                            {
-								// Wait until server closes or there is an error, then exit
-								rflag = recv(socket_to_server, &readbuffer, sizeof(readbuffer), 0);
-								printf("Rx flag: %i\n", rflag);
-								if(rflag == 0 || rflag == -1){
-									close(socket_to_server);
-									msequence_destroy(rx_ms);
-									exit(1);
-								}
-                            }
+                            	if (verbose)
+                            	{
+                                	txcvr_ptr->debug_enable();
+                                	printf("Set Rx freq to %f\n", ce.frequency);
+                                	printf("Set Rx rate to %f\n", ce.bandwidth);
+                                	printf("Set uhd Rx gain to %f\n", uhd_rxgain);
+                            	}
+                            
+                            	// Structs for CE and Sc info
+                            	struct CognitiveEngine ce_controller;
+                            	struct Scenario sc_controller;
+							
+                            	int continue_running = 1;
+				int rflag;
+				char readbuffer[1000];
+							
+							
+                            	//TODO get first ce and sc over tcp connection.
+                            	// Start enactScenarioBasebandRx Thread
+                            	//struct enactScenarioBasebandRxStruct esbrs = {.txcvr = &txcvr, .ce = &ce, .sc = &sc};
+                            	// start enactScenarioBasebandRx thread
+                            	//pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+                            
+                            	// Receive CE info
+                            	rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
+                            	if(rflag == 0 || rflag == -1){
+                            		printf("Error receiving CE info from the controller\n");
+					close(socket_to_server);
+					exit(1);
+				}
+			    	else ce_controller = *(struct CognitiveEngine*)readbuffer;
+							
+			    	// Receive Sc info
+			    	rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
+                            	if(rflag == 0 || rflag == -1){
+                            		printf("Error receiving Scenario info from the controller\n");
+					close(socket_to_server);
+					exit(1);
+     			    	}
+			    	else sc_controller = *(struct Scenario*)readbuffer;
+							
+			    	// Initialize members of esbrs struct sent to enactScenarioBasebandRx()
+			    	//struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
+			    	struct enactScenarioBasebandRxStruct esbrs = {
+					.txcvr_ptr = txcvr_ptr, 
+					.ce_ptr = &ce_controller, 
+					.sc_ptr = &sc_controller
+				};
+			    	//pthread_mutex_init(&esbrs_ready_mutex, NULL);
+				pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
+				pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+							
+				// Wait until enactScenarioBasebandRx() has initialized
+				//pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);
+				//while (!*esbrs.esbrs_ready_ptr) 
+				//{
+				//	pthread_mutex_unlock(esbrs.esbrs_ready_mutex_ptr);
+				//	pthread_mutex_lock(esbrs.esbrs_ready_mutex_ptr);
+				//}
+				//pthread_mutex_unlock(esbrs.esbrs_ready_mutex_ptr);
+				pthread_cond_wait(&txcvr_ptr->esbrs_ready, &txcvr_ptr->rx_buffer_mutex);
+				pthread_mutex_unlock(&txcvr_ptr->rx_buffer_mutex);			
+				// Start liquid-usrp receiver
+				printf("Starting receiver\n");
+				txcvr_ptr->start_rx();
+							
+                            	while(continue_running)
+                            	{
+					// Wait until server provides more information, closes, or there is an error
+					rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario)+sizeof(struct CognitiveEngine), 0);
+					if(rflag == 0 || rflag == -1){
+						printf("Socket closed or failed\n");
+						close(socket_to_server);
+						msequence_destroy(rx_ms);
+						exit(1);
+					}
+								
+				//TODO:
+                                // if new scenario:
+                                //{
+                                    // close enactScenarioBasebandRx Thread
+                                    // close current ofdmtxrx object
+                                    // update sc and ce
+                                    // open new ofdmtxrx object
+                                    // open new enactScenarioBasebandRx Thread
+                                //}
+                                	/*else if(rflag == sizeof(struct Scenario)){
+                                		if(verbose) printf("Rewriting Scenario Info");
+						pthread_cancel(enactScBbRxThread);
+						delete txcvr_ptr;
+						sc_controller = *(struct Scenario*)readbuffer;
+						ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+						struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+						pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+					}
+					else if(rflag == sizeof(struct CognitiveEngine)){
+						if(verbose) printf("Rewriting CE info");
+						pthread_cancel(enactScBbRxThread);
+						delete txcvr_ptr;
+						ce_controller = *(struct CognitiveEngine*)readbuffer;
+						ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
+						struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
+						pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+					}*/
+                                
+                            	}
                         }
 
                         if (verbose) {
-                            txcvr.debug_enable();
-                            printf("Set frequency to %f\n", ce.frequency);
-                            printf("Set bandwidth to %f\n", ce.bandwidth);
-                            printf("Set txgain_dB to %f\n", ce.txgain_dB);
-                            printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain_dB);
-                            printf("Set Tx antenna to %s\n", "TX/RX");
+                            	txcvr_ptr->debug_enable();
+                            	printf("Set frequency to %f\n", ce.frequency);
+                            	printf("Set bandwidth to %f\n", ce.bandwidth);
+                            	printf("Set txgain_dB to %f\n", ce.txgain_dB);
+                            	printf("Set uhd_txgain_dB to %f\n", ce.uhd_txgain_dB);
+                            	printf("Set Tx antenna to %s\n", "TX/RX");
                         }
 
                         int i = 0;
                         // Generate data
                         if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-						header[0] = i_CE+1;
-						header[1] = i_Sc+1;
+				header[0] = i_CE+1;
+				header[1] = i_Sc+1;
                         for (i=0; i<4; i++)
-                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
-						header[6] = 0;
-						header[7] = 0;
+                            	header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+				header[6] = 0;
+				header[7] = 0;
                         for (i=0; i<(signed int)ce.payloadLen; i++)
-                            payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+                            	payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
 
                         // Include frame number in header information
-                        //* header_u = ce.frameNumber;
                         if (verbose) printf("Frame Num: %u\n", ce.frameNumber);
 
                         // Set Modulation Scheme
@@ -2234,50 +2441,47 @@ int main(int argc, char ** argv)
                         if (verbose) printf("Outer FEC: ");
                         fec_scheme fec1 = convertFECScheme(ce.outerFEC, verbose);
 
-                        //txcvr.transmit_packet(header, payload, ce.payloadLen, ms, fec0, fec1);
                         // Replace with txcvr methods that allow access to samples:
-                        txcvr.assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
+                        txcvr_ptr->assemble_frame(header, payload, ce.payloadLen, ms, fec0, fec1);
                         int isLastSymbol = 0;
                         while(!isLastSymbol)
                         {
-                            isLastSymbol = txcvr.write_symbol();
-                            enactScenarioBaseband(txcvr.fgbuffer, ce, sc);
-                            txcvr.transmit_symbol();
+                            	isLastSymbol = txcvr_ptr->write_symbol();
+                            	enactScenarioBasebandTx(txcvr_ptr->fgbuffer, txcvr_ptr->fgbuffer_len, ce, sc);
+                            	txcvr_ptr->transmit_symbol();
                         }
-                        txcvr.end_transmit_frame();
+                        txcvr_ptr->end_transmit_frame();
 
                         DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                         // Record the feedback data received
                         //TODO: include fb.cfo
 
-						// Compute throughput and spectral efficiency
-						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-                        // FIXME:There is no independent fg object when using USRPs. 
-                        // Need to do this another way
-						//total_symbols = (float)ofdmflexframegen_getframelen(fg);
-                        total_symbols = 1;
-						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
+			// Compute throughput and spectral efficiency
+			payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+			total_symbols = (float)ofdmflexframegen_getframelen(txcvr_ptr->fg);
+			throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                         //All metrics
                         /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
-						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+				"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+				ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+			//Useful metrics
+			fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+				"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
+				ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
                         fflush(dataFile);
 
                         // Increment the frame counter
                         ce.frameNumber++;
-						ce.iteration++;
+			ce.iteration++;
 
                         // Update the clock
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
-                    } // End If while loop
+			updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
+                    } // End while not done transmitting loop
+                    // TODO: close ofdmtxrx object
                 }
                 else // If not using USRPs
                 {
@@ -2295,14 +2499,14 @@ int main(int argc, char ** argv)
                         header[0] = i_CE+1;
 						header[1] = i_Sc+1;
                         for (i=0; i<4; i++)
-                            header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
-						header[6] = 0;
-						header[7] = 0;
+                            	header[i+2] = (ce.frameNumber & (0xFF<<(8*(3-i))))>>(8*(3-i));
+				header[6] = 0;
+				header[7] = 0;
                         for (i=0; i<(signed int)ce.payloadLen; i++)
                             payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
 
 						// Called just to update bits per symbol field
-						convertModScheme(ce.modScheme, &ce.bitsPerSym);
+			convertModScheme(ce.modScheme, &ce.bitsPerSym);
 
                         // Assemble frame
                         ofdmflexframegen_assemble(fg, header, payload, ce.payloadLen);
@@ -2315,39 +2519,39 @@ int main(int argc, char ** argv)
                         {
                             //isLastSymbol = txTransmitPacket(ce, &fg, frameSamples, metaData, txStream, usingUSRPs);
                             isLastSymbol = ofdmflexframegen_writesymbol(fg, frameSamples);
-                            enactScenarioBaseband(frameSamples, ce, sc);
+                            symbolLen = ce.numSubcarriers + ce.CPLen;
+                            //enactScenarioBasebandTx(frameSamples, symbolLen, ce, sc);
 							
                             // Rx Receives packet
-                            symbolLen = ce.numSubcarriers + ce.CPLen;
 							ofdmflexframesync_execute(fs, frameSamples, symbolLen);
                         } // End Transmition For loop
 						
                         DoneTransmitting = postTxTasks(&ce, &fb, verbose);
 
-						fflush(dataFile);
+			fflush(dataFile);
 
-						// Compute throughput and spectral efficiency
-						payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
-						total_symbols = (float)ofdmflexframegen_getframelen(fg);
-						throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
+			// Compute throughput and spectral efficiency
+			payload_symbols = (float)ce.payloadLen/(float)ce.bitsPerSym;
+			total_symbols = (float)ofdmflexframegen_getframelen(fg);
+			throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                         //All metrics
                         /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-							ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
-						//Useful metrics
-						fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-							"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
-							ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+			"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+			ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+			//Useful metrics
+			fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+				"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
+				ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 
                         // Increment the frame counters and iteration counter
                         ce.frameNumber++;
-						ce.iteration++;
+			ce.iteration++;
                         // Update the clock
                         now = std::clock();
                         ce.runningTime = double(now-begin)/CLOCKS_PER_SEC;
 
-						updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
+			updateScenarioSummary(&sc_sum, &fb, &ce, i_CE, i_Sc);
                     } // End else While loop					
                 }
 
@@ -2356,7 +2560,7 @@ int main(int argc, char ** argv)
             clock_t end = clock();
             double time = (end-begin)/(double)CLOCKS_PER_SEC + ce.iteration*ce.delay_us/1.0e6;
             //fprintf(dataFile, "Elapsed Time: %f (s)", time);
-			fprintf(dataFile, "Begin: %li End: %li Clock/s: %li Time: %f", begin, end, CLOCKS_PER_SEC, time);
+		fprintf(dataFile, "Begin: %li End: %li Clock/s: %li Time: %f", begin, end, CLOCKS_PER_SEC, time);
             fflush(dataFile);
 
             // Reset the goal
@@ -2366,10 +2570,10 @@ int main(int argc, char ** argv)
             fprintf(dataFile, "\n\n");
             fflush(dataFile);
 
-			updateCognitiveEngineSummaryInfo(&ce_sum, &sc_sum, &ce, i_CE, i_Sc);
+		updateCognitiveEngineSummaryInfo(&ce_sum, &sc_sum, &ce, i_CE, i_Sc);
 
-			// Reset frame number
-			ce.frameNumber = 0;
+		// Reset frame number
+		ce.frameNumber = 0;
             
         } // End Scenario For loop
 
