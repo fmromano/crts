@@ -69,7 +69,7 @@ params =
     // Possible Values depend on your USRP hardware.
     // Helpful information can be found with the command
     // $ uhd_usrp_probe
-    uhd_txgain_dB       =   30.0;
+    uhd_txgain_dB       =   25.0;
 
     // Tx Gain applied to baseband signal before it is sent to USRP.
     // In dB. Should always be a float. 

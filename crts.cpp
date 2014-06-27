@@ -930,11 +930,11 @@ void enactRicianFadingBaseband(std::complex<float> * transmit_buffer, unsigned i
 // synchronizer. 
 void * enactScenarioBasebandRx( void * _arg)
 {
-    printf("Scenario being added\n");
+    //printf("Scenario being added\n");
     enactScenarioBasebandRxStruct * esbrs = (enactScenarioBasebandRxStruct *) _arg;
     int count = 0;
     pthread_mutex_lock(&esbrs->txcvr_ptr->rx_buffer_mutex);
-    printf("In esbrs: esbrs ready\n");
+    //printf("In esbrs: esbrs ready\n");
     pthread_cond_signal(&(esbrs->txcvr_ptr->esbrs_ready));
     while (true)
     { 
@@ -943,7 +943,7 @@ void * enactScenarioBasebandRx( void * _arg)
 	//pthread_mutex_unlock(esbrs->esbrs_ready_mutex_ptr);
 	
         // Wait for txcvr rx_worker to signal samples are ready to be modified
-        printf("In esbrs: waiting for buffer to be filled %i\n", count);
+        //printf("In esbrs: waiting for buffer to be filled %i\n", count);
 	count++;
 	pthread_cond_wait(&esbrs->txcvr_ptr->rx_buffer_filled_cond, &esbrs->txcvr_ptr->rx_buffer_mutex);
 
@@ -963,7 +963,7 @@ void * enactScenarioBasebandRx( void * _arg)
         }
 	
         // signal to txcvr rx_worker that samples are ready to be sent to synchronizer
-        printf("In esbrs: Buffer modified\n");
+        //printf("In esbrs: Buffer modified\n");
 	pthread_cond_signal(&(esbrs->txcvr_ptr->rx_buffer_modified_cond));
         // unlock mutex
         //pthread_mutex_unlock(&(esbrs->txcvr_ptr->rx_buffer_mutex));
@@ -1997,7 +1997,7 @@ int main(int argc, char ** argv)
     unsigned int taperLen = 4;
     float bandwidth = 1.0e6;
     float frequency = 460.0e6;
-    float uhd_rxgain = 20.0;
+    float uhd_rxgain = 30.0;
 
     // Check Program options
     int d;
