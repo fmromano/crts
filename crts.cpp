@@ -222,7 +222,7 @@ struct CognitiveEngine CreateCognitiveEngine() {
     ce.errorFreePayloads = 0;
     ce.bandwidth = 1.0e6;
     ce.txgain_dB = -12.0;
-    ce.uhd_txgain_dB = 40.0;
+    ce.uhd_txgain_dB = 25.0;
     ce.startTime = 0.0;
     ce.runningTime = 0.0; // In seconds
     ce.delay_us = 1000000.0; // In useconds
@@ -1231,7 +1231,7 @@ int rxCallback(unsigned char *  _header,
 		//while (rxCBS_ptr->fb_ptr->block_flag) {}
 		//printf("TP1\n");
 		//printf("FB length: %i, Payload FB length: %i\n", sizeof(*rxCBS_ptr->fb_ptr), sizeof(*(struct feedbackStruct*)_payload));
-        printf("Received feedback from OTA!\n");
+        //printf("Received feedback from OTA!\n");
         if (_payload_valid)
         {
             //printf("Rxcallback locking fb mutex\n");
@@ -1254,7 +1254,7 @@ int rxCallback(unsigned char *  _header,
         }
         else
         {
-            printf("but payload invalid\n");
+            //printf("but payload invalid\n");
             //printf("Rxcallback locking fb mutex\n");
             pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
             //printf("Rxcallback signalling fb cond\n");
@@ -1347,7 +1347,7 @@ int rxCallback(unsigned char *  _header,
 			char FEC1[30] = "none";
 			modulation_scheme ms = convertModScheme(mod, &rxCBS_ptr->ce_ptr->bitsPerSym);
 
-            rxCBS_ptr->txrx_ptr->set_tx_gain_uhd(30.0);
+            rxCBS_ptr->txrx_ptr->set_tx_gain_uhd(25.0);
             rxCBS_ptr->txrx_ptr->set_tx_gain_soft(-8.0);
 
 			// Set Cyclic Redundency Check Scheme
@@ -2044,7 +2044,7 @@ int main(int argc, char ** argv)
     unsigned int CPLen = 16;
     unsigned int taperLen = 4;
     float bandwidth = 1.0e6;
-    float uhd_rxgain = 20.0;
+    float uhd_rxgain = 31.5;
 	float frequency_tx;
 	float frequency_rx;
 
@@ -2420,13 +2420,13 @@ int main(int argc, char ** argv)
                     struct timeval timeNow;
                     struct timespec releaseTime;
                     gettimeofday(&timeNow, NULL);
-                    double wholeSecondsDelay = 0.0;
+                    //double wholeSecondsDelay = 0.0;
                     //printf("delay = %f\n", ce.delay_us);
-                    double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
+                    //double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
                     //printf("wholeSecondsDelay = %f\n", wholeSecondsDelay);
-                    releaseTime.tv_sec = timeNow.tv_sec + (int) wholeSecondsDelay;
-                    unsigned int wholeNsDelay = (int) delay_fpart_s*1e9;
-                    releaseTime.tv_nsec = (timeNow.tv_usec*1000) + wholeNsDelay;
+                    releaseTime.tv_sec = timeNow.tv_sec;// + (int) wholeSecondsDelay;
+                    //unsigned int wholeNsDelay = (int) delay_fpart_s*1e9;
+                    releaseTime.tv_nsec = (timeNow.tv_usec*1000) + 20000000;//wholeNsDelay;
 
                     // Lock the feedback struct mutex and
                     // Wait for either a signal, or until the delay time has passed.
@@ -2456,7 +2456,7 @@ int main(int argc, char ** argv)
 						ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
 					//Useful metrics
 					fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-						"crtsdata:", fb.iteration,  fb.evm, fb.rssi, ce.PER,
+						"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
 						ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 		            fflush(dataFile);
 
