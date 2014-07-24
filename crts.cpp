@@ -25,6 +25,7 @@
 #include <sys/types.h>  // for killing child process
 #include <signal.h>     // for killing child process
 #include <uhd/usrp/multi_usrp.hpp>
+#include <uhd/utils/msg.hpp>
 #include <getopt.h>     // For command line options
 #define MAXPENDING 5
 
@@ -2016,6 +2017,8 @@ void updateCognitiveEngineSummaryInfo(struct cognitiveEngineSummaryInfo *ce_sum,
 	ce_sum->PER[i_CE] += sc_sum->PER[i_CE][i_Sc];
 }
 
+void uhd_quiet(uhd::msg::type_t type, const std::string &msg){}
+
 void terminate(int sig){
 	exit(1);
 }
@@ -2126,6 +2129,9 @@ int main(int argc, char ** argv)
 
     // framesynchronizer object used in each test
     ofdmflexframesync fs;
+
+	// Quiet UHD output if not verbose
+	if(!verbose) uhd::msg::register_handler(&uhd_quiet);
 
 	// identical pseudo random sequence generators for tx and rx
 	msequence tx_ms = msequence_create_default(9u);
