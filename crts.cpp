@@ -1221,8 +1221,8 @@ int rxCallback(unsigned char *  _header,
 	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
 
     // Variables for checking number of errors 
-    unsigned int payloadByteErrors  =   0;
-    unsigned int payloadBitErrors   =   0;
+    //unsigned int payloadByteErrors  =   0;
+    //unsigned int payloadBitErrors   =   0;
     int j;
     unsigned int m;
 	unsigned int tx_byte;
@@ -1243,6 +1243,7 @@ int rxCallback(unsigned char *  _header,
             rxCBS_ptr->fb_ptr->payload_valid = _fbReceived->payload_valid;
             rxCBS_ptr->fb_ptr->payload_len = _fbReceived->payload_len;
             rxCBS_ptr->fb_ptr->payloadByteErrors = _fbReceived->payloadByteErrors;
+			rxCBS_ptr->fb_ptr->payloadBitErrors = _fbReceived->payloadBitErrors;
             rxCBS_ptr->fb_ptr->evm = _fbReceived->evm;
             rxCBS_ptr->fb_ptr->rssi = _fbReceived->rssi;
             rxCBS_ptr->fb_ptr->cfo = _fbReceived->cfo;
@@ -1274,8 +1275,8 @@ int rxCallback(unsigned char *  _header,
 		fb.header_valid         =   _header_valid;
 		fb.payload_valid        =   _payload_valid;
 		fb.payload_len          =   _payload_len;
-		fb.payloadByteErrors    =   payloadByteErrors;
-		fb.payloadBitErrors     =   payloadBitErrors;
+		fb.payloadByteErrors    =   0;
+		fb.payloadBitErrors     =   0;
 		fb.evm                  =   _stats.evm;
 		fb.rssi                 =   _stats.rssi;
 		fb.cfo                  =   _stats.cfo;	
@@ -1301,15 +1302,15 @@ int rxCallback(unsigned char *  _header,
 			//printf( "%1i %1i\n", (signed int)_payload[m], tx_byte );
 		    if (((int)_payload[m] != tx_byte))
 		    {
-		        payloadByteErrors++;
+		        fb.payloadByteErrors++;
 		        for (j=0; j<8; j++)
 		        {
 					if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
-		               payloadBitErrors++;
+		               fb.payloadBitErrors++;
 		        }      
 		    }           
 		}             
-                
+        	
 		// Data that will be sent to server
 		// TODO: Send other useful data through feedback array
 		if(rxCBS_ptr->isController){
@@ -2292,11 +2293,11 @@ int main(int argc, char ** argv)
             {
                 fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
                 //All metrics
-                /*fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
-                    "linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");*/
+                fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
+                    "linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");
                 //Useful metrics
-                fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-20s %-19s\n",
-                    "linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency", "Averaged Goal Value");
+                //fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-20s %-19s\n",
+                //    "linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency", "Averaged Goal Value");
                 fflush(dataFile);
             }
             //else
@@ -2457,13 +2458,13 @@ int main(int argc, char ** argv)
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
 		            //All metrics
-		            /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-						"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-						ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+		            fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n",//%-12.2f %-20.2f %-19.2f 
+						"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+						ce.BERLastPacket, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
-					fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-						"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
-						ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					//fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+					//	"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
+					//	ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 		            fflush(dataFile);
 
 		            // Increment the frame counter
@@ -2533,13 +2534,13 @@ int main(int argc, char ** argv)
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
 		            //All metrics
-		            /*fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-8.2f %-19u %-12.2f %-16u %-12.2f %-20.2f %-19.2f\n", 
-						"crtsdata:", fb.frameNum, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-						ce.BERLastPacket, fb.payloadBitErrors, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);*/
+		            fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n",//%-12.2f %-20.2f %-19.2f 
+						"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+						ce.BERLastPacket, fb.payloadBitErrors);// throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
-					fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
-						"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
-						ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					//fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
+					//	"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
+					//	ce.BERLastPacket, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 
 		            // Increment the frame counters and iteration counter
 		            ce.frameNumber++;
