@@ -10,12 +10,10 @@ params =
     // If there is an X in the goal. That value is specified by 
     // the 'threshold' option.
     goal                =   "X_seconds";
-    
-    // Threshold for when the CE has reached its 'goal'
-    threshold           =   10.0;
+	goal_averaging		=	1;
 
-	// Number of packets averaged to determine metric (where applicable)
-	averaging			=	1.0;    
+    // Threshold for when the CE has reached its 'goal'
+    threshold           =   10.0;    
 
 	// Specifies the condition under which the CE will
     // perform the adaptation specified in
@@ -40,10 +38,15 @@ params =
     // For CE's that adapt based on the PER Rate.
     // Threshold for deciding whether to make an adaptation.
     PER_threshold       =   0.5;
+	PER_averaging		=	5;
 
     // For CE's that adapt based on the BER Rate.
     // Threshold for deciding whether to make an adaptation.
     BER_threshold       =   0.05;
+	BER_averaging		=	5;
+
+	validPayloads_averaging = 5;
+	errorFreePayloads_averaging = 5;
 
     // For CE's that adapt based on the weighted avg of the payload valid values.
     // Threshold for deciding whether to make an adaptation.

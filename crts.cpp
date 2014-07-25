@@ -681,8 +681,34 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
 		if (config_setting_lookup_float(setting, "goal_averaging", &tmpD))
         {
            ce->goal_averaging=tmpD; 
-           if (verbose) printf("Averaging: %f\n", tmpD);
+           if (verbose) printf("Goal averaging: %f\n", tmpD);
         }
+		if (config_setting_lookup_int(setting, "BER_averaging", &tmpI))
+        {
+           ce->BER_averaging=tmpI;
+		   ce->BER_RA_ptr = new running_avg<float>(tmpI);
+           if (verbose) printf("BER averaging: %i\n", tmpI);
+        }
+		if (config_setting_lookup_int(setting, "PER_averaging", &tmpI))
+        {
+           ce->PER_averaging=tmpI;
+		   ce->PER_RA_ptr = new running_avg<float>(tmpI);
+           if (verbose) printf("PER averaging: %i\n", tmpI);
+        }
+		if (config_setting_lookup_int(setting, "validPayloads_averaging", &tmpI))
+        {
+           ce->validPayloads_averaging=tmpI;
+		   ce->validPayloads_RA_ptr = new running_avg<float>(tmpI);
+           if (verbose) printf("Valid payloads averaging: %i\n", tmpI);
+        }
+		if (config_setting_lookup_int(setting, "errorFreePayloads_averaging", &tmpI))
+        {
+           ce->errorFreePayloads_averaging=tmpI;
+		   ce->errorFreePayloads_RA_ptr = new running_avg<float>(tmpI);
+           if (verbose) printf("BER averaging: %i\n", tmpI);
+        }
+
+	
     }
     config_destroy(&cfg);
     return 1;
@@ -1455,6 +1481,7 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
     if (fbPtr->payload_valid && (!(fbPtr->payloadBitErrors)))
     {
         ce->errorFreePayloads++;
+		ce->errorFreePayloads_RA_ptr->update(1.0);
         if (verbose) printf("Error Free payload!\n");
     }
 
@@ -1462,6 +1489,10 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
     ce->lastReceivedFrame = fbPtr->iteration;
     ce->BER = ((float)fbPtr->payloadBitErrors)/((float)(ce->payloadLen*8));
     ce->weightedAvg += (float) fbPtr->payload_valid;
+
+	ce->BER_RA_ptr->update(ce->BER);
+	ce->PER_RA_ptr->update(ce->PER);
+	ce->validPayloads_RA_ptr->update((float)fbPtr->payload_valid);
 
     // Update goal value
     if (strcmp(ce->goal, "payload_valid") == 0)
@@ -1944,7 +1975,7 @@ int main(int argc, char ** argv)
 		frequency_tx = 154.0e6;
 		frequency_rx = 140.0e6;
 	}
-	printf("Set transmit frequency to %f\n", frequency_tx);
+
     pthread_t TCPServerThread;   // Pointer to thread ID
     pthread_t enactScBbRxThread;   // Pointer to thread ID
 
@@ -2005,7 +2036,16 @@ int main(int argc, char ** argv)
 	// Metric Summary structs for each scenario and each cognitive engine
 	struct scenarioSummaryInfo sc_sum;
 	struct cognitiveEngineSummaryInfo ce_sum;
-                                                   
+   
+    // Statements for what information to print
+	bool print_frame_info = true;
+	bool print_validity_metrics = true;
+	bool print_error_metrics = false;
+	bool print_signal_quality_metrics = true;
+	bool print_spectral_metrics = true;
+	bool print_goal_metrics = true;
+				 
+
     ////////////////////// End variable initializations.///////////////////////
 
 	signal(SIGTERM, terminate);
@@ -2127,13 +2167,27 @@ int main(int argc, char ** argv)
             	rxCBs.sc_ptr = &sc;
 
                 fprintf(dataFile, "Cognitive Engine %d\nScenario %d\n", i_CE+1, i_Sc+1);
-                //All metrics
-                fprintf(dataFile, "%-10s %-10s %-14s %-15s %-10s %-10s %-10s %-19s %-16s %-18s \n",
-                    "linetype","frameNum","header_valid","payload_valid","evm (dB)","rssi (dB)","PER","payloadByteErrors","BER:LastPacket","payloadBitErrors");
-                //Useful metrics
-                //fprintf(dataFile, "%-10s %-10s %-10s %-10s %-8s %-12s %-12s %-20s %-19s\n",
-                //    "linetype","frameNum","evm (dB)","rssi (dB)","PER","Packet BER", "Throughput", "Spectral Efficiency", "Averaged Goal Value");
-                fflush(dataFile);
+                
+				/////////// Print metrics by category /////////////
+				
+				if(print_frame_info) fprintf(dataFile,"%-10s%-7s","Linetype","Frame");
+				if(print_validity_metrics) fprintf(dataFile,"%-14s%-15s","Valid Header","Valid Payload");
+				if(print_error_metrics) fprintf(dataFile,"%-13s%-12s%-7s%-7s%-9s%-9s","Byte Errors","Bit Errors","PER","BER","Avg PER","Avg BER");
+				if(print_signal_quality_metrics) fprintf(dataFile,"%-10s%-11s","EVM (dB)","RSSI (dB)");
+				if(print_spectral_metrics) fprintf(dataFile,"%-12s%-21s","Throughput", "Spectral Efficiency");
+				if(print_goal_metrics) fprintf(dataFile,"%-16s","Avg Goal Value");
+				fprintf(dataFile,"\n");
+				if(print_frame_info) fprintf(dataFile,"----------------");
+				if(print_validity_metrics) fprintf(dataFile,"-----------------------------");
+				if(print_error_metrics) fprintf(dataFile,"---------------------------------------------------------");
+				if(print_signal_quality_metrics) fprintf(dataFile,"---------------------");
+				if(print_spectral_metrics) fprintf(dataFile,"--------------------------------");
+				if(print_goal_metrics) fprintf(dataFile,"----------------");
+				fprintf(dataFile,"\n");
+
+				/////////////////////////////////////////////////////
+				
+				fflush(dataFile);
             }
 
             // Initialize Receiver Defaults for current CE and Sc
@@ -2190,14 +2244,7 @@ int main(int argc, char ** argv)
                        	int continue_running = 1;
 						int rflag;
 						char readbuffer[1000];
-							
-							
-                       	//TODO get first ce and sc over tcp connection.
-                       	// Start enactScenarioBasebandRx Thread
-                       	//struct enactScenarioBasebandRxStruct esbrs = {.txcvr = &txcvr, .ce = &ce, .sc = &sc};
-                       	// start enactScenarioBasebandRx thread
-                       	//pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
-                            
+
                        	// Receive CE info
                        	rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
                        	if(rflag == 0 || rflag == -1){
@@ -2349,7 +2396,6 @@ int main(int argc, char ** argv)
            	        if (verbose)
                	        printf("Frame transmitted. Waiting for feedback OTA or for timeout\n");
                    	int ptrt = pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
-                   	//printf("in main: pthread_cond_timedwait signal or cond received: %d\n", ptrt);
 	
 					DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                     // Record the feedback data received
@@ -2360,10 +2406,22 @@ int main(int argc, char ** argv)
 					total_symbols = (float)ofdmflexframegen_getframelen(txcvr_ptr->fg);
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
-                    //All metrics
-                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u\n", //%-12.2f %-20.2f %-19.2f 
-					"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-					ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					/////////// Print metrics by category /////////////
+				
+					if(print_frame_info) fprintf(dataFile,"%-10s%-7i","crtsdata",ce.iteration);
+					if(print_validity_metrics) fprintf(dataFile,"%-14i%-15i",fb.header_valid,fb.payload_valid);
+					if(print_error_metrics) fprintf(dataFile,"%-13i%-12i%-7.2f%-7.2f%-9.2f%-9.2f",fb.payloadByteErrors,fb.payloadBitErrors,ce.PER,ce.BER,ce.PER_avg,ce.BER_avg);
+					if(print_signal_quality_metrics) fprintf(dataFile,"%-10.2f%-11.2f",fb.evm,fb.rssi);
+					if(print_spectral_metrics) fprintf(dataFile,"%-12.2f%-21.2f",throughput, throughput/ce.bandwidth);
+					if(print_goal_metrics) fprintf(dataFile,"%-16.2f",ce.averagedGoalValue);
+				    fprintf(dataFile,"\n");
+
+					/////////////////////////////////////////////////////
+					
+					//All metrics
+                    //fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u\n", //%-12.2f %-20.2f %-19.2f 
+					//"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+					//ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
 					/*fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 					"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
@@ -2434,10 +2492,22 @@ int main(int argc, char ** argv)
 					total_symbols = (float)ofdmflexframegen_getframelen(fg);
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
-                    //All metrics
-                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", // %-12.2f %-20.2f %-19.2f
-					"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-					ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					/////////// Print metrics by category /////////////
+				
+					if(print_frame_info) fprintf(dataFile,"%-10s%-7i","crtsdata",ce.iteration);
+					if(print_validity_metrics) fprintf(dataFile,"%-14i%-15i",fb.header_valid,fb.payload_valid);
+					if(print_error_metrics) fprintf(dataFile,"%-13i%-12i%-7.2f%-7.2f%-9.2f%-9.2f",fb.payloadByteErrors,fb.payloadBitErrors,ce.PER,ce.BER,ce.PER_avg,ce.BER_avg);
+					if(print_signal_quality_metrics) fprintf(dataFile,"%-10.2f%-11.2f",fb.evm,fb.rssi);
+					if(print_spectral_metrics) fprintf(dataFile,"%-12.2f%-21.2f",throughput, throughput/ce.bandwidth);
+					if(print_goal_metrics) fprintf(dataFile,"%-16.2f",ce.averagedGoalValue);
+				    fprintf(dataFile,"\n");
+
+					/////////////////////////////////////////////////////
+					
+					//All metrics
+                    //fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", // %-12.2f %-20.2f %-19.2f
+					//"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
+					//ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
 					/*fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 					"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
