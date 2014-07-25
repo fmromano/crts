@@ -1311,7 +1311,7 @@ int rxCallback(unsigned char *  _header,
 		}
 		else{
 			// Receiver sends feedback over TCP link
-			write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
+			//write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
 
 			// Receiver sends feedback OTA
 			int i = 0;
@@ -1922,8 +1922,8 @@ int main(int argc, char ** argv)
     // Specifies whether this crts instance is managing the experiment.
     int isController = 0;
 
-    unsigned int serverPort = 1402;
-    char * serverAddr = (char*) "127.0.0.1";
+    //unsigned int serverPort = 1402;
+    //char * serverAddr = (char*) "127.0.0.1";
 
     // Frame Synchronizer parameters
     unsigned int numSubcarriers = 64;
@@ -1946,9 +1946,9 @@ int main(int argc, char ** argv)
                     if (!verbose_explicit) verbose = 0;     break;
         case 'r':   usingUSRPs = 1;                         break;
         case 's':   usingUSRPs = 0;                         break;
-        case 'p':   serverPort = atoi(optarg);              break;
+        //case 'p':   serverPort = atoi(optarg);              break;
         case 'c':   isController = 1;                       break;
-        case 'a':   serverAddr = optarg;                    break;
+        //case 'a':   serverAddr = optarg;                    break;
         case 'f':   frequency_tx = atof(optarg);            break;
 		case 'F':	frequency_rx = atof(optarg);			break;
         case 'b':   bandwidth = atof(optarg);               break;
@@ -1976,7 +1976,7 @@ int main(int argc, char ** argv)
 		frequency_rx = 140.0e6;
 	}
 
-    pthread_t TCPServerThread;   // Pointer to thread ID
+    //pthread_t TCPServerThread;   // Pointer to thread ID
     pthread_t enactScBbRxThread;   // Pointer to thread ID
 
     // Array that will be accessible to both Server and CE.
@@ -2053,23 +2053,23 @@ int main(int argc, char ** argv)
 	signal(SIGQUIT, terminate);
 	signal(SIGKILL, terminate);
 
-    int client;
+    //int client;
 	
 	// Begin TCP Server Thread for slave node(s) if using USRP's
 	if(usingUSRPs && isController){
-		struct serverThreadStruct ss_slave = CreateServerStruct();
-		ss_slave.serverPort = serverPort;
-		ss_slave.fb_ptr = &fb;
-		ss_slave.client_ptr = &client;
-		pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_slave);
-		printf("\nPress any key once all nodes have connected to the TCP server\n");
+		//struct serverThreadStruct ss_slave = CreateServerStruct();
+		//ss_slave.serverPort = serverPort;
+		//ss_slave.fb_ptr = &fb;
+		//ss_slave.client_ptr = &client;
+		//pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_slave);*/
+		printf("\nPress any key once all nodes are ready\n");
 		getchar();
 	}
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
     rxCBs.bandwidth = bandwidth;
-    rxCBs.serverPort = serverPort;
-    rxCBs.serverAddr = serverAddr;
+    //rxCBs.serverPort = serverPort;
+    //rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
 	rxCBs.rx_ms_ptr = &rx_ms;
 	rxCBs.isController = isController;
@@ -2079,7 +2079,7 @@ int main(int argc, char ** argv)
     // Allow server time to finish initialization
     usleep(0.1e6);
 
-	const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
+	/*const int socket_to_server = socket(AF_INET, SOCK_STREAM, 0);
 	if(!isController && usingUSRPs){
 		// Create a client TCP socket] 
 		if( socket_to_server < 0)
@@ -2111,7 +2111,7 @@ int main(int argc, char ** argv)
 
 		rxCBs.client = socket_to_server;
         if (verbose) printf("Connected to Server.\n");
-	}
+	}*/
 
     // Get current date and time
     char dataFilename[50];
@@ -2140,28 +2140,30 @@ int main(int argc, char ** argv)
 		if (verbose) 
             printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
             
-        if(isController){
+        //if(isController){
 		    // Initialize current CE
 			ce = CreateCognitiveEngine();
 			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
 			// Send CE info to slave node(s)
-			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
-		}
+			//if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
+		//}
         ce.frequency_tx = frequency_tx;
 		ce.frequency_rx = frequency_rx;
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {                	
 				
-            if (isController)
-            {                   
+            //if (isController)
+            //{                   
         		if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
                 // Initialize current Scenario
                 sc = CreateScenario();
                 readScConfigFile(&sc,scenario_list[i_Sc], verbose);
-                
+            
+			if (isController)
+			{
 				// Send Sc info to slave node(s)
-                if(usingUSRPs) write(client, (void*)&sc, sizeof(sc));	
+                //if(usingUSRPs) write(client, (void*)&sc, sizeof(sc));	
 				if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
             	rxCBs.ce_ptr = &ce;
             	rxCBs.sc_ptr = &sc;
@@ -2238,11 +2240,11 @@ int main(int argc, char ** argv)
                        	}
                             
                        	// Structs for CE and Sc info
-                       	struct CognitiveEngine ce_controller;
-                       	struct Scenario sc_controller;
+                       	//struct CognitiveEngine ce_controllerce;
+                       	//struct Scenario sc_controller;
 						
                        	int continue_running = 1;
-						int rflag;
+						/*int rflag;
 						char readbuffer[1000];
 
                        	// Receive CE info
@@ -2262,15 +2264,15 @@ int main(int argc, char ** argv)
 							exit(1);
   			    		}
 		    			else sc_controller = *(struct Scenario*)readbuffer;
-							
+						*/	
 		    			// Initialize members of esbrs struct sent to enactScenarioBasebandRx()
 		    			//struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
-		    			rxCBs.ce_ptr = &ce_controller;
-						rxCBs.sc_ptr = &sc_controller;
+		    			rxCBs.ce_ptr = &ce;
+						rxCBs.sc_ptr = &sc;
 						struct enactScenarioBasebandRxStruct esbrs = {
 							.txcvr_ptr = txcvr_ptr, 
-							.ce_ptr = &ce_controller, 
-							.sc_ptr = &sc_controller
+							.ce_ptr = &ce, 
+							.sc_ptr = &sc
 						};
 		    			//pthread_mutex_init(&esbrs_ready_mutex, NULL);
 						pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
@@ -2286,13 +2288,13 @@ int main(int argc, char ** argv)
                         while(continue_running)
                         {
 							// Wait until server provides more information, closes, or there is an error
-							rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario)+sizeof(struct CognitiveEngine), 0);
+							/*rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario)+sizeof(struct CognitiveEngine), 0);
 							if(rflag == 0 || rflag == -1){
 								printf("Socket closed or failed\n");
 				 				close(socket_to_server);
 								msequence_destroy(rx_ms);
 								exit(1);
-							}
+							}*/
 								
 							//TODO:
                             // if new scenario:
@@ -2561,9 +2563,7 @@ int main(int argc, char ** argv)
 	// destroy objects
 	msequence_destroy(tx_ms);
 	msequence_destroy(rx_ms);
-	close(socket_to_server);
-
-	if(!usingUSRPs) close(socket_to_server);
+	//close(socket_to_server);
 
     return 0;
 }// End main
