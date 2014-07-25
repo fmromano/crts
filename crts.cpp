@@ -35,7 +35,6 @@
 #define SO_REUSEPORT SO_REUSEADDR
 #endif
 
-
 void usage() {
     printf("crts -- Test cognitive radio engines. Data is logged in the 'data' directory to a file named 'data_crts' with date and time appended.\n");
     printf("  -u,-h  :   usage/help\n");
@@ -60,54 +59,111 @@ void usage() {
     //printf("  z     :   number of subcarriers to notch in the center band, default: 0\n");
 }
 
+// Class to create running average objects
+template <class T>
+class running_avg{
+	public:
+	// Variables
+	int avg_len;
+	int position;
+	float avg;
+	T *memory;
+
+	// Constructor
+	running_avg(int length){
+		avg_len = length;
+		position = 0;
+		avg = (T) 0;
+		memory = new T[avg_len]();
+	}
+
+	// Destructor
+	~running_avg(){
+		delete memory;
+	}
+
+	// Function to update the running average
+	float update(T input){
+		avg -= (float)*(memory+position)/(float)avg_len;
+		*(memory+position) = input;
+		avg += (float)input/(float)avg_len;
+		position++;
+		if(position == avg_len) position = 0;
+		return avg;
+	}
+};
+
 struct CognitiveEngine {
-    char modScheme[30];
+    // Modulation/coding parameters
+	char modScheme[30];
     char crcScheme[30];
     char innerFEC[30];
     char outerFEC[30];
     char outerFEC_prev[30];
-    char adaptationCondition[30];
-    float default_tx_power;
-    char adaptation[30];
-    char goal[30];
-    float threshold;
-    // TODO: For latestGoalValue, Use different type of variable depending on
-    //  what its being compared to
-    float latestGoalValue;
-    float weightedAvg; 
-    float PER;
-    float BERLastPacket;
-    float BERTotal;
+	unsigned int bitsPerSym;
+	unsigned int numSubcarriers;
+    unsigned int CPLen;
+    unsigned int taperLen;
+	unsigned int payloadLen;
+
+	// RF parameters
+	float default_tx_power;
+	float txgain_dB;
+    float uhd_txgain_dB;
+	float uhd_rxgain_dB;
     float frequency_tx;
 	float frequency_rx;
     float bandwidth;
-    float txgain_dB;
-    float uhd_txgain_dB;
-	float uhd_rxgain_dB;
-    float delay_us;
+
+  	// Cognitive parameters
+    // TODO: For latestGoalValue, Use different type of variable depending on
+    //  what its being compared to
+    char adaptationCondition[30];
+    char adaptation[30];
+    char goal[30];
+	int goal_averaging;	
+	float goal_mem[100];
+	float averagedGoalValue;
+    float threshold;
+	float latestGoalValue;
+    float weightedAvg; 
     float weighted_avg_payload_valid_threshold;
     float PER_threshold;
     float BER_threshold;
     float FECswitch;
-    double startTime;
-    double runningTime; // In seconds
-    int iteration;
-	unsigned int bitsPerSym;
-    unsigned int validPayloads;
-    unsigned int errorFreePayloads;
-    unsigned int frameNumber;
-    unsigned int lastReceivedFrame;
-    unsigned int payloadLen;
     unsigned int payloadLenIncrement;
     unsigned int payloadLenMax;
     unsigned int payloadLenMin;
-    unsigned int numSubcarriers;
-    unsigned int CPLen;
-    unsigned int taperLen;
-	unsigned int averaging;
-	float metric_mem[100]; // For computing running average
-	float averagedGoalValue;
+   	
+	// Control variables
+	float delay_us;
+    double startTime;
+    double runningTime;
+    int iteration;
+	unsigned int frameNumber;
 
+	// Performance metrics
+    float PER;
+    float PER_avg;
+	int PER_averaging;
+	running_avg<float> *PER_RA_ptr;
+
+	float BER;
+	float BER_avg;
+	int BER_averaging;
+	running_avg<float> *BER_RA_ptr;
+
+	unsigned int validPayloads;
+    float validPayloads_avg;
+	int validPayloads_averaging;
+	running_avg<float> *validPayloads_RA_ptr;
+	
+	unsigned int errorFreePayloads;
+	float errorFreePayloads_avg;
+	int errorFreePayloads_averaging;
+	running_avg<float> *errorFreePayloads_RA_ptr;
+	
+    unsigned int lastReceivedFrame;
 };
 
 struct Scenario {
@@ -207,51 +263,71 @@ struct cognitiveEngineSummaryInfo{
 // Default parameters for a Cognitive Engine
 struct CognitiveEngine CreateCognitiveEngine() {
     struct CognitiveEngine ce = {};
-    ce.default_tx_power = 10.0;
-    ce.threshold = 1.0;                 // Desired value for goal
-    ce.latestGoalValue = 0.0;           // Value of goal to be compared to threshold
-    ce.iteration = 1;                 // Count of total simulations.
-    ce.payloadLen = 120;                // Length of payload in frame generation
-    ce.payloadLenIncrement = 2;         // How much to increment payload in adaptations
-                                        // Always positive.
 
-    ce.payloadLenMax = 500;             // Max length of payload in bytes
-    ce.payloadLenMin = 20;              // Min length of payload in bytes
-    ce.numSubcarriers = 64;             // Number of subcarriers for OFDM
-    ce.CPLen = 16;                      // Cyclic Prefix length
-    ce.taperLen = 4;                     // Taper length
-    ce.weightedAvg = 0.0;
-    ce.PER = 0.0;
-    ce.BERLastPacket = 0.0;
-    ce.BERTotal = 0.0;
-	ce.bitsPerSym = 1;
-    ce.frameNumber = 0;
-    ce.lastReceivedFrame = 0;
-    ce.validPayloads = 0;
-    ce.errorFreePayloads = 0;
-    ce.bandwidth = 1.0e6;
-    ce.txgain_dB = -12.0;
-    ce.uhd_txgain_dB = 25.0;
-    ce.startTime = 0.0;
-    ce.runningTime = 0.0; // In seconds
-    ce.delay_us = 1000000.0; // In useconds
-    ce.weighted_avg_payload_valid_threshold = 0.5;
-    ce.PER_threshold = 0.5;
-    ce.BER_threshold = 0.5;
-    ce.FECswitch = 1;
-	ce.averaging = 1;
-	memset(ce.metric_mem,0,100*sizeof(float));
-	ce.averagedGoalValue = 0;
+	// Modulation/coding parameters
     strcpy(ce.modScheme, "QPSK");
-    strcpy(ce.adaptation, "mod_scheme->BPSK");
-    strcpy(ce.goal, "payload_valid");
     strcpy(ce.crcScheme, "none");
     strcpy(ce.innerFEC, "none");
     strcpy(ce.outerFEC, "Hamming74");
     strcpy(ce.outerFEC_prev, "Hamming74");
-    //strcpy(ce.adaptationCondition, "weighted_avg_payload_valid"); 
-    strcpy(ce.adaptationCondition, "packet_error_rate"); 
-    return ce;
+	ce.bitsPerSym = 1;
+	ce.numSubcarriers = 64;
+    ce.CPLen = 16;         
+    ce.taperLen = 4;       
+    ce.payloadLen = 120;       
+   
+    // RF parameters
+	ce.default_tx_power = 10.0;
+	ce.txgain_dB = -12.0;
+    ce.uhd_txgain_dB = 25.0;
+	ce.bandwidth = 1.0e6;
+    
+	// Cognitive parameters
+	strcpy(ce.adaptationCondition, "packet_error_rate"); 
+    strcpy(ce.adaptation, "mod_scheme->BPSK");
+    strcpy(ce.goal, "payload_valid");
+    ce.goal_averaging = 1;
+	ce.averagedGoalValue = 0;
+	ce.threshold = 1.0;        
+    ce.latestGoalValue = 0.0;  
+    ce.weightedAvg = 0.0;
+    ce.PER_threshold = 0.5;
+    ce.BER_threshold = 0.5;
+    ce.FECswitch = 1;
+	ce.payloadLenIncrement = 2;
+    ce.payloadLenMax = 500;
+    ce.payloadLenMin = 20; 
+    ce.weighted_avg_payload_valid_threshold = 0.5;
+    
+	// Control variables
+	ce.delay_us = 1000000.0;
+    ce.startTime = 0.0;
+    ce.runningTime = 0.0; 
+    ce.iteration = 1;          
+    ce.frameNumber = 0;
+    
+	// Performance metrics
+    ce.PER = 0.0;
+    ce.PER_avg = 0.0;
+	ce.PER_averaging = 1;
+
+	ce.BER = 0.0;
+    ce.BER_avg = 0.0;
+	ce.BER_averaging =1;
+
+    ce.validPayloads = 0;
+    ce.validPayloads_avg = 0;
+	ce.validPayloads_averaging = 1;
+	
+	ce.errorFreePayloads = 0;
+	ce.errorFreePayloads = 0;
+	ce.errorFreePayloads_averaging = 1;
+    
+	//memset(ce.metric_mem,0,100*sizeof(float));
+	 
+    ce.lastReceivedFrame = 0;
+    
+	return ce;
 } // End CreateCognitiveEngine()
 
 // Default parameter for Scenario
@@ -602,9 +678,9 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
            ce->BER_threshold=tmpD; 
            if (verbose) printf("BER_threshold: %f\n", tmpD);
         }
-		if (config_setting_lookup_float(setting, "averaging", &tmpD))
+		if (config_setting_lookup_float(setting, "goal_averaging", &tmpD))
         {
-           ce->averaging=tmpD; 
+           ce->goal_averaging=tmpD; 
            if (verbose) printf("Averaging: %f\n", tmpD);
         }
     }
@@ -1384,7 +1460,7 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
 
     ce->PER = ((float)ce->frameNumber-(float)ce->errorFreePayloads)/((float)ce->frameNumber);
     ce->lastReceivedFrame = fbPtr->iteration;
-    ce->BERLastPacket = ((float)fbPtr->payloadBitErrors)/((float)(ce->payloadLen*8));
+    ce->BER = ((float)fbPtr->payloadBitErrors)/((float)(ce->payloadLen*8));
     ce->weightedAvg += (float) fbPtr->payload_valid;
 
     // Update goal value
@@ -1426,11 +1502,11 @@ int ceProcessData(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr, in
 int ceOptimized(struct CognitiveEngine * ce, int verbose)
 {
 	// Update running average
-	ce->averagedGoalValue -= ce->metric_mem[ce->iteration%ce->averaging]/ce->averaging;
-	ce->averagedGoalValue += ce->latestGoalValue/ce->averaging;
-	ce->metric_mem[ce->iteration%ce->averaging] = ce->latestGoalValue;
+	ce->averagedGoalValue -= ce->goal_mem[ce->iteration%ce->goal_averaging]/ce->goal_averaging;
+	ce->averagedGoalValue += ce->latestGoalValue/ce->goal_averaging;
+	ce->goal_mem[ce->iteration%ce->goal_averaging] = ce->latestGoalValue;
 	
-   	if(ce->frameNumber>ce->averaging){
+   	if(ce->frameNumber>ce->goal_averaging){
 		if (verbose) 
 	   	{
 		   printf("Checking if goal value has been reached.\n");
@@ -1506,8 +1582,8 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
     }
     if(strcmp(ce->adaptationCondition, "BER_lastPacket<X") == 0) {
         // Check if parameters should be modified
-        if (verbose) printf("BER = %f\n", ce->BERLastPacket);
-        if(ce->BERLastPacket < ce->BER_threshold)
+        if (verbose) printf("BER = %f\n", ce->BER);
+        if(ce->BER < ce->BER_threshold)
         {
             modify = 1;
             if (verbose) printf("Ber_lastpacket<x. Modifying...\n" );
@@ -1515,8 +1591,8 @@ int ceModifyTxParams(struct CognitiveEngine * ce, struct feedbackStruct * fbPtr,
     }
     if(strcmp(ce->adaptationCondition, "BER_lastPacket>X") == 0) {
         // Check if parameters should be modified
-        if (verbose) printf("BER = %f\n", ce->BERLastPacket);
-        if(ce->BERLastPacket > ce->BER_threshold)
+        if (verbose) printf("BER = %f\n", ce->BER);
+        if(ce->BER > ce->BER_threshold)
         {
             modify = 1;
             if (verbose) printf("Ber_lastpacket>x. Modifying...\n" );
@@ -2285,9 +2361,9 @@ int main(int argc, char ** argv)
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                     //All metrics
-                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-12.2f %-16u\n", //%-12.2f %-20.2f %-19.2f 
+                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u\n", //%-12.2f %-20.2f %-19.2f 
 					"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-					ce.BERLastPacket, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
 					/*fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 					"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
@@ -2359,9 +2435,9 @@ int main(int argc, char ** argv)
 					throughput = (float)ce.bitsPerSym*ce.bandwidth*(payload_symbols/total_symbols);
 
                     //All metrics
-                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-12.2f %-16u \n", // %-12.2f %-20.2f %-19.2f
+                    fprintf(dataFile, "%-10s %-10u %-14i %-15i %-10.2f %-10.2f %-10.2f %-19u %-16.2f %-18u \n", // %-12.2f %-20.2f %-19.2f
 					"crtsdata:", ce.iteration, fb.header_valid, fb.payload_valid, fb.evm, fb.rssi, ce.PER, fb.payloadByteErrors,
-					ce.BERLastPacket, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
+					ce.BER, fb.payloadBitErrors);//, throughput, throughput/ce.bandwidth, ce.averagedGoalValue);
 					//Useful metrics
 					/*fprintf(dataFile, "%-10s %-10i %-10.2f %-10.2f %-8.2f %-12.2f %-12.2f %-20.2f %-19.2f\n", 
 					"crtsdata:", ce.iteration,  fb.evm, fb.rssi, ce.PER,
