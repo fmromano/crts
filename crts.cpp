@@ -400,7 +400,7 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
     config_t cfg;                   // Returns all parameters in this structure 
     config_setting_t *setting;
     const char *str;                // Stores the value of the String Parameters in Config file
-    int tmpI;                       // Stores the value of Integer Parameters from Config file                
+    long int tmpI;                       // Stores the value of Integer Parameters from Config file                
 
     char current_sc[30];
     int no_of_scenarios=1;
@@ -413,7 +413,7 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_scenario_file.txt"))
     {
-        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        //fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         fprintf(stderr, "\nCould not find master scenario file. It should be named 'master_scenario_file.txt'\n");
         config_destroy(&cfg);
         exit(EX_NOINPUT);
@@ -428,7 +428,7 @@ int readScMasterFile(char scenario_list[30][60], int verbose )
         {
             no_of_scenarios=tmpI;
             if (verbose)
-                printf ("Number of Scenarios: %d\n",tmpI);
+                printf ("Number of Scenarios: %li\n",tmpI);
         }
         
       	for (i=1;i<=no_of_scenarios;i++)
@@ -453,7 +453,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose, int isController)
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     const char *str;            // Stores the value of the String Parameters in Config file
-    int tmpI;                   // Stores the value of Integer Parameters from Config file             
+    long int tmpI;                   // Stores the value of Integer Parameters from Config file             
 
     char current_ce[30];
     int no_of_cogengines=1;
@@ -470,7 +470,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose, int isController)
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_cogengine_file.txt"))
     {
-        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        //fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         fprintf(stderr, "\nCould not find master file. It should be named 'master_cogengine_file.txt'\n");
         config_destroy(&cfg);
         exit(EX_NOINPUT);
@@ -484,7 +484,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose, int isController)
         {
             no_of_cogengines=tmpI;
             if (verbose)
-                printf ("Number of Congnitive Engines: %d\n",tmpI);
+                printf ("Number of Congnitive Engines: %li\n",tmpI);
         }
         
         for (i=1;i<=no_of_cogengines;i++)
@@ -513,7 +513,7 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     const char * str;           // Stores the value of the String Parameters in Config file
-    int tmpI;                   // Stores the value of Integer Parameters from Config file
+    long int tmpI;                   // Stores the value of Integer Parameters from Config file
     double tmpD;                
     char ceFileLocation[60];
 
@@ -529,7 +529,7 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,ceFileLocation))
     {
-        fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        //fprintf(stderr, "\n%s:%d - %s", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
         exit(EX_NOINPUT);
     }
@@ -580,47 +580,47 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         if (config_setting_lookup_int(setting, "iterations", &tmpI))
         {
            //ce->iteration=tmpI;
-           if (verbose) printf("Iterations: %d\n", tmpI);
+           if (verbose) printf("Iterations: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLen", &tmpI))
         {
            ce->payloadLen=tmpI; 
-           if (verbose) printf("PayloadLen: %d\n", tmpI);
+           if (verbose) printf("PayloadLen: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLenIncrement", &tmpI))
         {
            ce->payloadLenIncrement=tmpI; 
-           if (verbose) printf("PayloadLenIncrement: %d\n", tmpI);
+           if (verbose) printf("PayloadLenIncrement: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLenMax", &tmpI))
         {
            ce->payloadLenMax=tmpI; 
-           if (verbose) printf("PayloadLenMax: %d\n", tmpI);
+           if (verbose) printf("PayloadLenMax: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "payloadLenMin", &tmpI))
         {
            ce->payloadLenMin=tmpI; 
-           if (verbose) printf("PayloadLenMin: %d\n", tmpI);
+           if (verbose) printf("PayloadLenMin: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "numSubcarriers", &tmpI))
         {
            ce->numSubcarriers=tmpI; 
-           if (verbose) printf("Number of Subcarriers: %d\n", tmpI);
+           if (verbose) printf("Number of Subcarriers: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "CPLen", &tmpI))
         {
            ce->CPLen=tmpI; 
-           if (verbose) printf("CPLen: %d\n", tmpI);
+           if (verbose) printf("CPLen: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "taperLen", &tmpI))
         {
            ce->taperLen=tmpI; 
-           if (verbose) printf("taperLen: %d\n", tmpI);
+           if (verbose) printf("taperLen: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "delay_us", &tmpI))
         {
            ce->delay_us=tmpI; 
-           if (verbose) printf("delay_us: %d\n", tmpI);
+           if (verbose) printf("delay_us: %li\n", tmpI);
         }
         // Read the floats
         if (config_setting_lookup_float(setting, "default_tx_power", &tmpD))
@@ -687,25 +687,25 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
         {
            ce->BER_averaging=tmpI;
 		   ce->BER_RA_ptr = new running_avg<float>(tmpI);
-           if (verbose) printf("BER averaging: %i\n", tmpI);
+           if (verbose) printf("BER averaging: %li\n", tmpI);
         }
 		if (config_setting_lookup_int(setting, "PER_averaging", &tmpI))
         {
            ce->PER_averaging=tmpI;
 		   ce->PER_RA_ptr = new running_avg<float>(tmpI);
-           if (verbose) printf("PER averaging: %i\n", tmpI);
+           if (verbose) printf("PER averaging: %li\n", tmpI);
         }
 		if (config_setting_lookup_int(setting, "validPayloads_averaging", &tmpI))
         {
            ce->validPayloads_averaging=tmpI;
 		   ce->validPayloads_RA_ptr = new running_avg<float>(tmpI);
-           if (verbose) printf("Valid payloads averaging: %i\n", tmpI);
+           if (verbose) printf("Valid payloads averaging: %li\n", tmpI);
         }
 		if (config_setting_lookup_int(setting, "errorFreePayloads_averaging", &tmpI))
         {
            ce->errorFreePayloads_averaging=tmpI;
 		   ce->errorFreePayloads_RA_ptr = new running_avg<float>(tmpI);
-           if (verbose) printf("BER averaging: %i\n", tmpI);
+           if (verbose) printf("BER averaging: %li\n", tmpI);
         }
 
 	
@@ -719,7 +719,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     config_t cfg;               // Returns all parameters in this structure 
     config_setting_t *setting;
     //const char * str;
-    int tmpI;
+    long int tmpI;
     double tmpD;
     char scFileLocation[60];
 
@@ -733,7 +733,7 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg, scFileLocation))
     {
-        fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        //fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
         config_destroy(&cfg);
         exit(EX_NOINPUT);
     }
@@ -746,14 +746,14 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         if (config_setting_lookup_int(setting, "addAWGNBasebandTx", &tmpI))
         {
             sc->addAWGNBasebandTx=tmpI;
-            if (verbose) printf("addAWGNBasebandTx: %d\n", tmpI);
+            if (verbose) printf("addAWGNBasebandTx: %li\n", tmpI);
         }
 
         // Read the integer
         if (config_setting_lookup_int(setting, "addAWGNBasebandRx", &tmpI))
         {
             sc->addAWGNBasebandRx=tmpI;
-            if (verbose) printf("addAWGNBasebandRx: %d\n", tmpI);
+            if (verbose) printf("addAWGNBasebandRx: %li\n", tmpI);
         }
         // Read the double
         if (config_setting_lookup_float(setting, "noiseSNR", &tmpD))
@@ -773,12 +773,12 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
         if (config_setting_lookup_int(setting, "addRicianFadingBasebandTx", &tmpI))
         {
             sc->addRicianFadingBasebandTx=tmpI;
-            if (verbose) printf("addRicianFadingBasebandTx: %d\n", tmpI);
+            if (verbose) printf("addRicianFadingBasebandTx: %li\n", tmpI);
         }
         if (config_setting_lookup_int(setting, "addRicianFadingBasebandRx", &tmpI))
         {
             sc->addRicianFadingBasebandRx=tmpI;
-            if (verbose) printf("addRicianFadingBasebandRx: %d\n", tmpI);
+            if (verbose) printf("addRicianFadingBasebandRx: %li\n", tmpI);
         }
 
 		// Read the double
@@ -806,13 +806,13 @@ int readScConfigFile(struct Scenario * sc, char *current_scenario_file, int verb
 		if (config_setting_lookup_int(setting, "addCWInterfererBasebandTx", &tmpI))
         {
             sc->addCWInterfererBasebandTx=(float)tmpI;
-            if (verbose) printf("addCWIntefererBasebandTx: %d\n", tmpI);
+            if (verbose) printf("addCWIntefererBasebandTx: %li\n", tmpI);
         }
 		// Read the integer
 		if (config_setting_lookup_int(setting, "addCWInterfererBasebandRx", &tmpI))
         {
             sc->addCWInterfererBasebandRx=(float)tmpI;
-            if (verbose) printf("addCWIntefererBasebandRx: %d\n", tmpI);
+            if (verbose) printf("addCWIntefererBasebandRx: %li\n", tmpI);
         }
 
 		// Read the double
@@ -2269,11 +2269,11 @@ int main(int argc, char ** argv)
 		    			//struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
 		    			rxCBs.ce_ptr = &ce;
 						rxCBs.sc_ptr = &sc;
-						struct enactScenarioBasebandRxStruct esbrs = {
-							.txcvr_ptr = txcvr_ptr, 
-							.ce_ptr = &ce, 
-							.sc_ptr = &sc
-						};
+						struct enactScenarioBasebandRxStruct esbrs;
+						esbrs.txcvr_ptr = txcvr_ptr; 
+						esbrs.ce_ptr = &ce;
+						esbrs.sc_ptr = &sc;
+
 		    			//pthread_mutex_init(&esbrs_ready_mutex, NULL);
 						pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
 						pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
