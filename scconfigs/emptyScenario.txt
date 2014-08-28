@@ -1,16 +1,19 @@
-//RiceFading1.txt
+//emptyScenario.txt
 //Basic Information:
-filename = "RiceFading1";
+filename = "emptyScenario";
 
-//Parameters for Rice-K Fading
+// This scenario file disables adding any noise, interference, etc.
 params = 
 {
     // Disable AWGN
     addAWGNBasebandTx = 0;
+    addAWGNBasebandRx = 0;
 
     // Disable Fading
     addRicianFadingBasebandTx = 0;
+    addRicianFadingBasebandRx = 0;
 
     // Disable CW Interferer
     addCWInterfererBasebandTx = 0;
+    addCWInterfererBasebandRx = 0;
 };
