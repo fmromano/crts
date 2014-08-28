@@ -1007,7 +1007,7 @@ void enactScenarioBasebandTx(std::complex<float> * transmit_buffer, unsigned int
     }
     if ( (sc_ptr->addAWGNBasebandTx == 0) && (sc_ptr->addCWInterfererBasebandTx == 0) && (sc_ptr->addRicianFadingBasebandTx == 0))
     {
-       	fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
+       	//fprintf(stderr, "WARNING: Nothing Added by Scenario!\n");
     }
 } // End enactScenarioBasebandTx()
 
@@ -2117,18 +2117,21 @@ int main(int argc, char ** argv)
     char dataFilename[50];
     time_t now = time(NULL);
     struct tm *t  = localtime(&now);
-    strftime(dataFilename, sizeof(dataFilename)-1, "data/data_crts_%d%b%Y_%T", t);
+    strftime(dataFilename, sizeof(dataFilename)-1, "data/%Y-%m-%d__%H-%M-%S__crts_data.txt", t);
     // TODO: Make sure data folder exists
     
     // Initialize Data File
     FILE * dataFile;
-    if (dataToStdout)
+    if (isController)
     {
-        dataFile = stdout;
-    }
-    else
-    {
-        dataFile = fopen(dataFilename, "w");
+        if (dataToStdout)
+        {
+            dataFile = stdout;
+        }
+        else
+        {
+            dataFile = fopen(dataFilename, "w");
+        }
     }
 
     // Begin running tests
