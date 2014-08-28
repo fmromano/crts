@@ -54,7 +54,7 @@ params =
 
     // Delay between sending of each frame.
     // In microseconds. Must be an int.
-    delay_us            =   5000000;
+    delay_us            =   2000000;
 
     // Carrier frequency for when using USRPs.
     // In Hz. Must be a float. 
@@ -62,7 +62,7 @@ params =
     // Helpful information can be found with the command
     // $ uhd_usrp_probe
     frequency_tx      	=   460e6;
-	frequency_rx		=	470e6;
+	frequency_rx		=	468e6;
 
     // Bandwidth given to UHD driver
     // In Hz. 

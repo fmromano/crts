@@ -1968,12 +1968,12 @@ int main(int argc, char ** argv)
 
 	// Default transmit and receive frequencies (reversed for controller/slaves)
 	if(isController){
-	    frequency_tx = 140.0e6;
-		frequency_rx = 154.0e6;
+	    frequency_tx = 460.0e6;
+		frequency_rx = 468.0e6;
 	}
 	else{
-		frequency_tx = 154.0e6;
-		frequency_rx = 140.0e6;
+		frequency_tx = 468.0e6;
+		frequency_rx = 460.0e6;
 	}
 
     pthread_t TCPServerThread;   // Pointer to thread ID
@@ -2384,13 +2384,18 @@ int main(int argc, char ** argv)
    	                struct timeval timeNow;
        	            struct timespec releaseTime;
            	        gettimeofday(&timeNow, NULL);
-               	    //double wholeSecondsDelay = 0.0;
+               	    double wholeSecondsDelay = 0.0;
                    	//printf("delay = %f\n", ce.delay_us);
-                    //double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
+                    double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
    	                //printf("wholeSecondsDelay = %f\n", wholeSecondsDelay);
-       	            releaseTime.tv_sec = timeNow.tv_sec;// + (int) wholeSecondsDelay;
+
+       	            //releaseTime.tv_sec = timeNow.tv_sec + (int) wholeSecondsDelay;
            	        //unsigned int wholeNsDelay = (int) delay_fpart_s*1e9;
-               	    releaseTime.tv_nsec = (timeNow.tv_usec*1000) + 20000000;//wholeNsDelay;
+               	    //releaseTime.tv_nsec = (timeNow.tv_usec*1000) + wholeNsDelay;
+
+                    // Temporary Fix
+       	            releaseTime.tv_sec = timeNow.tv_sec;
+               	    releaseTime.tv_nsec = (timeNow.tv_usec*1000) + 20000000;
 
                    	// Lock the feedback struct mutex and
                     // Wait for either a signal, or until the delay time has passed.

@@ -1,0 +1,16 @@
+//RiceFading1.txt
+//Basic Information:
+filename = "RiceFading1";
+
+//Parameters for Rice-K Fading
+params = 
+{
+    // Disable AWGN
+    addAWGNBasebandTx = 0;
+
+    // Disable Fading
+    addRicianFadingBasebandTx = 0;
+
+    // Disable CW Interferer
+    addCWInterfererBasebandTx = 0;
+};

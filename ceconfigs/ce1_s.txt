@@ -58,7 +58,7 @@ params =
     // Possible Values depend on your USRP hardware.
     // Helpful information can be found with the command
     // $ uhd_usrp_probe
-    frequency_tx      	=   470e6;
+    frequency_tx      	=   468e6;
 	frequency_rx		=	460e6;
 
     // Bandwidth given to UHD driver
