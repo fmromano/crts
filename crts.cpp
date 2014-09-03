@@ -94,6 +94,9 @@ class running_avg{
 };
 
 struct CognitiveEngine {
+    // Meta: CE's number in the test
+    int CEnum;
+
     // Modulation/coding parameters
 	char modScheme[30];
     char crcScheme[30];
@@ -167,6 +170,9 @@ struct CognitiveEngine {
 };
 
 struct Scenario {
+    // Meta: Scenarios's number in the test
+    int Scnum;
+
     int addAWGNBasebandTx; //Does the Scenario have noise?
     int addAWGNBasebandRx; //Does the Scenario have noise?
     float noiseSNR;
@@ -264,6 +270,10 @@ struct cognitiveEngineSummaryInfo{
 struct CognitiveEngine CreateCognitiveEngine() {
     struct CognitiveEngine ce = {};
 
+    // This number should be initialized manually
+    // after calling this function.
+    ce.CEnum = -1;
+    
 	// Modulation/coding parameters
     strcpy(ce.modScheme, "QPSK");
     strcpy(ce.crcScheme, "none");
@@ -333,6 +343,11 @@ struct CognitiveEngine CreateCognitiveEngine() {
 // Default parameter for Scenario
 struct Scenario CreateScenario() {
     struct Scenario sc = {};
+
+    // This number should be initialized manually
+    // after calling this function.
+    sc.Scnum = -1;
+
     sc.addAWGNBasebandTx = 0,
     sc.addAWGNBasebandRx = 0,
     sc.noiseSNR = 7.0f, // in dB
@@ -2042,7 +2057,7 @@ int main(int argc, char ** argv)
 	bool print_validity_metrics = true;
 	bool print_error_metrics = false;
 	bool print_signal_quality_metrics = true;
-	bool print_spectral_metrics = true;
+	bool print_spectral_metrics = false;
 	bool print_goal_metrics = true;
 				 
 
@@ -2147,8 +2162,10 @@ int main(int argc, char ** argv)
 		    // Initialize current CE
 			ce = CreateCognitiveEngine();
 			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
+            ce.CEnum = i_CE;
 			// Send CE info to slave node(s)
 			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
+            //TODO: Slave -> follower
 		}
         ce.frequency_tx = frequency_tx;
 		ce.frequency_rx = frequency_rx;
@@ -2162,6 +2179,7 @@ int main(int argc, char ** argv)
                 // Initialize current Scenario
                 sc = CreateScenario();
                 readScConfigFile(&sc,scenario_list[i_Sc], verbose);
+                sc.Scnum = i_Sc;
                 
 				// Send Sc info to slave node(s)
                 if(usingUSRPs) write(client, (void*)&sc, sizeof(sc));	
@@ -2288,17 +2306,39 @@ int main(int argc, char ** argv)
 							
                         while(continue_running)
                         {
+                            int Scnum_prev = sc_controller.Scnum;
+                            int CEnum_prev = ce_controller.CEnum;
 							// Wait until server provides more information, closes, or there is an error
-							rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario)+sizeof(struct CognitiveEngine), 0);
+                            // The controller should always send a CE struct immediately followed by a Scenario struct
+							rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
 							if(rflag == 0 || rflag == -1){
 								printf("Socket closed or failed\n");
 				 				close(socket_to_server);
 								msequence_destroy(rx_ms);
 								exit(1);
 							}
+		    			    else ce_controller = *(struct CognitiveEngine*)readbuffer;
+
+							rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
+							if(rflag == 0 || rflag == -1){
+								printf("Socket closed or failed\n");
+				 				close(socket_to_server);
+								msequence_destroy(rx_ms);
+								exit(1);
+							}
+                            else sc_controller = *(struct Scenario*)readbuffer;
+
+                            // CEnum and Scnum should be incremented according to each test
+                            if (ce_controller.CEnum<0 ||sc_controller.Scnum <0) {
+                                fprintf(stderr, "\nCE or Sc has number less than 0");
+                                close(socket_to_server);
+                                msequence_destroy(rx_ms);
+                                exit(1);
+                            }
+
 								
 							//TODO:
-                            // if new scenario:
+                            //if new scenario:
                             //{
                                 // close enactScenarioBasebandRx Thread
                                 // close current ofdmtxrx object
