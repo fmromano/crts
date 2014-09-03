@@ -39,18 +39,18 @@ params =
     # To only test one CE, use the format:
     NumberofCogEngines = 1;
     cogengine_1_controller = "ce1_c.txt";
-	cogengine_1_slave = "ce1_s.txt";
+	cogengine_1_follower = "ce1_s.txt";
 
     ## To test multiple CE's, use the format:
     #NumberofCogEngines = 4;
     #cogengine_1_controller = "ce1_c.txt";
-	#cogengine_1_slave = "ce1_s.txt;
+	#cogengine_1_follower = "ce1_s.txt;
 	#cogengine_2_controller = "ce2_c.txt";
-	#cogengine_2_slave = "ce2_s.txt;
+	#cogengine_2_follower = "ce2_s.txt;
 	#cogengine_3_controller = "ce3_c.txt";
-	#cogengine_3_slave = "ce3_s.txt;
+	#cogengine_3_follower = "ce3_s.txt;
 	#cogengine_4_controller = "ce4_c.txt";
-	#cogengine_4_slave = "ce4_s.txt;
+	#cogengine_4_follower = "ce4_s.txt;
 
     ## To let a user or program specify the CE adaptations, use
     ## the special file: "userEngine.txt".

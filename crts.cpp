@@ -480,7 +480,7 @@ int readCEMasterFile(char cogengine_list[30][60], int verbose, int isController)
     config_init(&cfg);
 
 	if(isController) strcpy(type,"_controller");
-	else strcpy(type,"_slave");
+	else strcpy(type,"_follower");
    
     // Read the file. If there is an error, report it and exit. 
     if (!config_read_file(&cfg,"master_cogengine_file.txt"))
@@ -1981,7 +1981,7 @@ int main(int argc, char ** argv)
         }   
     }
 
-	// Default transmit and receive frequencies (reversed for controller/slaves)
+	// Default transmit and receive frequencies (reversed for controller/followers)
 	if(isController){
 	    frequency_tx = 460.0e6;
 		frequency_rx = 468.0e6;
@@ -2070,13 +2070,13 @@ int main(int argc, char ** argv)
 
     int client;
 	
-	// Begin TCP Server Thread for slave node(s) if using USRP's
+	// Begin TCP Server Thread for followers node(s) if using USRP's
 	if(usingUSRPs && isController){
-		struct serverThreadStruct ss_slave = CreateServerStruct();
-		ss_slave.serverPort = serverPort;
-		ss_slave.fb_ptr = &fb;
-		ss_slave.client_ptr = &client;
-		pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_slave);
+		struct serverThreadStruct ss_follower = CreateServerStruct();
+		ss_follower.serverPort = serverPort;
+		ss_follower.fb_ptr = &fb;
+		ss_follower.client_ptr = &client;
+		pthread_create( &TCPServerThread, NULL, startTCPServer, (void*) &ss_follower);
 		printf("\nPress any key once all nodes have connected to the TCP server\n");
 		getchar();
 	}
@@ -2163,9 +2163,8 @@ int main(int argc, char ** argv)
 			ce = CreateCognitiveEngine();
 			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
             ce.CEnum = i_CE;
-			// Send CE info to slave node(s)
+			// Send CE info to follower node(s)
 			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
-            //TODO: Slave -> follower
 		}
         ce.frequency_tx = frequency_tx;
 		ce.frequency_rx = frequency_rx;
@@ -2181,7 +2180,7 @@ int main(int argc, char ** argv)
                 readScConfigFile(&sc,scenario_list[i_Sc], verbose);
                 sc.Scnum = i_Sc;
                 
-				// Send Sc info to slave node(s)
+				// Send Sc info to follower node(s)
                 if(usingUSRPs) write(client, (void*)&sc, sizeof(sc));	
 				if (verbose) printf("\n\nStarting Scenario %d\n", i_Sc+1);
             	rxCBs.ce_ptr = &ce;
