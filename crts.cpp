@@ -2265,66 +2265,30 @@ int main(int argc, char ** argv)
 						int rflag;
 						char readbuffer[1000];
 
-                       	// Receive CE info
-                       	rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
-                       	if(rflag == 0 || rflag == -1){
-                       		printf("Error receiving CE info from the controller\n");
-							close(socket_to_server);
-							exit(1);
-						}
-		    			else ce_controller = *(struct CognitiveEngine*)readbuffer;
-							
-		    			// Receive Sc info
-		    			rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
-                        if(rflag == 0 || rflag == -1){
-                           	printf("Error receiving Scenario info from the controller\n");
-							close(socket_to_server);
-							exit(1);
-  			    		}
-		    			else sc_controller = *(struct Scenario*)readbuffer;
-							
-		    			// Initialize members of esbrs struct sent to enactScenarioBasebandRx()
-		    			//struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
-		    			rxCBs.ce_ptr = &ce_controller;
-						rxCBs.sc_ptr = &sc_controller;
-						struct enactScenarioBasebandRxStruct esbrs = {
-							.txcvr_ptr = txcvr_ptr, 
-							.ce_ptr = &ce_controller, 
-							.sc_ptr = &sc_controller
-						};
-		    			//pthread_mutex_init(&esbrs_ready_mutex, NULL);
-						pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
-						pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
-							
-						// Wait until enactScenarioBasebandRx() has initialized
-						pthread_cond_wait(&txcvr_ptr->esbrs_ready, &txcvr_ptr->rx_buffer_mutex);
-						pthread_mutex_unlock(&txcvr_ptr->rx_buffer_mutex);			
-						// Start liquid-usrp receiver
-						printf("Starting receiver\n");
-						txcvr_ptr->start_rx();
-							
+                        int esbrThreadExists = 0;
+
                         while(continue_running)
                         {
-                            int Scnum_prev = sc_controller.Scnum;
-                            int CEnum_prev = ce_controller.CEnum;
-							// Wait until server provides more information, closes, or there is an error
-                            // The controller should always send a CE struct immediately followed by a Scenario struct
-							rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
-							if(rflag == 0 || rflag == -1){
-								printf("Socket closed or failed\n");
-				 				close(socket_to_server);
-								msequence_destroy(rx_ms);
-								exit(1);
-							}
-		    			    else ce_controller = *(struct CognitiveEngine*)readbuffer;
-
-							rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
-							if(rflag == 0 || rflag == -1){
-								printf("Socket closed or failed\n");
-				 				close(socket_to_server);
-								msequence_destroy(rx_ms);
-								exit(1);
-							}
+                            // Wait until server provides more information, closes, or there is an error
+                            // The controller should always send a CE struct first, immediately followed by a Scenario struct
+                            // Receive CE info
+                            rflag = recv(socket_to_server, &readbuffer, sizeof(struct CognitiveEngine), 0);
+                            if(rflag == 0 || rflag == -1){
+                                printf("Error receiving CE info from the controller\n");
+                                close(socket_to_server);
+                                msequence_destroy(rx_ms);
+                                exit(1);
+                            }
+                            else ce_controller = *(struct CognitiveEngine*)readbuffer;
+                                
+                            // Receive Sc info
+                            rflag = recv(socket_to_server, &readbuffer, sizeof(struct Scenario), 0);
+                            if(rflag == 0 || rflag == -1){
+                                printf("Error receiving Scenario info from the controller\n");
+                                close(socket_to_server);
+                                msequence_destroy(rx_ms);
+                                exit(1);
+                            }
                             else sc_controller = *(struct Scenario*)readbuffer;
 
                             // CEnum and Scnum should be incremented according to each test
@@ -2335,7 +2299,36 @@ int main(int argc, char ** argv)
                                 exit(1);
                             }
 
-								
+                            if (esbrThreadExists)
+                            {
+                                //TODO destroy old thread
+                                //TODO close ofdmtxrx object
+                                
+                            }
+                                
+                            // Initialize members of esbrs struct sent to enactScenarioBasebandRx()
+                            //struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
+                            rxCBs.ce_ptr = &ce_controller;
+                            rxCBs.sc_ptr = &sc_controller;
+                            struct enactScenarioBasebandRxStruct esbrs = {
+                                .txcvr_ptr = txcvr_ptr, 
+                                .ce_ptr = &ce_controller, 
+                                .sc_ptr = &sc_controller
+                            };
+                            //pthread_mutex_init(&esbrs_ready_mutex, NULL);
+                            pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
+                            pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+                                
+                            // Wait until enactScenarioBasebandRx() has initialized
+                            pthread_cond_wait(&txcvr_ptr->esbrs_ready, &txcvr_ptr->rx_buffer_mutex);
+                            pthread_mutex_unlock(&txcvr_ptr->rx_buffer_mutex);			
+                            // Start liquid-usrp receiver
+                            printf("Starting receiver\n");
+                            txcvr_ptr->start_rx();
+
+                            //int Scnum_prev = sc_controller.Scnum;
+                            //int CEnum_prev = ce_controller.CEnum;
+                                
 							//TODO:
                             //if new scenario:
                             //{
