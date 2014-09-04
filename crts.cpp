@@ -2301,9 +2301,11 @@ int main(int argc, char ** argv)
 
                             if (esbrThreadExists)
                             {
-                                //TODO destroy old thread
-                                //TODO close ofdmtxrx object
-                                
+                                // Destroy old esbr thread
+                                pthread_cancel(&enactScBbRxThread);
+
+                                //Close ofdmtxrx object
+                                delete txcvr_ptr;
                             }
                                 
                             // Initialize members of esbrs struct sent to enactScenarioBasebandRx()
