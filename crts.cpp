@@ -2228,7 +2228,7 @@ int main(int argc, char ** argv)
 
 				bool rx_sim = false;
 	    		if (!isController) rx_sim = true;
-				ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, rx_sim);                                        
+				ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, rx_sim);
                     
 				rxCBs.txrx_ptr = txcvr_ptr;
 				// set properties
@@ -2302,8 +2302,7 @@ int main(int argc, char ** argv)
                             if (esbrThreadExists)
                             {
                                 // Destroy old esbr thread
-                                pthread_cancel(&enactScBbRxThread);
-
+                                pthread_cancel(enactScBbRxThread);
                                 //Close ofdmtxrx object
                                 delete txcvr_ptr;
                             }
@@ -2320,6 +2319,7 @@ int main(int argc, char ** argv)
                             //pthread_mutex_init(&esbrs_ready_mutex, NULL);
                             pthread_mutex_lock(&txcvr_ptr->rx_buffer_mutex);			
                             pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
+                            esbrThreadExists = 1;
                                 
                             // Wait until enactScenarioBasebandRx() has initialized
                             pthread_cond_wait(&txcvr_ptr->esbrs_ready, &txcvr_ptr->rx_buffer_mutex);
@@ -2330,35 +2330,6 @@ int main(int argc, char ** argv)
 
                             //int Scnum_prev = sc_controller.Scnum;
                             //int CEnum_prev = ce_controller.CEnum;
-                                
-							//TODO:
-                            //if new scenario:
-                            //{
-                                // close enactScenarioBasebandRx Thread
-                                // close current ofdmtxrx object
-                                // update sc and ce
-                                // open new ofdmtxrx object
-                                // open new enactScenarioBasebandRx Thread
-                            //}
-                            /*else if(rflag == sizeof(struct Scenario)){
-                            	if(verbose) printf("Rewriting Scenario Info");
-								pthread_cancel(enactScBbRxThread);
-								delete txcvr_ptr;
-								sc_controller = *(struct Scenario*)readbuffer;
-								ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
-								struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
-								pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
-							}
-							else if(rflag == sizeof(struct CognitiveEngine)){
-								if(verbose) printf("Rewriting CE info");
-								pthread_cancel(enactScBbRxThread);
-								delete txcvr_ptr;
-								ce_controller = *(struct CognitiveEngine*)readbuffer;
-								ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, true);
-								struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};							
-								pthread_create( &enactScBbRxThread, NULL, enactScenarioBasebandRx, (void*) &esbrs);
-							}*/
-                                
                        	}
                     }
 
