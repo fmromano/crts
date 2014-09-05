@@ -207,7 +207,7 @@ struct rxCBstruct {
 	ofdmtxrx * txrx_ptr;
 	struct CognitiveEngine * ce_ptr;
 	struct Scenario * sc_ptr;
-	struct feedbackStruct *fb_ptr;
+	struct feedbackStruct *fb_received_ptr;
 };
 
 struct feedbackStruct {
@@ -1253,32 +1253,33 @@ int rxCallback(unsigned char *  _header,
     unsigned int m;
 	unsigned int tx_byte;
 	
-    // If we received this packet OTA from a follower
+    // If we are contoller and we are using USRPs
+    // i.e. If we received this packet OTA from a follower
 	if(rxCBS_ptr->isController && rxCBS_ptr->usingUSRPs){
 		// Read FB from the payload received OTA and write it to the FB struct
         if (_payload_valid)
         {
-            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            pthread_mutex_lock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
             struct feedbackStruct * _fbReceived = (struct feedbackStruct *) _payload;
-            rxCBS_ptr->fb_ptr->header_valid = _fbReceived->header_valid;
-            rxCBS_ptr->fb_ptr->payload_valid = _fbReceived->payload_valid;
-            rxCBS_ptr->fb_ptr->payload_len = _fbReceived->payload_len;
-            rxCBS_ptr->fb_ptr->payloadByteErrors = _fbReceived->payloadByteErrors;
-			rxCBS_ptr->fb_ptr->payloadBitErrors = _fbReceived->payloadBitErrors;
-            rxCBS_ptr->fb_ptr->evm = _fbReceived->evm;
-            rxCBS_ptr->fb_ptr->rssi = _fbReceived->rssi;
-            rxCBS_ptr->fb_ptr->cfo = _fbReceived->cfo;
-            rxCBS_ptr->fb_ptr->iteration = _fbReceived->iteration;
-            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
-            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
-            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            rxCBS_ptr->fb_received_ptr->header_valid = _fbReceived->header_valid;
+            rxCBS_ptr->fb_received_ptr->payload_valid = _fbReceived->payload_valid;
+            rxCBS_ptr->fb_received_ptr->payload_len = _fbReceived->payload_len;
+            rxCBS_ptr->fb_received_ptr->payloadByteErrors = _fbReceived->payloadByteErrors;
+			rxCBS_ptr->fb_received_ptr->payloadBitErrors = _fbReceived->payloadBitErrors;
+            rxCBS_ptr->fb_received_ptr->evm = _fbReceived->evm;
+            rxCBS_ptr->fb_received_ptr->rssi = _fbReceived->rssi;
+            rxCBS_ptr->fb_received_ptr->cfo = _fbReceived->cfo;
+            rxCBS_ptr->fb_received_ptr->iteration = _fbReceived->iteration;
+            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
+            pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
+            pthread_mutex_unlock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
         }
         else
         {
-            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
-            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
-            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
-            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            pthread_mutex_lock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
+            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
+            pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
+            pthread_mutex_unlock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
         }
 	}
 	else{
@@ -1323,13 +1324,23 @@ int rxCallback(unsigned char *  _header,
         	
 		// Data that will be sent to server
 		// TODO: Send other useful data through feedback array
+        // If Controller and we are not using USRPs
 		if(rxCBS_ptr->isController){
-            pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
-			*rxCBS_ptr->fb_ptr = fb;
-            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
-            pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
+            // Copy the feed back from follower about our last transmission 
+            // into place to be read by CE.
+            pthread_mutex_lock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
+			*rxCBS_ptr->fb_received_ptr = fb;
+            // Signal to controller CE that this feedback is ready to be used.
+            pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
+            pthread_mutex_unlock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
 		}
+        // If Follower and we are using USRPs
 		else{
+            // Receive feedback OTA from controller about prev transmission to controller 
+            // Adjust follower's transmission parameters based on feedback
+            // Transmit new frame which consists of feedback about reception of controller's transmission
+
+
 			// Receiver sends feedback over TCP link
 			write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
 
@@ -1382,7 +1393,7 @@ int rxCallback(unsigned char *  _header,
 			}
 			rxCBS_ptr->txrx_ptr->end_transmit_frame();
 		}
-	}// End else (not the controller)
+	}// End else (follower's transmission)
     return 0;
 
 } // end rxCallback()
@@ -1905,6 +1916,8 @@ void updateCognitiveEngineSummaryInfo(struct cognitiveEngineSummaryInfo *ce_sum,
 	sc_sum->PER[i_CE][i_Sc] = ce->PER;
 
 	// Display the scenario summary
+    // FIXME The BER calculation gives nonsensical results (greater than 1).
+    // Not sure if the others are okay.
 	printf("Cognitive Engine %i Scenario %i Summary:\nTotal frames: %i\nPercent valid headers: %2f\nPercent valid payloads: %2f\nAverage EVM: %2f\n"
 		"Average RSSI: %2f\nAverage BER: %2f\nAverage PER: %2f\n\n", i_CE+1, i_Sc+1, sc_sum->total_frames[i_CE][i_Sc],
 		(float)sc_sum->valid_headers[i_CE][i_Sc]/(float)sc_sum->total_frames[i_CE][i_Sc], (float)sc_sum->valid_payloads[i_CE][i_Sc]/(float)sc_sum->total_frames[i_CE][i_Sc],
@@ -2117,7 +2130,7 @@ int main(int argc, char ** argv)
 	rxCBs.rx_ms_ptr = &rx_ms;
 	rxCBs.isController = isController;
 	rxCBs.usingUSRPs = usingUSRPs;
-	rxCBs.fb_ptr = &fb;
+	rxCBs.fb_received_ptr = &fb;
 
     // Allow server time to finish initialization
     usleep(0.1e6);
