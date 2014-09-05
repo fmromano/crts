@@ -46,13 +46,14 @@ void usage() {
     printf("  -p     :   server port (default: 1402)\n");
     printf("  -c     :   controller - this crts instance will act as experiment controller (needs -r)\n");
     printf("  -a     :   server IP address (when not controller. default: 127.0.0.1)\n");
-    printf("  -f     :   center Tx frequency [Hz] (Uses values in CE config files if not specified)\n");
-    printf("  -F     :   center Rx frequency [Hz] (Uses values in CE config files if not specified)\n");
-    printf("  -b     :   bandwidth [Hz], (when not controller. default: 1.0 MHz)\n");
-    printf("  -G     :   uhd rx gain [dB] (when not controller. default: 20dB)\n");
-    printf("  -M     :   number of subcarriers (when not controller. default: 64)\n");
-    printf("  -C     :   cyclic prefix length (when not controller. default: 16)\n");
-    printf("  -T     :   taper length (when not controller. default: 4)\n");
+    printf("These parameters will override values in CE config files:\n");
+    printf("  -f     :   center Tx frequency [Hz] \n");
+    printf("  -F     :   center Rx frequency [Hz] \n");
+    printf("  -b     :   bandwidth [Hz]\n");
+    printf("  -G     :   uhd rx gain [dB]\n");
+    printf("  -M     :   number of subcarriers\n");
+    printf("  -C     :   cyclic prefix length\n");
+    printf("  -T     :   taper length\n");
     //printf("  f     :   center frequency [Hz], default: 462 MHz\n");
     //printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     //printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
@@ -694,10 +695,10 @@ int readCEConfigFile(struct CognitiveEngine * ce, char *current_cogengine_file, 
            ce->BER_threshold=tmpD; 
            if (verbose) printf("BER_threshold: %f\n", tmpD);
         }
-		if (config_setting_lookup_float(setting, "goal_averaging", &tmpD))
+		if (config_setting_lookup_int(setting, "goal_averaging", &tmpI))
         {
-           ce->goal_averaging=tmpD; 
-           if (verbose) printf("Goal averaging: %f\n", tmpD);
+           ce->goal_averaging=tmpI; 
+           if (verbose) printf("Goal averaging: %d\n", tmpI);
         }
 		if (config_setting_lookup_int(setting, "BER_averaging", &tmpI))
         {
@@ -1252,6 +1253,7 @@ int rxCallback(unsigned char *  _header,
     unsigned int m;
 	unsigned int tx_byte;
 	
+    // If we received this packet OTA from a follower
 	if(rxCBS_ptr->isController && rxCBS_ptr->usingUSRPs){
 		// Read FB from the payload received OTA and write it to the FB struct
         if (_payload_valid)
@@ -1267,13 +1269,15 @@ int rxCallback(unsigned char *  _header,
             rxCBS_ptr->fb_ptr->rssi = _fbReceived->rssi;
             rxCBS_ptr->fb_ptr->cfo = _fbReceived->cfo;
             rxCBS_ptr->fb_ptr->iteration = _fbReceived->iteration;
-            int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
             pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
         }
         else
         {
             pthread_mutex_lock(&rxCBS_ptr->fb_ptr->fb_mutex);
-            int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            //int sigrt = pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
+            pthread_cond_signal(&rxCBS_ptr->fb_ptr->fb_cond);
             pthread_mutex_unlock(&rxCBS_ptr->fb_ptr->fb_mutex);
         }
 	}
@@ -1553,6 +1557,7 @@ int ceOptimized(struct CognitiveEngine * ce, int verbose)
 	ce->averagedGoalValue += ce->latestGoalValue/ce->goal_averaging;
 	ce->goal_mem[ce->iteration%ce->goal_averaging] = ce->latestGoalValue;
 	
+    //FIXME I don't think this should be goal_averaging here. Not sure
    	if(ce->frameNumber>ce->goal_averaging){
 		if (verbose) 
 	   	{
@@ -1946,11 +1951,16 @@ int main(int argc, char ** argv)
     unsigned int CPLen = 16;
     unsigned int taperLen = 4;
     float bandwidth = 1.0e6;
-    float uhd_rxgain = 31.5;
+    float uhd_rxgain_dB = 31.5;
 	float frequency_tx;
 	float frequency_rx;
     int freq_tx_explicit = 0;
     int freq_rx_explicit = 0;
+    int numSC_explicit = 0;
+    int CPLen_explicit = 0;
+    int taperLen_explicit = 0;
+    int uhd_rxgain_dB_explicit = 0;
+    int bandwidth_explicit = 0;
 
     // Check Program options
     int d;
@@ -1973,21 +1983,30 @@ int main(int argc, char ** argv)
 		case 'F':	frequency_rx = atof(optarg);			
                     freq_rx_explicit = 1;
                                                             break;
-        case 'b':   bandwidth = atof(optarg);               break;
-        case 'G':   uhd_rxgain = atof(optarg);              break;
-        case 'M':   numSubcarriers = atoi(optarg);          break;
-        case 'C':   CPLen = atoi(optarg);                   break;
-        case 'T':   taperLen = atoi(optarg);                break;
+        case 'b':   bandwidth = atof(optarg);
+                    bandwidth_explicit = 1;
+                                                            break;
+        case 'G':   uhd_rxgain_dB = atof(optarg);
+                    uhd_rxgain_dB_explicit = 1;
+                                                            break;
+        case 'M':   numSubcarriers = atoi(optarg); 
+                    numSC_explicit = 1;
+                                                            break;
+        case 'C':   CPLen = atoi(optarg);
+                    CPLen_explicit = 1;
+                                                            break;
+        case 'T':   taperLen = atoi(optarg);
+                    taperLen_explicit = 1;
+                                                            break;
         //case 'p':   serverPort = atol(optarg);            break;
         //case 'f':   frequency = atof(optarg);           break;
         //case 'b':   bandwidth = atof(optarg);           break;
-        //case 'G':   uhd_rxgain = atof(optarg);          break;
         //case 't':   num_seconds = atof(optarg);         break;
         default:
             verbose = 1;
         }   
     }
-
+    /*
 	// Default transmit and receive frequencies (reversed for controller/followers)
 	if(isController){
 	    frequency_tx = 460.0e6;
@@ -1997,6 +2016,7 @@ int main(int argc, char ** argv)
 		frequency_tx = 468.0e6;
 		frequency_rx = 460.0e6;
 	}
+    */
 
     pthread_t TCPServerThread;   // Pointer to thread ID
     pthread_t enactScBbRxThread;   // Pointer to thread ID
@@ -2089,7 +2109,8 @@ int main(int argc, char ** argv)
 	}
 
     struct rxCBstruct rxCBs = CreaterxCBStruct();
-    rxCBs.bandwidth = bandwidth;
+    // Initialzed after readind CE configs
+    //rxCBs.bandwidth = bandwidth;
     rxCBs.serverPort = serverPort;
     rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
@@ -2173,9 +2194,15 @@ int main(int argc, char ** argv)
 			// Send CE info to follower node(s)
 			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
 		}
-        // Use frequencies specified on command line if given.
+        // Use parameters specified on command line if given.
         if (freq_tx_explicit) ce.frequency_tx = frequency_tx;
 		if (freq_rx_explicit) ce.frequency_rx = frequency_rx;
+        if (numSC_explicit) ce.numSubcarriers = numSubcarriers;
+        if (CPLen_explicit) ce.CPLen = CPLen;
+        if (taperLen_explicit) ce.taperLen= taperLen;
+        if (uhd_rxgain_dB_explicit) ce.uhd_rxgain_dB = uhd_rxgain_dB;
+        if (bandwidth_explicit) ce.bandwidth = bandwidth;
+        rxCBs.bandwidth = ce.bandwidth;
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {                	
@@ -2247,7 +2274,7 @@ int main(int argc, char ** argv)
                 //txcvr_ptr->set_tx_antenna("TX/RX");
 				txcvr_ptr->set_rx_freq(ce.frequency_rx);
                 txcvr_ptr->set_rx_rate(ce.bandwidth);
-                txcvr_ptr->set_rx_gain_uhd(uhd_rxgain);	
+                txcvr_ptr->set_rx_gain_uhd(uhd_rxgain_dB);	
 
 				if (isController) txcvr_ptr->start_rx();
 
@@ -2262,7 +2289,7 @@ int main(int argc, char ** argv)
                            	txcvr_ptr->debug_enable();
                            	printf("Set Rx freq to %f\n", ce.frequency_rx);
                            	printf("Set Rx rate to %f\n", ce.bandwidth);
-                           	printf("Set uhd Rx gain to %f\n", uhd_rxgain);
+                           	printf("Set uhd Rx gain to %f\n", uhd_rxgain_dB);
                        	}
                             
                        	// Structs for CE and Sc info
@@ -2397,9 +2424,9 @@ int main(int argc, char ** argv)
    	                struct timeval timeNow;
        	            struct timespec releaseTime;
            	        gettimeofday(&timeNow, NULL);
-               	    double wholeSecondsDelay = 0.0;
+               	    //double wholeSecondsDelay = 0.0;
                    	//printf("delay = %f\n", ce.delay_us);
-                    double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
+                    //double delay_fpart_s = modf(ce.delay_us*1e-6, &wholeSecondsDelay);
    	                //printf("wholeSecondsDelay = %f\n", wholeSecondsDelay);
 
        	            //releaseTime.tv_sec = timeNow.tv_sec + (int) wholeSecondsDelay;
@@ -2416,7 +2443,8 @@ int main(int argc, char ** argv)
        	            //pthread_mutex_lock(&fb.fb_mutex);
            	        if (verbose)
                	        printf("Frame transmitted. Waiting for feedback OTA or for timeout\n");
-                   	int ptrt = pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
+                   	//int ptrt = pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
+                   	pthread_cond_timedwait(&fb.fb_cond, &fb.fb_mutex, &releaseTime);
 	
 					DoneTransmitting = postTxTasks(&ce, &fb, verbose);
                     // Record the feedback data received
