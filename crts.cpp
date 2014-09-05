@@ -46,7 +46,8 @@ void usage() {
     printf("  -p     :   server port (default: 1402)\n");
     printf("  -c     :   controller - this crts instance will act as experiment controller (needs -r)\n");
     printf("  -a     :   server IP address (when not controller. default: 127.0.0.1)\n");
-    printf("  -f     :   center frequency [Hz] (when not controller. default: 460 MHz)\n");
+    printf("  -f     :   center Tx frequency [Hz] (Uses values in CE config files if not specified)\n");
+    printf("  -F     :   center Rx frequency [Hz] (Uses values in CE config files if not specified)\n");
     printf("  -b     :   bandwidth [Hz], (when not controller. default: 1.0 MHz)\n");
     printf("  -G     :   uhd rx gain [dB] (when not controller. default: 20dB)\n");
     printf("  -M     :   number of subcarriers (when not controller. default: 64)\n");
@@ -1948,10 +1949,12 @@ int main(int argc, char ** argv)
     float uhd_rxgain = 31.5;
 	float frequency_tx;
 	float frequency_rx;
+    int freq_tx_explicit = 0;
+    int freq_rx_explicit = 0;
 
     // Check Program options
     int d;
-    while ((d = getopt(argc,argv,"uhqvdrsp:ca:f:b:G:M:C:T:")) != EOF) {
+    while ((d = getopt(argc,argv,"uhqvdrsp:ca:f:F:b:G:M:C:T:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                           		return 0;
@@ -1964,8 +1967,12 @@ int main(int argc, char ** argv)
         case 'p':   serverPort = atoi(optarg);              break;
         case 'c':   isController = 1;                       break;
         case 'a':   serverAddr = optarg;                    break;
-        case 'f':   frequency_tx = atof(optarg);            break;
-		case 'F':	frequency_rx = atof(optarg);			break;
+        case 'f':   frequency_tx = atof(optarg);            
+                    freq_tx_explicit = 1;
+                                                            break;
+		case 'F':	frequency_rx = atof(optarg);			
+                    freq_rx_explicit = 1;
+                                                            break;
         case 'b':   bandwidth = atof(optarg);               break;
         case 'G':   uhd_rxgain = atof(optarg);              break;
         case 'M':   numSubcarriers = atoi(optarg);          break;
@@ -2166,8 +2173,9 @@ int main(int argc, char ** argv)
 			// Send CE info to follower node(s)
 			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
 		}
-        ce.frequency_tx = frequency_tx;
-		ce.frequency_rx = frequency_rx;
+        // Use frequencies specified on command line if given.
+        if (freq_tx_explicit) ce.frequency_tx = frequency_tx;
+		if (freq_rx_explicit) ce.frequency_rx = frequency_rx;
         // Run each CE through each scenario
         for (i_Sc= 0; i_Sc<NumSc; i_Sc++)
         {                	
