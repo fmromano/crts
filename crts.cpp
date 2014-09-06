@@ -199,7 +199,7 @@ struct rxCBstruct {
     int verbose;
     float bandwidth;
     char * serverAddr;
-	msequence * rx_ms_ptr;
+	msequence * memSeq_ptr;
     int frameNum;
 	int client;
 	int isController;
@@ -1246,7 +1246,7 @@ int rxCallback(unsigned char *  _header,
 {   
 	struct rxCBstruct * rxCBS_ptr = (struct rxCBstruct *) _userdata;
     int verbose = rxCBS_ptr->verbose;
-	msequence rx_ms = *rxCBS_ptr->rx_ms_ptr;
+	msequence memSeq = *rxCBS_ptr->memSeq_ptr;
 
     // Variables for checking number of errors 
     int j;
@@ -1311,7 +1311,7 @@ int rxCallback(unsigned char *  _header,
         unsigned int fbSize = sizeof(feedbackStruct);
 		for (m=fbSize+0; m<fbSize+_payload_len; m++)
 		{
-			tx_byte = msequence_generate_symbol(rx_ms,8);
+			tx_byte = msequence_generate_symbol(memSeq,8);
 		    if (((int)_payload[m] != tx_byte))
 		    {
 		        fb_toTransmit.payloadByteErrors++;
@@ -1322,6 +1322,8 @@ int rxCallback(unsigned char *  _header,
 		        }      
 		    }           
 		}             
+        // Reset shift register so pseudorandom bit sequence is same each frame
+        msequence_reset(memSeq);
         //TODO Give fb_toTransmit to transmitter to transmit back to follower
 
         // TODO Give controller part of code a copy of fb_toTransmit
@@ -1355,7 +1357,7 @@ int rxCallback(unsigned char *  _header,
 		// Calculate byte error rate and bit error rate for payload
 		for (m=0; m<_payload_len; m++)
 		{
-			tx_byte = msequence_generate_symbol(rx_ms,8);
+			tx_byte = msequence_generate_symbol(memSeq,8);
 		    if (((int)_payload[m] != tx_byte))
 		    {
 		        fb_toTransmit.payloadByteErrors++;
@@ -1366,6 +1368,8 @@ int rxCallback(unsigned char *  _header,
 		        }      
 		    }           
 		}             
+        // Reset shift register so pseudorandom bit sequence is same each frame
+        msequence_reset(memSeq);
         	
 		// Data that will be sent to server
 		// TODO: Send other useful data through feedback array
@@ -2115,8 +2119,7 @@ int main(int argc, char ** argv)
 	if(!verbose) uhd::msg::register_handler(&uhd_quiet);
 
 	// Identical pseudo random sequence generators for tx and rx
-	msequence tx_ms = msequence_create_default(9u);
-	msequence rx_ms = msequence_create_default(9u);
+	msequence memSeq = msequence_create_default(9u);
 
     // Buffers for packet/frame data
     unsigned char header[8];                       // Must always be 8 bytes for ofdmflexframe
@@ -2174,7 +2177,7 @@ int main(int argc, char ** argv)
     rxCBs.serverPort = serverPort;
     rxCBs.serverAddr = serverAddr;
     rxCBs.verbose = verbose;
-	rxCBs.rx_ms_ptr = &rx_ms;
+	rxCBs.memSeq_ptr = &memSeq;
 	rxCBs.isController = isController;
 	rxCBs.usingUSRPs = usingUSRPs;
 	rxCBs.fb_received_ptr = &fb;
@@ -2371,7 +2374,7 @@ int main(int argc, char ** argv)
                             if(rflag == 0 || rflag == -1){
                                 printf("Error receiving CE info from the controller\n");
                                 close(socket_to_server);
-                                msequence_destroy(rx_ms);
+                                msequence_destroy(memSeq);
                                 exit(1);
                             }
                             else ce_controller = *(struct CognitiveEngine*)readbuffer;
@@ -2381,7 +2384,7 @@ int main(int argc, char ** argv)
                             if(rflag == 0 || rflag == -1){
                                 printf("Error receiving Scenario info from the controller\n");
                                 close(socket_to_server);
-                                msequence_destroy(rx_ms);
+                                msequence_destroy(memSeq);
                                 exit(1);
                             }
                             else sc_controller = *(struct Scenario*)readbuffer;
@@ -2390,7 +2393,7 @@ int main(int argc, char ** argv)
                             if (ce_controller.CEnum<0 ||sc_controller.Scnum <0) {
                                 fprintf(stderr, "\nCE or Sc has number less than 0");
                                 close(socket_to_server);
-                                msequence_destroy(rx_ms);
+                                msequence_destroy(memSeq);
                                 exit(1);
                             }
 
@@ -2447,7 +2450,9 @@ int main(int argc, char ** argv)
 					header[6] = 0;
 					header[7] = 0;
                     for (i=0; i<(signed int)ce.payloadLen; i++)
-                       	payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+                       	payload[i] = (unsigned char)msequence_generate_symbol(memSeq,8);
+                    // Reset shift register so pseudorandom bit sequence is same each frame
+                    msequence_reset(memSeq);
 
                     // Include frame number in header information
                     if (verbose) printf("Frame Num: %u\n", ce.frameNumber);
@@ -2569,7 +2574,9 @@ int main(int argc, char ** argv)
 					header[6] = 0;
 					header[7] = 0;
                     for (i=0; i<(signed int)ce.payloadLen; i++)
-                        payload[i] = (unsigned char)msequence_generate_symbol(tx_ms,8);
+                        payload[i] = (unsigned char)msequence_generate_symbol(memSeq,8);
+                    // Reset shift register so pseudorandom bit sequence is same each frame
+                    msequence_reset(memSeq);
 
 					// Called just to update bits per symbol field
 					convertModScheme(ce.modScheme, &ce.bitsPerSym);
@@ -2668,8 +2675,7 @@ int main(int argc, char ** argv)
     } // End CE for loop
 
 	// destroy objects
-	msequence_destroy(tx_ms);
-	msequence_destroy(rx_ms);
+	msequence_destroy(memSeq);
 	close(socket_to_server);
 
 	if(!usingUSRPs) close(socket_to_server);
