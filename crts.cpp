@@ -208,6 +208,7 @@ struct rxCBstruct {
 	struct CognitiveEngine * ce_ptr;
 	struct Scenario * sc_ptr;
 	struct feedbackStruct *fb_received_ptr;
+	struct feedbackStruct *fb_toTransmit_ptr;
 };
 
 struct feedbackStruct {
@@ -220,7 +221,6 @@ struct feedbackStruct {
     float           evm;
     float           rssi;
     float           cfo;
-	int 			block_flag;
     pthread_mutex_t fb_mutex;
     pthread_cond_t fb_cond;
 };
@@ -1281,30 +1281,75 @@ int rxCallback(unsigned char *  _header,
             pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
             pthread_mutex_unlock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
         }
+
+        // TODO:Generate the feedback struct about the frame just received from
+        // the follower so that it can be transmitted back
+
+		struct feedbackStruct fb_toTransmit = {};
+		fb_toTransmit.header_valid         =   _header_valid;
+		fb_toTransmit.payload_valid        =   _payload_valid;
+		fb_toTransmit.payload_len          =   _payload_len;
+		fb_toTransmit.payloadByteErrors    =   0;
+		fb_toTransmit.payloadBitErrors     =   0;
+		fb_toTransmit.evm                  =   _stats.evm;
+		fb_toTransmit.rssi                 =   _stats.rssi;
+		fb_toTransmit.cfo                  =   _stats.cfo;	
+		fb_toTransmit.iteration			=	0;
+
+		for(int i=0; i<4; i++)	fb_toTransmit.iteration += _header[i+2]<<(8*(3-i));
+		if (verbose)
+		{
+			printf("In rxCallback():\n");
+			printf("Header Received: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], 
+			    _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
+			feedbackStruct_print(&fb_toTransmit);
+		}
+
+        // Payload received should have consisted of feedback from follower (fb_received) followed
+        // by PS bit sequence
+		// Calculate byte error rate and bit error rate for payload
+        unsigned int fbSize = sizeof(feedbackStruct);
+		for (m=fbSize+0; m<fbSize+_payload_len; m++)
+		{
+			tx_byte = msequence_generate_symbol(rx_ms,8);
+		    if (((int)_payload[m] != tx_byte))
+		    {
+		        fb_toTransmit.payloadByteErrors++;
+		        for (j=0; j<8; j++)
+		        {
+					if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
+		               fb_toTransmit.payloadBitErrors++;
+		        }      
+		    }           
+		}             
+        //TODO Give fb_toTransmit to transmitter to transmit back to follower
+
+        // TODO Give controller part of code a copy of fb_toTransmit
+
 	}
+    // If we are a follower or if we are not transmitting OTA
 	else{
 		
 		// Read the feedback directly from the callback parameters
-		struct feedbackStruct fb = {};
-		fb.header_valid         =   _header_valid;
-		fb.payload_valid        =   _payload_valid;
-		fb.payload_len          =   _payload_len;
-		fb.payloadByteErrors    =   0;
-		fb.payloadBitErrors     =   0;
-		fb.evm                  =   _stats.evm;
-		fb.rssi                 =   _stats.rssi;
-		fb.cfo                  =   _stats.cfo;	
-		fb.iteration			=	0;
-		fb.block_flag			=	0;
+		struct feedbackStruct fb_toTransmit = {};
+		fb_toTransmit.header_valid         =   _header_valid;
+		fb_toTransmit.payload_valid        =   _payload_valid;
+		fb_toTransmit.payload_len          =   _payload_len;
+		fb_toTransmit.payloadByteErrors    =   0;
+		fb_toTransmit.payloadBitErrors     =   0;
+		fb_toTransmit.evm                  =   _stats.evm;
+		fb_toTransmit.rssi                 =   _stats.rssi;
+		fb_toTransmit.cfo                  =   _stats.cfo;	
+		fb_toTransmit.iteration			=	0;
 
-		for(int i=0; i<4; i++)	fb.iteration += _header[i+2]<<(8*(3-i));
+		for(int i=0; i<4; i++)	fb_toTransmit.iteration += _header[i+2]<<(8*(3-i));
 
 		if (verbose)
 		{
 			printf("In rxCallback():\n");
 			printf("Header: %i %i %i %i %i %i %i %i\n", _header[0], _header[1], 
 			    _header[2], _header[3], _header[4], _header[5], _header[6], _header[7]);
-			feedbackStruct_print(&fb);
+			feedbackStruct_print(&fb_toTransmit);
 		}
 
 		// Calculate byte error rate and bit error rate for payload
@@ -1313,11 +1358,11 @@ int rxCallback(unsigned char *  _header,
 			tx_byte = msequence_generate_symbol(rx_ms,8);
 		    if (((int)_payload[m] != tx_byte))
 		    {
-		        fb.payloadByteErrors++;
+		        fb_toTransmit.payloadByteErrors++;
 		        for (j=0; j<8; j++)
 		        {
 					if ((_payload[m]&(1<<j)) != (tx_byte&(1<<j)))
-		               fb.payloadBitErrors++;
+		               fb_toTransmit.payloadBitErrors++;
 		        }      
 		    }           
 		}             
@@ -1326,10 +1371,10 @@ int rxCallback(unsigned char *  _header,
 		// TODO: Send other useful data through feedback array
         // If Controller and we are not using USRPs
 		if(rxCBS_ptr->isController){
-            // Copy the feed back from follower about our last transmission 
+            // Copy the feedback from follower about our last transmission 
             // into place to be read by CE.
             pthread_mutex_lock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
-			*rxCBS_ptr->fb_received_ptr = fb;
+			*rxCBS_ptr->fb_received_ptr = fb_toTransmit;
             // Signal to controller CE that this feedback is ready to be used.
             pthread_cond_signal(&rxCBS_ptr->fb_received_ptr->fb_cond);
             pthread_mutex_unlock(&rxCBS_ptr->fb_received_ptr->fb_mutex);
@@ -1342,21 +1387,23 @@ int rxCallback(unsigned char *  _header,
 
 
 			// Receiver sends feedback over TCP link
-			write(rxCBS_ptr->client, (void*)&fb, sizeof(fb));
+			write(rxCBS_ptr->client, (void*)&fb_toTransmit, sizeof(fb_toTransmit));
 
 			// Receiver sends feedback OTA
 			int i = 0;
 			unsigned char header[8] = {0};            // Must always be 8 bytes for ofdmflexframe
-			unsigned char *fb_c_ptr = (unsigned char*)&fb;
+			unsigned char *fb_c_ptr = (unsigned char*)&fb_toTransmit;
 			unsigned char payload[1000];
 			// Generate data
 			if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-			for (size_t k=0; k<sizeof(fb); k++){
+			for (size_t k=0; k<sizeof(fb_toTransmit); k++){
+                //TODO simplify this 
 				payload[k] = *fb_c_ptr;
 				fb_c_ptr++;
 			}
 			
-			for (i=sizeof(fb); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++)
+			for (i=sizeof(fb_toTransmit); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++)
+                //TODO Replace with PR bit sequence
 				payload[i] = i;
 			
 			// Include frame number in header information
