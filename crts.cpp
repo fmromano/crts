@@ -1418,24 +1418,25 @@ int rxCallback(unsigned char *  _header,
 			if (verbose) printf("Frame Num: %u\n", rxCBS_ptr->ce_ptr->frameNumber);
 
 			// Set Modulation Scheme
-			char mod[30] = "BPSK";
-			char FEC0[30] = "Hamming74";
-			char FEC1[30] = "none";
-			modulation_scheme ms = convertModScheme(mod, &rxCBS_ptr->ce_ptr->bitsPerSym);
-			printf("Setting transceiver parameters\n");
-            rxCBS_ptr->txrx_ptr->set_tx_gain_uhd(25.0);
-            rxCBS_ptr->txrx_ptr->set_tx_gain_soft(-8.0);
-			printf("Set transceiver parameters\n");
+			//char mod[30] = "BPSK";
+			//char FEC0[30] = "Hamming74";
+			//char FEC1[30] = "none";
+			modulation_scheme ms = convertModScheme(rxCBS_ptr->ce_ptr->modScheme, &rxCBS_ptr->ce_ptr->bitsPerSym);
+
+			if(verbose) printf("Setting transceiver parameters\n");
+            rxCBS_ptr->txrx_ptr->set_tx_gain_uhd(rxCBS_ptr->ce_ptr->uhd_txgain_dB);
+            rxCBS_ptr->txrx_ptr->set_tx_gain_soft(rxCBS_ptr->ce_ptr->txgain_dB);
+			if(verbose) printf("Set transceiver parameters\n");
 			// Set Cyclic Redundency Check Scheme
 			//crc_scheme check = convertCRCScheme(ce.crcScheme);
 
 			// Set inner forward error correction scheme
 			if (verbose) printf("Inner FEC: ");
-			fec_scheme fec0 = convertFECScheme(FEC0, verbose);
+			fec_scheme fec0 = convertFECScheme(rxCBS_ptr->ce_ptr->innerFEC, verbose);
 
 			// Set outer forward error correction scheme
 			if (verbose) printf("Outer FEC: ");
-			fec_scheme fec1 = convertFECScheme(FEC1, verbose);
+			fec_scheme fec1 = convertFECScheme(rxCBS_ptr->ce_ptr->outerFEC, verbose);
 
 			// Replace with txcvr methods that allow access to samples:
 			rxCBS_ptr->txrx_ptr->assemble_frame(header, payload, rxCBS_ptr->ce_ptr->payloadLen, ms, fec0, fec1);
@@ -2253,14 +2254,16 @@ int main(int argc, char ** argv)
 		if (verbose) 
             printf("\nStarting Tests on Cognitive Engine %d\n", i_CE+1);
             
+        // Initialize current CE
+        ce = CreateCognitiveEngine();
+        readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
+        ce.CEnum = i_CE;
+
+        // Send CE info to follower node(s)
         if(isController){
-		    // Initialize current CE
-			ce = CreateCognitiveEngine();
-			readCEConfigFile(&ce,cogengine_list[i_CE], verbose);
-            ce.CEnum = i_CE;
-			// Send CE info to follower node(s)
 			if(usingUSRPs) write(client, (void*)&ce, sizeof(ce));
 		}
+
         // Use parameters specified on command line if given.
         if (freq_tx_explicit) ce.frequency_tx = frequency_tx;
 		if (freq_rx_explicit) ce.frequency_rx = frequency_rx;
@@ -2333,15 +2336,6 @@ int main(int argc, char ** argv)
 				ofdmtxrx *txcvr_ptr = new ofdmtxrx(ce.numSubcarriers, ce.CPLen, ce.taperLen, p, rxCallback, (void*) &rxCBs, rx_sim);
                     
 				rxCBs.txrx_ptr = txcvr_ptr;
-				// set properties
-                txcvr_ptr->set_tx_freq(ce.frequency_tx);
-                txcvr_ptr->set_tx_rate(ce.bandwidth);
-                txcvr_ptr->set_tx_gain_soft(ce.txgain_dB);
-                txcvr_ptr->set_tx_gain_uhd(ce.uhd_txgain_dB);
-                //txcvr_ptr->set_tx_antenna("TX/RX");
-				txcvr_ptr->set_rx_freq(ce.frequency_rx);
-                txcvr_ptr->set_rx_rate(ce.bandwidth);
-                txcvr_ptr->set_rx_gain_uhd(uhd_rxgain_dB);	
 
 				if (isController) txcvr_ptr->start_rx();
 
@@ -2362,6 +2356,8 @@ int main(int argc, char ** argv)
                        	// Structs for CE and Sc info
                        	struct CognitiveEngine ce_controller;
                        	struct Scenario sc_controller;
+
+                       	struct CognitiveEngine ce_follower;
 						
                        	int continue_running = 1;
 						int rflag;
@@ -2409,10 +2405,40 @@ int main(int argc, char ** argv)
                                 delete txcvr_ptr;
                             }
                                 
+                            // Follower reads initialization info from CE config file
+                            ce_follower = CreateCognitiveEngine();
+                            readCEConfigFile(&ce_follower,cogengine_list[ce_controller.CEnum], verbose);
+                            ce_follower.CEnum = ce_controller.CEnum;
+                            // Use parameters specified on command line if given.
+                            //if(verbose) printf("freq_tx: %f\n", ce_follower.frequency_tx);
+                            if (freq_tx_explicit) ce_follower.frequency_tx = frequency_tx;
+                            //if(verbose) printf("freq_tx_explicit: %d\n", freq_tx_explicit);
+                            //if(verbose) printf("freq_tx: %f\n", ce_follower.frequency_tx);
+                            if (freq_rx_explicit) ce_follower.frequency_rx = frequency_rx;
+                            if (numSC_explicit) ce_follower.numSubcarriers = numSubcarriers;
+                            if (CPLen_explicit) ce_follower.CPLen = CPLen;
+                            if (taperLen_explicit) ce_follower.taperLen= taperLen;
+                            if (uhd_rxgain_dB_explicit) ce_follower.uhd_rxgain_dB = uhd_rxgain_dB;
+                            if (bandwidth_explicit) ce_follower.bandwidth = bandwidth;
+                            rxCBs.bandwidth = ce_follower.bandwidth;
+
+                            rxCBs.ce_ptr = &ce_follower;
+                            rxCBs.sc_ptr = &sc_controller;
+                            //rxCBs.ce_ptr = &ce_controller;
+                            //rxCBs.sc_ptr = &sc_controller;
+
+                            // set properties
+                            txcvr_ptr->set_tx_freq(ce_follower.frequency_tx);
+                            txcvr_ptr->set_tx_rate(ce_follower.bandwidth);
+                            txcvr_ptr->set_tx_gain_soft(ce_follower.txgain_dB);
+                            txcvr_ptr->set_tx_gain_uhd(ce_follower.uhd_txgain_dB);
+                            //txcvr_ptr->set_tx_antenna("TX/RX");
+                            txcvr_ptr->set_rx_freq(ce_follower.frequency_rx);
+                            txcvr_ptr->set_rx_rate(ce_follower.bandwidth);
+                            txcvr_ptr->set_rx_gain_uhd(ce_follower.uhd_rxgain_dB);	
+
                             // Initialize members of esbrs struct sent to enactScenarioBasebandRx()
                             //struct enactScenarioBasebandRxStruct esbrs = {.txcvr_ptr = txcvr_ptr, .ce_ptr = &ce_controller, .sc_ptr = &sc_controller};
-                            rxCBs.ce_ptr = &ce_controller;
-                            rxCBs.sc_ptr = &sc_controller;
                             struct enactScenarioBasebandRxStruct esbrs = {
                                 .txcvr_ptr = txcvr_ptr, 
                                 .ce_ptr = &ce_controller, 
@@ -2434,6 +2460,16 @@ int main(int argc, char ** argv)
                             //int CEnum_prev = ce_controller.CEnum;
                        	}
                     }
+
+                    // set properties
+                    txcvr_ptr->set_tx_freq(ce.frequency_tx);
+                    txcvr_ptr->set_tx_rate(ce.bandwidth);
+                    txcvr_ptr->set_tx_gain_soft(ce.txgain_dB);
+                    txcvr_ptr->set_tx_gain_uhd(ce.uhd_txgain_dB);
+                    //txcvr_ptr->set_tx_antenna("TX/RX");
+                    txcvr_ptr->set_rx_freq(ce.frequency_rx);
+                    txcvr_ptr->set_rx_rate(ce.bandwidth);
+                    txcvr_ptr->set_rx_gain_uhd(ce.uhd_rxgain_dB);	
 
                     if (verbose) {
                        	txcvr_ptr->debug_enable();
