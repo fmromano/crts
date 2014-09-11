@@ -109,6 +109,7 @@ struct CognitiveEngine {
 	unsigned int numSubcarriers;
     unsigned int CPLen;
     unsigned int taperLen;
+    // TODO: Change to size_t ?
 	unsigned int payloadLen;
 
 	// RF parameters
@@ -1394,21 +1395,24 @@ int rxCallback(unsigned char *  _header,
 			write(rxCBS_ptr->client, (void*)&fb_toTransmit, sizeof(fb_toTransmit));
 
 			// Receiver sends feedback OTA
-			int i = 0;
 			unsigned char header[8] = {0};            // Must always be 8 bytes for ofdmflexframe
 			unsigned char *fb_c_ptr = (unsigned char*)&fb_toTransmit;
 			unsigned char payload[1000];
 			// Generate data
 			if (verbose) printf("\n\nGenerating data that will go in frame...\n");
-			for (size_t k=0; k<sizeof(fb_toTransmit); k++){
+            size_t k=0;
+			for (k=0; k<sizeof(fb_toTransmit); k++){
                 //TODO simplify this 
 				payload[k] = *fb_c_ptr;
 				fb_c_ptr++;
 			}
 			
-			for (i=sizeof(fb_toTransmit); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++)
-                //TODO Replace with PR bit sequence
-				payload[i] = i;
+            //FIXME fix these variable types
+			//for (i=sizeof(fb_toTransmit); i<(signed int)rxCBS_ptr->ce_ptr->payloadLen; i++) {
+			for (k=sizeof(fb_toTransmit); k<rxCBS_ptr->ce_ptr->payloadLen; k++) {
+                payload[k] = (unsigned char)msequence_generate_symbol(memSeq,8);
+            }
+            msequence_reset(memSeq);
 			
 			// Include frame number in header information
 			if (verbose) printf("Frame Num: %u\n", rxCBS_ptr->ce_ptr->frameNumber);
